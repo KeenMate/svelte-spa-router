@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(git mv:*)",
+      "Bash(mv:*)",
+      "Bash(rmdir:*)",
+      "Bash(npm run build)",
+      "Read(//c/Git/KM/dhl-rdm-organiogram/frontend/src/lib/features/organization-trees/**)",
+      "WebSearch",
+      "Bash(npm install:*)",
+      "Bash(npm test)",
+      "Bash(npm run dev)",
+      "Read(//c/Git/KM/dhl-rdm-organiogram/frontend/src/lib/helpers/**)",
+      "Read(//c/Git/KM/dhl-rdm-organiogram/frontend/**)",
+      "Bash(npm test:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
