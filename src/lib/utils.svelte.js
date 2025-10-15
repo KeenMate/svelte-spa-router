@@ -191,14 +191,15 @@ function navigate(location, shouldReplace = false) {
     } else {
         // History mode - use pushState/replaceState
         const fullPath = basePath !== '/' ? joinPaths(basePath, location) : location
-        const url = fullPath + window.location.search
+        // Note: Don't append window.location.search here - the location parameter
+        // already contains the querystring if one should be present
 
         if (shouldReplace) {
-            window.history.replaceState({}, '', url)
+            window.history.replaceState({}, '', fullPath)
         } else {
             // Save scroll state before navigation
             history.replaceState({...history.state, __svelte_spa_router_scrollX: window.scrollX, __svelte_spa_router_scrollY: window.scrollY}, undefined)
-            window.history.pushState({}, '', url)
+            window.history.pushState({}, '', fullPath)
         }
 
         // Manually trigger popstate to update location

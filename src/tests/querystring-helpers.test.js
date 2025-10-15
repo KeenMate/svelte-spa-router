@@ -83,6 +83,35 @@ describe('Querystring Helpers', () => {
             // With arrays disabled, it takes the last value
             expect(result.tags).toBe('bar')
         })
+
+        it('should parse comma-separated arrays with arrayFormat=comma', () => {
+            const result = parseQuerystring('tags=foo,bar,baz', { arrayFormat: 'comma' })
+            expect(result).toEqual({
+                tags: ['foo', 'bar', 'baz']
+            })
+        })
+
+        it('should handle mixed comma and non-comma values', () => {
+            const result = parseQuerystring('tags=foo,bar&name=john', { arrayFormat: 'comma' })
+            expect(result).toEqual({
+                tags: ['foo', 'bar'],
+                name: 'john'
+            })
+        })
+
+        it('should trim whitespace in comma-separated arrays', () => {
+            const result = parseQuerystring('tags=foo, bar , baz', { arrayFormat: 'comma' })
+            expect(result).toEqual({
+                tags: ['foo', 'bar', 'baz']
+            })
+        })
+
+        it('should handle single value as string in comma format', () => {
+            const result = parseQuerystring('tag=foo', { arrayFormat: 'comma' })
+            expect(result).toEqual({
+                tag: 'foo'
+            })
+        })
     })
 
     describe('stringifyQuerystring', () => {
@@ -173,6 +202,36 @@ describe('Querystring Helpers', () => {
                 deleted: false
             })
             expect(result).toBe('active=true&deleted=false')
+        })
+
+        it('should stringify arrays with comma format', () => {
+            const result = stringifyQuerystring({
+                tags: ['foo', 'bar', 'baz']
+            }, { arrayFormat: 'comma' })
+            expect(result).toBe('tags=foo%2Cbar%2Cbaz')
+        })
+
+        it('should handle mixed arrays and scalars with comma format', () => {
+            const result = stringifyQuerystring({
+                tags: ['foo', 'bar'],
+                name: 'john',
+                page: 1
+            }, { arrayFormat: 'comma' })
+            expect(result).toBe('tags=foo%2Cbar&name=john&page=1')
+        })
+
+        it('should drop null values in comma-separated arrays', () => {
+            const result = stringifyQuerystring({
+                tags: ['foo', null, 'bar', undefined, 'baz']
+            }, { arrayFormat: 'comma', dropNull: true })
+            expect(result).toBe('tags=foo%2Cbar%2Cbaz')
+        })
+
+        it('should drop empty strings in comma-separated arrays when dropEmpty=true', () => {
+            const result = stringifyQuerystring({
+                tags: ['foo', '', 'bar', 'baz']
+            }, { arrayFormat: 'comma', dropEmpty: true })
+            expect(result).toBe('tags=foo%2Cbar%2Cbaz')
         })
     })
 
@@ -274,6 +333,22 @@ describe('Querystring Helpers', () => {
             await updateQuerystring({ search: '', name: 'bar' }, { dropEmpty: true })
 
             expect(window.location.search).toBe('?name=bar')
+        })
+
+        it('should handle arrays with comma format', async () => {
+            window.history.replaceState({}, '', '/test')
+
+            await updateQuerystring({ tags: ['foo', 'bar', 'baz'] }, { arrayFormat: 'comma' })
+
+            expect(window.location.search).toBe('?tags=foo%2Cbar%2Cbaz')
+        })
+
+        it('should merge with existing params in comma format', async () => {
+            window.history.replaceState({}, '', '/test?tags=foo,bar&page=1')
+
+            await updateQuerystring({ tags: ['foo', 'bar', 'baz'] }, { arrayFormat: 'comma' })
+
+            expect(window.location.search).toBe('?tags=foo%2Cbar%2Cbaz&page=1')
         })
     })
 
@@ -439,6 +514,37 @@ describe('Querystring Helpers', () => {
 
             expect(parsed.search).toBe('foo')
             expect(parsed.tags).toEqual(['a', 'b'])
+            expect(parsed.page).toBe('2') // Note: numbers become strings
+        })
+
+        it('should handle comma format workflow', async () => {
+            window.history.replaceState({}, '', '/products?category=books&sort=name')
+
+            // Add tags using comma format
+            await updateQuerystring({ tags: ['fiction', 'bestseller'] }, { arrayFormat: 'comma' })
+            expect(window.location.search).toBe('?category=books&sort=name&tags=fiction%2Cbestseller')
+
+            // Update tags
+            await updateQuerystring({ tags: ['fiction', 'bestseller', 'new'] }, { arrayFormat: 'comma' })
+            expect(window.location.search).toBe('?category=books&sort=name&tags=fiction%2Cbestseller%2Cnew')
+
+            // Parse the result
+            const parsed = parseQuerystring(window.location.search.substring(1), { arrayFormat: 'comma' })
+            expect(parsed.tags).toEqual(['fiction', 'bestseller', 'new'])
+            expect(parsed.category).toBe('books')
+
+            // Remove tags
+            await updateQuerystring({ tags: null }, { arrayFormat: 'comma' })
+            expect(window.location.search).toBe('?category=books&sort=name')
+        })
+
+        it('should roundtrip parse and stringify with comma format', () => {
+            const original = { search: 'foo', tags: ['a', 'b', 'c'], page: 2 }
+            const stringified = stringifyQuerystring(original, { arrayFormat: 'comma' })
+            const parsed = parseQuerystring(stringified, { arrayFormat: 'comma' })
+
+            expect(parsed.search).toBe('foo')
+            expect(parsed.tags).toEqual(['a', 'b', 'c'])
             expect(parsed.page).toBe('2') // Note: numbers become strings
         })
     })

@@ -8,6 +8,7 @@ import About from './routes/About.svelte'
 import User from './routes/User.svelte'
 import Book from './routes/Book.svelte'
 import LinksDemo from './routes/LinksDemo.svelte'
+import QuerystringDemo from './routes/QuerystringDemo.svelte'
 import NotFound from './routes/NotFound.svelte'
 
 const routes = {
@@ -16,6 +17,7 @@ const routes = {
     '/user/:first/:last?': User,
     '/book/*': Book,
     '/links-demo': LinksDemo,
+    '/querystring-demo': QuerystringDemo,
     '*': NotFound
 }
 
@@ -32,6 +34,7 @@ function handleRouteLoaded(event) {
             <a href="/about" use:link use:active>About</a>
             <a href="/user/john/doe" use:link use:active>User</a>
             <a href="/links-demo" use:link use:active>Links Demo</a>
+            <a href="/querystring-demo" use:link use:active>Querystring Demo</a>
         </nav>
     </header>
 
