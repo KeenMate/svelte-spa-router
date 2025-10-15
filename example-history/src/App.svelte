@@ -15,6 +15,8 @@ import Unauthorized from './routes/Unauthorized.svelte'
 import AdminPanel from './routes/AdminPanel.svelte'
 import Settings from './routes/Settings.svelte'
 import QuerystringDemo from './routes/QuerystringDemo.svelte'
+import FiltersDemo from './routes/FiltersDemo.svelte'
+import RouteDataDemo from './routes/RouteDataDemo.svelte'
 
 // Configure permissions system
 configurePermissions({
@@ -33,6 +35,8 @@ const routes = {
     '/user/:first/:last?': User,
     '/book/*': Book,
     '/querystring-demo': QuerystringDemo,
+    '/filters-demo': FiltersDemo,
+    '/route-data-demo': RouteDataDemo,
     '/unauthorized': Unauthorized,
     '/admin': wrap({
         component: AdminPanel,
@@ -64,6 +68,8 @@ function handleToggleUser() {
             <a href="/about" use:link use:active>About</a>
             <a href="/user/john/doe" use:link use:active>User</a>
             <a href="/querystring-demo" use:link use:active>Querystring</a>
+            <a href="/filters-demo" use:link use:active>Filters</a>
+            <a href="/route-data-demo" use:link use:active>Route Data</a>
             <a href="/admin" use:link use:active>Admin</a>
             <a href="/settings" use:link use:active>Settings</a>
         </nav>

@@ -112,22 +112,32 @@ function getLocation() {
     }
 }
 
-// Reactive location state
-let locationState = $state(getLocation())
+// Trigger for manual updates (must be declared before locationState)
+let updateTrigger = $state(0)
+
+// Reactive location state - use derived to make it reactive to config changes
+let locationState = $derived.by(() => {
+    // This will re-run when hashRoutingEnabled or basePath changes (both are $state)
+    // and also when we manually trigger updates via updateTrigger
+    const _ = updateTrigger
+    const _hashMode = hashRoutingEnabled
+    const _base = basePath
+    return getLocation()
+})
 
 // Listen to navigation events
 if (typeof window !== 'undefined') {
     // Listen to hashchange for hash mode
     window.addEventListener('hashchange', () => {
         if (hashRoutingEnabled) {
-            locationState = getLocation()
+            updateTrigger++
         }
     }, false)
 
     // Listen to popstate for history mode (back/forward buttons)
     window.addEventListener('popstate', () => {
         if (!hashRoutingEnabled) {
-            locationState = getLocation()
+            updateTrigger++
         }
     }, false)
 }

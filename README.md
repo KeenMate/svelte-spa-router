@@ -11,6 +11,9 @@ Main features:
 
 - **Dual-mode routing**: Supports both hash-based (`#/path`) and history API (`/path`) routing
 - Built with **Svelte 5 runes** for better reactivity and performance
+- **TypeScript-first**: Full generic support for `params()`, `query()`, and `filters()` with intellisense
+- **Querystring & Filter helpers**: Flexible, reactive helpers for URL-driven UIs with auto-detection of array formats
+- **Permission system**: Built-in role-based access control with route guards
 - Insanely simple to use, and has a minimal footprint
 - Uses the tiny [regexparam](https://github.com/lukeed/regexparam) for parsing routes, with support for parameters (e.g. `/book/:id?`) and more
 - No server configuration needed for hash mode; clean URLs with history mode
@@ -251,11 +254,48 @@ let { params = {} } = $props()
 
 ```svelte
 <script>
-import {location, querystring} from '@keenmate/svelte-spa-router'
+import {location, querystring, params} from '@keenmate/svelte-spa-router'
+
+// Access current location and querystring
+const currentPath = $derived(location())
+const query = $derived(querystring())
+const routeParams = $derived(params())
 </script>
 
-<p>Current page: {location()}</p>
-<p>Query: {querystring()}</p>
+<p>Current page: {currentPath}</p>
+<p>Query: {query}</p>
+<p>Params: {JSON.stringify(routeParams)}</p>
+```
+
+### TypeScript Support with Generics
+
+All helper functions support TypeScript generics for full intellisense:
+
+```typescript
+// Define your types
+interface UserParams {
+  userId: string
+  tab?: string
+}
+
+interface UserQuery {
+  search?: string
+  page?: number
+  tags?: string[]
+}
+
+// Use with type parameters for full intellisense
+const p = $derived(params<UserParams>())
+const q = $derived(query<UserQuery>())
+
+if (p) {
+  const userId = p.userId        // ✅ TypeScript knows this exists
+  const tab = p.tab || 'profile' // ✅ TypeScript knows this is optional
+}
+
+const search = $derived(q.search || '')
+const page = $derived(q.page ? Number(q.page) : 1)
+const tags = $derived(q.tags || [])  // ✅ TypeScript knows this is string[]
 ```
 
 ### Dynamic imports and code-splitting
@@ -414,6 +454,212 @@ import active from '@keenmate/svelte-spa-router/active'
 <a href="/books" use:link use:active>Books</a>
 ```
 
+## Querystring & Filter Helpers
+
+svelte-spa-router-5 includes powerful helpers for working with querystrings and filters in a reactive, type-safe way.
+
+### Querystring Helpers
+
+#### Basic Setup
+
+Configure once in `main.js`:
+
+```javascript
+import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
+
+configureQuerystring({
+  arrayFormat: 'auto'  // 'auto', 'repeat', or 'comma'
+})
+```
+
+#### Using Shared Reactive Querystring
+
+```svelte
+<script>
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Define your query type for intellisense
+interface SearchQuery {
+  search?: string
+  page?: number
+  category?: string
+  tags?: string[]
+}
+
+// Access query parameters reactively
+const q = $derived(query<SearchQuery>())
+const search = $derived(q.search || '')
+const page = $derived(q.page ? Number(q.page) : 1)
+const category = $derived(q.category || 'all')
+const tags = $derived(q.tags || [])
+
+// Update querystring (merges with existing params)
+async function handleSearch(value: string) {
+  await updateQuerystring({ search: value || undefined, page: 1 })
+}
+
+async function changePage(newPage: number) {
+  await updateQuerystring({ page: newPage })
+}
+
+// Remove parameter completely
+await updateQuerystring({ category: undefined })
+
+// Keep parameter with empty value
+await updateQuerystring({ search: null })
+</script>
+
+<input
+  type="text"
+  value={search}
+  oninput={(e) => handleSearch(e.target.value)}
+/>
+```
+
+#### Array Format Support
+
+The router automatically detects array formats:
+
+```javascript
+// Auto-detect (default) - handles both formats
+// ?tags=foo&tags=bar → { tags: ['foo', 'bar'] }
+// ?tags=foo,bar,baz → { tags: ['foo', 'bar', 'baz'] }
+
+// Explicit repeat format
+configureQuerystring({ arrayFormat: 'repeat' })
+// ?tags=foo&tags=bar
+
+// Explicit comma format
+configureQuerystring({ arrayFormat: 'comma' })
+// ?tags=foo,bar,baz
+```
+
+#### Manual Parsing (without configuration)
+
+```javascript
+import { parseQuerystring, stringifyQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Parse
+const parsed = parseQuerystring('search=foo&tags=a,b,c', { arrayFormat: 'auto' })
+// { search: 'foo', tags: ['a', 'b', 'c'] }
+
+// Stringify
+const qs = stringifyQuerystring({ search: 'foo', tags: ['a', 'b'] }, { arrayFormat: 'repeat' })
+// 'search=foo&tags=a&tags=b'
+```
+
+### Filter Helpers
+
+The filter system supports both flat and structured filter modes for different API requirements.
+
+#### Flat Mode (Default)
+
+Each filter is a separate query parameter:
+
+```javascript
+// main.js
+import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+configureFilters({ mode: 'flat' })
+```
+
+```svelte
+<script>
+import { filters, updateFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+// Define filter type for intellisense
+interface ProductFilters {
+  search?: string
+  category?: string
+  status?: 'active' | 'discontinued'
+  minPrice?: number
+  maxPrice?: number
+}
+
+// Access filters reactively
+const f = $derived(filters<ProductFilters>())
+const search = $derived(f.search || '')
+const category = $derived(f.category || 'all')
+const status = $derived(f.status || 'active')
+
+// Update filters (partial updates by default)
+async function handleSearchChange(value: string) {
+  await updateFilters<ProductFilters>({ search: value || undefined })
+}
+
+async function clearAllFilters() {
+  await updateFilters<ProductFilters>({
+    search: undefined,
+    category: undefined,
+    status: undefined
+  }, { merge: false })  // Replace instead of merge
+}
+</script>
+
+<!-- Result URL: ?search=java&category=books&status=active -->
+```
+
+#### Structured Mode (OData-style)
+
+Single filter parameter with custom syntax:
+
+```javascript
+// main.js
+import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+configureFilters({
+  mode: 'structured',
+  paramName: '$filter',
+  parse: (filterString) => {
+    // Parse "displayName eq 'john' AND status eq 'active'"
+    const parts = filterString.split(' AND ')
+    const result = {}
+    parts.forEach(part => {
+      const [field, , value] = part.split(' ')
+      result[field] = value.replace(/'/g, '')
+    })
+    return result
+  },
+  stringify: (filters) => {
+    // Convert object to OData filter string
+    return Object.entries(filters)
+      .filter(([, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => `${k} eq '${v}'`)
+      .join(' AND ')
+  }
+})
+```
+
+```svelte
+<script>
+import { filters, updateFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+// Same API regardless of mode!
+const f = $derived(filters())
+const search = $derived(f.search || '')
+
+await updateFilters({ search: 'java', status: 'active' })
+// Result URL: ?$filter=search eq 'java' AND status eq 'active'
+</script>
+```
+
+#### null vs undefined in Filters
+
+```javascript
+// undefined: Always removes the parameter
+await updateFilters({ search: undefined })
+// Result: parameter removed from URL
+
+// null: Keeps parameter with empty value
+await updateFilters({ search: null })
+// Result: ?search=
+
+// For querystring helpers, behavior is configurable:
+await updateQuerystring({ search: null }, { dropNull: true })  // Removes it (default)
+await updateQuerystring({ search: null }, { dropNull: false }) // Keeps as ?search=null
+```
+
 ## Advanced Features
 
 ### Scroll restoration
@@ -456,6 +702,107 @@ const routes = {
     onrouteLoaded={(e) => console.log('Loaded:', e.detail)}
     onconditionsFailed={(e) => console.log('Failed:', e.detail)}
 />
+```
+
+## Quick Reference
+
+### All Available Imports
+
+```javascript
+// Core router
+import Router from '@keenmate/svelte-spa-router'
+
+// Navigation utilities
+import { link, push, pop, replace, location, querystring, params } from '@keenmate/svelte-spa-router'
+
+// Route wrapping (async, conditions, loading)
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+// Active link highlighting
+import active from '@keenmate/svelte-spa-router/active'
+
+// Configuration
+import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router/utils'
+
+// Querystring helpers (shared reactive state)
+import { configureQuerystring, query } from '@keenmate/svelte-spa-router/helpers/querystring'
+
+// Querystring helpers (individual functions)
+import {
+  parseQuerystring,
+  stringifyQuerystring,
+  updateQuerystring
+} from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Filter helpers
+import {
+  configureFilters,
+  filters,
+  updateFilters
+} from '@keenmate/svelte-spa-router/helpers/filters'
+
+// Permission system
+import {
+  configurePermissions,
+  createPermissionCondition,
+  createProtectedRoute,
+  hasPermission
+} from '@keenmate/svelte-spa-router/helpers/permissions'
+```
+
+### Common Patterns
+
+```svelte
+<script>
+import { link, location, params } from '@keenmate/svelte-spa-router'
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { filters } from '@keenmate/svelte-spa-router/helpers/filters'
+import active from '@keenmate/svelte-spa-router/active'
+
+// Define types for intellisense
+interface RouteParams {
+  id: string
+}
+
+interface QueryParams {
+  tab?: string
+  search?: string
+}
+
+// Get route data reactively
+const routeParams = $derived(params<RouteParams>())
+const queryParams = $derived(query<QueryParams>())
+const currentFilters = $derived(filters())
+
+// Use in your component
+const id = $derived(routeParams?.id)
+const tab = $derived(queryParams.tab || 'overview')
+const search = $derived(queryParams.search || '')
+</script>
+
+<!-- Navigation with active highlighting -->
+<nav>
+  <a href="/" use:link use:active>Home</a>
+  <a href="/about" use:link use:active>About</a>
+</nav>
+
+<!-- Display current route -->
+<p>Current: {location()}</p>
+```
+
+## Examples
+
+This repository includes three complete example applications:
+
+- **`example/`** - Hash mode routing with basic features
+- **`example-history/`** - History mode with clean URLs, querystring demos, and filter demos
+- **`example-permissions/`** - Permission-based routing with role management
+
+Run examples:
+```bash
+cd example-history
+npm install
+npm run dev
 ```
 
 ## Documentation

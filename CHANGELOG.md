@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added - Querystring & Filter System
+
+#### Querystring Helpers
+- **Shared Reactive State**: `helpers/querystring.svelte.js`
+  - `configureQuerystring(options)` - Configure querystring parsing for entire app
+  - `query<T>()` - Get reactive parsed querystring with TypeScript generics
+  - Auto-detection of array formats (repeat vs comma-separated)
+  - Configure once, use everywhere pattern
+
+- **Querystring Utilities**: `helpers/querystring-helpers.svelte.js`
+  - `parseQuerystring(qs, options)` - Parse querystring with array format support
+  - `stringifyQuerystring(obj, options)` - Convert object to querystring
+  - `getParsedQuerystring(options)` - Get parsed querystring (non-reactive)
+  - `updateQuerystring(updates, options)` - Update URL querystring (partial or full)
+  - `createQuerystringHelpers(parser, stringifier)` - Custom parser support
+
+- **Array Format Support**:
+  - `'auto'` (default) - Auto-detects both repeat and comma formats
+  - `'repeat'` - `?tags=foo&tags=bar` (multiple parameters with same key)
+  - `'comma'` - `?tags=foo,bar,baz` (comma-separated values)
+
+#### Filter System
+- **Flexible Filters**: `helpers/filters.svelte.js`
+  - `configureFilters(options)` - Configure filter mode and parsing
+  - `filters<T>()` - Get reactive parsed filters with TypeScript generics
+  - `updateFilters<T>(updates, options)` - Update filters with type safety
+  - `getFiltersConfig()` - Get current filter configuration
+
+- **Dual Mode Support**:
+  - **Flat Mode** (default): Each filter as separate query parameter
+    - Example: `?search=java&category=books&status=active`
+  - **Structured Mode**: Single parameter with custom syntax
+    - Example: `?$filter=search eq 'java' AND category eq 'books'`
+    - Supports custom parse/stringify functions for OData, Microsoft Graph API, etc.
+
+#### TypeScript Support
+- Full generic support for type-safe parameter access:
+  - `params<T>()` - Route parameters with intellisense
+  - `query<T>()` - Query parameters with intellisense
+  - `filters<T>()` - Filter parameters with intellisense
+  - `updateFilters<T>(updates, options)` - Type-safe filter updates
+
+#### Value Handling
+- **Filters**:
+  - `undefined` - Always removes the parameter
+  - `null` - Keeps parameter with empty value
+- **Querystring**:
+  - `undefined` - Always removes the parameter
+  - `null` - Controlled by `dropNull` option (default: true removes it)
+  - Empty string - Controlled by `dropEmpty` option (default: false keeps it)
+
+#### Example Applications
+- `example-history/src/routes/QuerystringDemo.svelte` - Interactive querystring demo
+- `example-history/src/routes/FiltersDemo.svelte` - Filter system with products demo
+- `example-history/src/routes/RouteDataDemo.svelte` - Route data extraction examples
+
+### Fixed
+- **Router Initialization**: Fixed location state initialization to be reactive to config changes
+  - Issue: Direct URL access (e.g., `http://localhost:5050/querystring-demo`) showed homepage
+  - Solution: Changed from `$state(getLocation())` to `$derived.by()` to react to config changes
+  - Now correctly reads `setHashRoutingEnabled()` before initializing location state
+
+### Documentation
+- Updated `README.md` with comprehensive querystring and filter system documentation
+- Added TypeScript generic examples throughout
+- Added Quick Reference section with all available imports
+- Updated main features list to highlight TypeScript and URL helpers
+
 ## [1.0.0] - 2024
 
 ### Package Information

@@ -27,11 +27,32 @@
    - **History Mode**: Clean URLs like `/path`
    - Configuration functions: `setHashRoutingEnabled()`, `setBasePath()`
    - Reactive state with Svelte 5 runes
+   - Fixed: Location state now reactive to config changes
    - Navigation: `push()`, `pop()`, `replace()`
    - `link` action with modifier key support
    - Location tracking: `location()`, `querystring()`, `params()`
+   - TypeScript generic support: `params<T>()`
 
-3. ✅ **Permission System (helpers/permissions.svelte.js)**
+3. ✅ **Querystring Helpers (helpers/querystring.svelte.js & querystring-helpers.svelte.js)**
+   - **Shared Reactive State**: `configureQuerystring()`, `query<T>()`
+   - **Array Format Auto-Detection**: Supports repeat (`?tags=a&tags=b`) and comma (`?tags=a,b,c`)
+   - **Parsing & Stringifying**: `parseQuerystring()`, `stringifyQuerystring()`
+   - **URL Updates**: `updateQuerystring()` with partial merge support
+   - **Custom Parsers**: `createQuerystringHelpers()` for custom formats
+   - **TypeScript Support**: Full generics for type-safe access
+   - **Configure Once, Use Everywhere**: Single config in main.js
+
+4. ✅ **Filter System (helpers/filters.svelte.js)**
+   - **Dual Mode Support**:
+     - Flat mode: `?search=java&category=books` (default)
+     - Structured mode: `?$filter=search eq 'java' AND category eq 'books'`
+   - **Flexible Parsing**: Custom parse/stringify functions for OData, Microsoft Graph API, etc.
+   - **Reactive State**: `filters<T>()` with TypeScript generics
+   - **Type-Safe Updates**: `updateFilters<T>()` with partial merge
+   - **Configurable**: `configureFilters()` in main.js
+   - **Value Handling**: Clear null vs undefined semantics
+
+5. ✅ **Permission System (helpers/permissions.svelte.js)**
    - Flexible role-based access control (RBAC)
    - Permission requirements: `any: [...]` (OR logic), `all: [...]` (AND logic)
    - `configurePermissions()` - Setup function for permission checking
@@ -40,12 +61,12 @@
    - `hasPermission()` - UI-level permission checking
    - Integration with `wrap()` utility
 
-4. ✅ **Active Link Highlighting (active.svelte.js)**
+6. ✅ **Active Link Highlighting (active.svelte.js)**
    - Automatic CSS class application
    - Works with both hash and history modes
    - Pattern matching support
 
-5. ✅ **Route Wrapping (wrap.js)**
+7. ✅ **Route Wrapping (wrap.js)**
    - Async component loading
    - Code splitting support
    - Loading components
@@ -53,9 +74,15 @@
    - Static props
    - User data attachment
 
-6. ✅ **URL Helpers (helpers/url-helpers.svelte.js)**
+8. ✅ **URL Helpers (helpers/url-helpers.svelte.js)**
    - `joinPaths()` - Intelligent path joining
    - Slash handling and normalization
+
+9. ✅ **TypeScript Support**
+   - Full generic support: `params<T>()`, `query<T>()`, `filters<T>()`
+   - Type-safe updates: `updateFilters<T>()`
+   - Complete .d.ts files with JSDoc examples
+   - Intellisense for all public APIs
 
 ## Architecture
 
@@ -63,14 +90,17 @@
 
 ```
 @keenmate/svelte-spa-router/
-├── Router.svelte              # Main router component (Svelte 5 runes)
-├── utils.svelte.js            # Core routing utilities + dual-mode support
-├── active.svelte.js           # Active link highlighting action
-├── wrap.js                    # Route wrapping utility
-├── constants.js               # Navigation event constants
+├── Router.svelte                      # Main router component (Svelte 5 runes)
+├── utils.svelte.js                    # Core routing utilities + dual-mode support
+├── active.svelte.js                   # Active link highlighting action
+├── wrap.js                            # Route wrapping utility
+├── constants.js                       # Navigation event constants
 └── helpers/
-    ├── url-helpers.svelte.js  # Path manipulation utilities
-    └── permissions.svelte.js  # Permission system (NEW)
+    ├── url-helpers.svelte.js          # Path manipulation utilities
+    ├── permissions.svelte.js          # Permission system
+    ├── querystring.svelte.js          # Shared reactive querystring state
+    ├── querystring-helpers.svelte.js  # Querystring parsing/updating utilities
+    └── filters.svelte.js              # Flexible filter system (flat & structured)
 ```
 
 ### State Management
@@ -167,7 +197,117 @@ wrap({
 })
 ```
 
-### 4. Code Splitting
+### 4. Querystring Helpers
+
+**Configuration (main.js):**
+```javascript
+import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
+
+configureQuerystring({
+  arrayFormat: 'auto'  // 'auto', 'repeat', or 'comma'
+})
+```
+
+**Usage in components:**
+```svelte
+<script>
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Define type for intellisense
+interface SearchQuery {
+  search?: string
+  page?: number
+  tags?: string[]
+}
+
+// Access reactively
+const q = $derived(query<SearchQuery>())
+const search = $derived(q.search || '')
+const page = $derived(q.page ? Number(q.page) : 1)
+const tags = $derived(q.tags || [])
+
+// Update querystring (partial merge)
+async function handleSearch(value: string) {
+  await updateQuerystring({ search: value || undefined, page: 1 })
+}
+</script>
+
+<input type="text" value={search} oninput={(e) => handleSearch(e.target.value)} />
+```
+
+**Array Format Support:**
+- `'auto'` (default): Auto-detects `?tags=a&tags=b` or `?tags=a,b,c`
+- `'repeat'`: `?tags=foo&tags=bar`
+- `'comma'`: `?tags=foo,bar,baz`
+
+### 5. Filter System
+
+**Flat Mode (default):**
+```javascript
+// main.js
+import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+configureFilters({ mode: 'flat' })
+// URL: ?search=java&category=books&status=active
+```
+
+**Structured Mode (OData-style):**
+```javascript
+// main.js
+configureFilters({
+  mode: 'structured',
+  paramName: '$filter',
+  parse: (str) => {
+    // Parse "search eq 'java' AND category eq 'books'"
+    const parts = str.split(' AND ')
+    const result = {}
+    parts.forEach(part => {
+      const [field, , value] = part.split(' ')
+      result[field] = value.replace(/'/g, '')
+    })
+    return result
+  },
+  stringify: (filters) => {
+    // Convert to OData format
+    return Object.entries(filters)
+      .filter(([, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => `${k} eq '${v}'`)
+      .join(' AND ')
+  }
+})
+// URL: ?$filter=search eq 'java' AND category eq 'books'
+```
+
+**Usage (same API for both modes):**
+```svelte
+<script>
+import { filters, updateFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+interface ProductFilters {
+  search?: string
+  category?: string
+  status?: 'active' | 'discontinued'
+}
+
+const f = $derived(filters<ProductFilters>())
+const search = $derived(f.search || '')
+
+// Partial update (merge mode)
+await updateFilters<ProductFilters>({ search: 'java' })
+
+// Full replacement
+await updateFilters<ProductFilters>({ search: 'java' }, { merge: false })
+
+// Remove filter
+await updateFilters<ProductFilters>({ category: undefined })
+
+// Keep as empty
+await updateFilters<ProductFilters>({ search: null })
+</script>
+```
+
+### 6. Code Splitting
 
 ```javascript
 const routes = {
@@ -197,8 +337,8 @@ const routes = {
 
 ### State Functions
 - `location()` - Get current location path
-- `querystring()` - Get current querystring
-- `params()` - Get current route parameters
+- `querystring()` - Get current querystring (raw string)
+- `params<T>()` - Get current route parameters (with optional TypeScript generic)
 - `loc()` - Get full location object
 
 ### Configuration Functions
@@ -206,6 +346,21 @@ const routes = {
 - `setBasePath(string)` - Set base path
 - `getHashRoutingEnabled()` - Get current mode
 - `getBasePath()` - Get current base path
+
+### Querystring Functions
+- `configureQuerystring(options)` - Configure querystring parsing globally
+- `query<T>()` - Get reactive parsed querystring (with optional TypeScript generic)
+- `parseQuerystring(qs, options)` - Parse querystring manually
+- `stringifyQuerystring(obj, options)` - Convert object to querystring
+- `getParsedQuerystring(options)` - Get parsed querystring (non-reactive)
+- `updateQuerystring(updates, options)` - Update URL querystring
+- `createQuerystringHelpers(parser, stringifier)` - Create custom helpers
+
+### Filter Functions
+- `configureFilters(options)` - Configure filter mode and parsing
+- `filters<T>()` - Get reactive parsed filters (with optional TypeScript generic)
+- `updateFilters<T>(updates, options)` - Update filters (type-safe with generic)
+- `getFiltersConfig()` - Get current filter configuration
 
 ### Permission Functions
 - `configurePermissions(config)` - Configure permission system
@@ -254,6 +409,26 @@ import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router/
 import active from '@keenmate/svelte-spa-router/active'
 import { wrap } from '@keenmate/svelte-spa-router/wrap'
 
+// Querystring helpers (shared reactive state - recommended)
+import { configureQuerystring, query } from '@keenmate/svelte-spa-router/helpers/querystring'
+
+// Querystring helpers (individual functions)
+import {
+  parseQuerystring,
+  stringifyQuerystring,
+  getParsedQuerystring,
+  updateQuerystring,
+  createQuerystringHelpers
+} from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Filter helpers
+import {
+  configureFilters,
+  filters,
+  updateFilters,
+  getFiltersConfig
+} from '@keenmate/svelte-spa-router/helpers/filters'
+
 // Permissions
 import {
   configurePermissions,
@@ -273,12 +448,15 @@ import { SvelteSPARouterNavigationEvent } from '@keenmate/svelte-spa-router/cons
 
 **Examples:**
 - `example/` - Hash mode example
-- `example-history/` - History mode example
-- `example-permissions/` - Permission system example (to be created)
+- `example-history/` - History mode example with querystring & filter demos
+  - `/querystring-demo` - Interactive querystring demo with array format switching
+  - `/filters-demo` - Filter system demo with product filtering
+  - `/route-data-demo` - Route data extraction examples
+- `example-permissions/` - Permission system example
 
 **Development Commands:**
 ```bash
-make dev              # Run history mode example
+make dev              # Run history mode example (port 5050)
 make dev-hash         # Run hash mode example
 make build            # Build both examples
 make lint             # Run ESLint
@@ -331,6 +509,41 @@ Svelte 5 runes provide:
 - Permission system is just a helper
 - Users maintain full control
 
+## Design Rationale
+
+### Querystring & Filters - Why Separate Systems?
+
+**Querystring System:**
+- General-purpose URL parameter management
+- Auto-detection of array formats
+- Flexible parsing/stringifying
+- Use case: Pagination, search, tabs, sorting, etc.
+
+**Filter System:**
+- Specialized for data filtering scenarios
+- Supports flat (standard) and structured (OData, Microsoft Graph) modes
+- Custom parsers for backend API compatibility
+- Use case: Product filters, advanced search, data grids, etc.
+
+**Why Both?**
+- Different use cases require different approaches
+- Filters often need to match backend API format
+- Querystring is simpler for most common cases
+- Same underlying principles, specialized for different needs
+
+### Value Handling (null vs undefined)
+
+**Filters:**
+- `undefined` → Remove parameter (clean URL)
+- `null` → Keep as empty string (preserve filter presence)
+
+**Querystring:**
+- `undefined` → Always remove
+- `null` → Configurable via `dropNull` option (default: remove)
+- Empty string → Configurable via `dropEmpty` option (default: keep)
+
+**Rationale:** Filters are user-facing and need clear empty state, querystring needs flexibility for different API patterns.
+
 ## Future Considerations
 
 **Potential Features:**
@@ -339,12 +552,14 @@ Svelte 5 runes provide:
 - More permission helpers (role-based, etc.)
 - Route metadata support
 - Animation/transition helpers
+- Query builder UI for structured filters
 
 **Not Planned:**
 - Built-in authentication
 - Built-in state management
 - Server-side routing
 - Mobile-specific features
+- Opinionated filter UI components
 
 ## Contributing
 

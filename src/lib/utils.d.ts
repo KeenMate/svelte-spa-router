@@ -109,16 +109,44 @@ export function loc(): Location;
 /**
  * Get current route parameters
  *
+ * @template T - Optional type for the route parameters (provides intellisense)
  * @returns Object containing route parameters or undefined
  *
  * @example
  * ```typescript
- * // For route '/user/:id'
  * import { params } from '@keenmate/svelte-spa-router/utils'
+ *
+ * // Without type parameter (basic usage)
+ * // For route '/user/:id'
  * console.log(params()) // { id: '123' }
+ *
+ * // With type parameter (full intellisense)
+ * interface UserParams {
+ *   userId: string
+ *   tab?: string
+ * }
+ *
+ * // For route '/user/:userId/:tab?'
+ * const p = $derived(params<UserParams>())
+ * if (p) {
+ *   const userId = p.userId  // ✅ TypeScript knows this exists
+ *   const tab = p.tab        // ✅ TypeScript knows this is optional
+ * }
+ *
+ * // Another example with book details
+ * interface BookParams {
+ *   bookId: string
+ *   section?: string
+ * }
+ *
+ * // For route '/book/:bookId/:section?'
+ * const bookParams = $derived(params<BookParams>())
+ * if (bookParams) {
+ *   fetchBook(bookParams.bookId)  // ✅ Type-safe
+ * }
  * ```
  */
-export function params(): Record<string, string> | undefined;
+export function params<T = Record<string, string>>(): T | undefined;
 
 /**
  * Navigate to a new page programmatically

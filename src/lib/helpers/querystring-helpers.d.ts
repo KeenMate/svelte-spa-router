@@ -3,6 +3,11 @@
  */
 
 /**
+ * Array format types for querystring parsing/stringifying
+ */
+export type ArrayFormat = 'auto' | 'repeat' | 'comma'
+
+/**
  * Options for parsing querystring
  */
 export interface ParseOptions {
@@ -10,6 +15,11 @@ export interface ParseOptions {
      * Parse array parameters (default: true)
      */
     arrays?: boolean
+    /**
+     * Array format: 'auto' (auto-detect), 'repeat' (tags=x&tags=y), or 'comma' (tags=x,y,z)
+     * Default: 'auto'
+     */
+    arrayFormat?: ArrayFormat
 }
 
 /**
@@ -24,6 +34,11 @@ export interface StringifyOptions {
      * Drop empty strings (default: false)
      */
     dropEmpty?: boolean
+    /**
+     * Array format: 'repeat' (tags=x&tags=y) or 'comma' (tags=x,y,z)
+     * Default: 'repeat'
+     */
+    arrayFormat?: 'repeat' | 'comma'
 }
 
 /**

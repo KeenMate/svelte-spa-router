@@ -14,18 +14,22 @@ import { querystring, location, push, replace } from '../utils.svelte.js'
  * @param {string} qs - Querystring to parse
  * @param {Object} options - Parsing options
  * @param {boolean} options.arrays - Parse array parameters (default: true)
- * @param {string} options.arrayFormat - Array format: 'repeat' (tags=x&tags=y) or 'comma' (tags=x,y,z) (default: 'repeat')
+ * @param {string} options.arrayFormat - Array format: 'auto' (auto-detect), 'repeat' (tags=x&tags=y), or 'comma' (tags=x,y,z) (default: 'auto')
  * @returns {Object} Parsed querystring object
  *
  * @example
- * // Repeat format (default)
+ * // Auto-detect format (default) - detects both repeat and comma formats
  * parseQuerystring('tags=foo&tags=bar') // { tags: ['foo', 'bar'] }
+ * parseQuerystring('tags=foo,bar,baz') // { tags: ['foo', 'bar', 'baz'] }
  *
- * // Comma format
+ * // Explicit repeat format
+ * parseQuerystring('tags=foo&tags=bar', { arrayFormat: 'repeat' }) // { tags: ['foo', 'bar'] }
+ *
+ * // Explicit comma format
  * parseQuerystring('tags=foo,bar,baz', { arrayFormat: 'comma' }) // { tags: ['foo', 'bar', 'baz'] }
  */
 export function parseQuerystring(qs, options = {}) {
-    const { arrays = true, arrayFormat = 'repeat' } = options
+    const { arrays = true, arrayFormat = 'auto' } = options
 
     if (!qs) {
         return {}
@@ -40,17 +44,31 @@ export function parseQuerystring(qs, options = {}) {
             // Arrays disabled, take last value
             result[key] = value
         } else if (arrayFormat === 'comma') {
-            // Comma-separated format: split on comma
+            // Explicit comma-separated format: always split on comma
             if (value.includes(',')) {
                 result[key] = value.split(',').map(v => v.trim())
             } else {
                 result[key] = value
             }
-        } else {
-            // Repeat format (default): multiple params with same key
+        } else if (arrayFormat === 'repeat') {
+            // Explicit repeat format: only use multiple params with same key
             if (params.getAll(key).length > 1) {
                 result[key] = params.getAll(key)
             } else {
+                result[key] = value
+            }
+        } else {
+            // Auto-detect format (default)
+            const allValues = params.getAll(key)
+
+            if (allValues.length > 1) {
+                // Multiple params with same key = repeat format
+                result[key] = allValues
+            } else if (value.includes(',')) {
+                // Single param with commas = comma format
+                result[key] = value.split(',').map(v => v.trim())
+            } else {
+                // Single value
                 result[key] = value
             }
         }
@@ -130,17 +148,18 @@ export function stringifyQuerystring(obj, options = {}) {
  *
  * @param {Object} options - Parsing options
  * @param {boolean} options.arrays - Parse array parameters (default: true)
- * @param {string} options.arrayFormat - Array format: 'repeat' or 'comma' (default: 'repeat')
+ * @param {string} options.arrayFormat - Array format: 'auto' (auto-detect), 'repeat', or 'comma' (default: 'auto')
  * @returns {Object} Parsed querystring object
  *
  * @example
- * // In a component:
+ * // In a component with auto-detect (default):
  * const query = $derived(getParsedQuerystring())
- * // query updates automatically when URL changes
- * console.log(query.search, query.page)
+ * // Automatically handles both formats:
+ * // URL: ?tags=foo&tags=bar → query.tags = ['foo', 'bar']
+ * // URL: ?tags=foo,bar,baz → query.tags = ['foo', 'bar', 'baz']
  *
  * @example
- * // With comma-separated arrays:
+ * // Force specific format:
  * const query = $derived(getParsedQuerystring({ arrayFormat: 'comma' }))
  * // URL: ?tags=foo,bar,baz
  * console.log(query.tags) // ['foo', 'bar', 'baz']
@@ -158,23 +177,37 @@ export function getParsedQuerystring(options) {
  * @param {boolean} options.replace - Use replace instead of push (default: false)
  * @param {boolean} options.dropNull - Drop null/undefined values (default: true)
  * @param {boolean} options.dropEmpty - Drop empty strings (default: false)
- * @param {string} options.arrayFormat - Array format: 'repeat' or 'comma' (default: 'repeat')
+ * @param {string} options.arrayFormat - Array format for WRITING: 'repeat' or 'comma' (default: 'repeat'). For READING, use 'auto' in getParsedQuerystring()
  * @returns {Promise<void>}
  *
  * @example
  * // Update search parameter while keeping other params
  * await updateQuerystring({ search: 'foo' })
  *
- * // Remove a parameter by setting to null
+ * // Remove a parameter completely (always removes)
+ * await updateQuerystring({ page: undefined })
+ * // Result: parameter removed from URL
+ *
+ * // Remove a parameter (respects dropNull option, default: true)
  * await updateQuerystring({ page: null })
+ * // Result: parameter removed from URL (because dropNull defaults to true)
+ *
+ * // Keep null values in URL (set dropNull: false)
+ * await updateQuerystring({ page: null }, { dropNull: false })
+ * // Result: ?page=null
  *
  * // Replace history instead of push
  * await updateQuerystring({ filter: 'active' }, { replace: true })
  *
  * @example
- * // Using comma-separated array format
+ * // Using comma-separated array format for output
  * await updateQuerystring({ tags: ['foo', 'bar', 'baz'] }, { arrayFormat: 'comma' })
  * // Results in: ?tags=foo,bar,baz
+ *
+ * @example
+ * // Reading with auto-detect, writing with specific format
+ * const query = $derived(getParsedQuerystring()) // Auto-detects format
+ * await updateQuerystring({ tags: [...query.tags, 'new'] }, { arrayFormat: 'comma' })
  */
 export async function updateQuerystring(updates, options = {}) {
     const { replace: shouldReplace = false, dropNull = true, dropEmpty = false, arrayFormat = 'repeat' } = options
@@ -187,14 +220,20 @@ export async function updateQuerystring(updates, options = {}) {
     // Merge with updates
     const merged = { ...current, ...updates }
 
-    // Remove null values if requested (allows removing params by setting to null)
-    if (dropNull) {
-        Object.keys(merged).forEach(key => {
-            if (merged[key] === null || merged[key] === undefined) {
-                delete merged[key]
-            }
-        })
-    }
+    // Remove values based on options:
+    // - undefined always removes the parameter
+    // - null removes only if dropNull is true (default: true)
+    // - empty string removes only if dropEmpty is true (default: false)
+    Object.keys(merged).forEach(key => {
+        const value = merged[key]
+        if (value === undefined) {
+            delete merged[key]
+        } else if (dropNull && value === null) {
+            delete merged[key]
+        } else if (dropEmpty && value === '') {
+            delete merged[key]
+        }
+    })
 
     // Stringify new querystring
     const newQs = stringifyQuerystring(merged, { dropNull, dropEmpty, arrayFormat })
