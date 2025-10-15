@@ -2,6 +2,7 @@
 import {parse} from 'regexparam'
 import { tick, untrack } from 'svelte'
 import { location, querystring, params, setParams, restoreScroll } from './utils.svelte.js'
+import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 
 // Re-export utilities so they can be imported from Router
 export { link, push, pop, replace, location, querystring, params, loc, restoreScroll } from './utils.svelte.js'
@@ -175,6 +176,8 @@ let previousScrollState = $state(null)
 
 // Track last location to handle race conditions
 let lastLoc = null
+let currentLocation = $state(null)
+let currentQuerystring = $state('')
 
 // Dispatch events using callbacks
 function dispatchEvent(name, detail) {
@@ -236,6 +239,37 @@ $effect(() => {
 
     // Run routing logic
     ;(async () => {
+        // Run beforeLeave guards if we're changing routes
+        if (currentLocation && currentLocation !== newLoc.location) {
+            const canLeave = await runBeforeLeaveGuards({
+                from: currentLocation,
+                to: newLoc.location,
+                params: untrack(() => params()),
+                querystring: untrack(() => querystring())
+            })
+
+            if (!canLeave) {
+                // Navigation cancelled - revert to current location
+                // We need to restore the browser history state with the original querystring
+                if (typeof window !== 'undefined' && window.history) {
+                    // Build the full URL with the original querystring
+                    const fullPath = currentLocation + (currentQuerystring ? '?' + currentQuerystring : '')
+
+                    // Push the previous location back to history
+                    const hashMode = location().startsWith('#')
+                    if (hashMode) {
+                        window.location.hash = fullPath
+                    } else {
+                        window.history.pushState({}, '', fullPath)
+                    }
+                }
+                return
+            }
+        }
+
+        // Update current location and querystring
+        currentLocation = newLoc.location
+        currentQuerystring = newLoc.querystring
         lastLoc = newLoc
 
         // Find a route matching the location

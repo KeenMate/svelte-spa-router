@@ -22,3 +22,6 @@ export * from './helpers/querystring.svelte.js';
 
 // Filters helpers (flexible filter system)
 export * from './helpers/filters.svelte.js';
+
+// Navigation guard system
+export * from './helpers/navigation-guard.svelte.js';
