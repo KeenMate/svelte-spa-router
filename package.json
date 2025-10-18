@@ -1,10 +1,18 @@
 {
   "name": "@keenmate/svelte-spa-router",
-  "version": "1.0.0",
+  "version": "5.0.0-rc04",
   "description": "Router for SPAs using Svelte 5 with runes, dual-mode routing, and permissions",
   "main": "./src/lib/index.js",
   "svelte": "./src/lib/Router.svelte",
   "type": "module",
+  "files": [
+    "src/lib/**/*.js",
+    "src/lib/**/*.svelte",
+    "src/lib/**/*.d.ts",
+    "README.md",
+    "LICENSE.md",
+    "CHANGELOG.md"
+  ],
   "exports": {
     ".": {
       "types": "./src/lib/index.d.ts",
@@ -36,8 +44,24 @@
       "import": "./src/lib/helpers/permissions.svelte.js"
     },
     "./helpers/querystring": {
+      "types": "./src/lib/helpers/querystring.d.ts",
+      "import": "./src/lib/helpers/querystring.svelte.js"
+    },
+    "./helpers/querystring-helpers": {
       "types": "./src/lib/helpers/querystring-helpers.d.ts",
       "import": "./src/lib/helpers/querystring-helpers.svelte.js"
+    },
+    "./helpers/filters": {
+      "types": "./src/lib/helpers/filters.d.ts",
+      "import": "./src/lib/helpers/filters.svelte.js"
+    },
+    "./helpers/navigation-guard": {
+      "types": "./src/lib/helpers/navigation-guard.d.ts",
+      "import": "./src/lib/helpers/navigation-guard.svelte.js"
+    },
+    "./helpers/route-metadata": {
+      "types": "./src/lib/helpers/route-metadata.d.ts",
+      "import": "./src/lib/helpers/route-metadata.svelte.js"
     },
     "./constants": {
       "types": "./src/lib/constants.d.ts",

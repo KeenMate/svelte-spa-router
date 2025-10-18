@@ -1,5 +1,5 @@
 <script>
-import { filters, updateFilters } from '../../../src/lib/helpers/filters.svelte.js'
+import { filters, updateFilters } from '@keenmate/svelte-spa-router/helpers/filters'
 
 // Sample products data
 const allProducts = [

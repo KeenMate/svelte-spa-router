@@ -1,49 +1,83 @@
-# @keenmate/svelte-spa-router Example
+# Svelte SPA Router - Example Application
 
-This is a simple example demonstrating @keenmate/svelte-spa-router with Svelte 5 runes.
+This example demonstrates the features of `@keenmate/svelte-spa-router` with support for both **hash-based** and **history-based** routing.
 
-## Setup
+## Routing Modes
 
-```bash
-npm install
-```
+The example supports two routing modes controlled by the `VITE_ROUTING_MODE` environment variable:
 
-## Run Development Server
+- **History Mode** (default): Uses HTML5 History API with clean URLs (e.g., `/about`)
+- **Hash Mode**: Uses hash-based routing (e.g., `/#/about`)
 
+## Development
+
+### Run with History Mode (default)
 ```bash
 npm run dev
+# or explicitly
+npm run dev:history
+```
+Runs on http://localhost:5050
+
+### Run with Hash Mode
+```bash
+npm run dev:hash
+```
+Runs on http://localhost:5051
+
+## Building
+
+### Build for History Mode
+```bash
+npm run build:history
+```
+Output: `dist-history/`
+
+### Build for Hash Mode
+```bash
+npm run build:hash
+```
+Output: `dist-hash/`
+
+## Docker
+
+You can build Docker images for either mode:
+
+```dockerfile
+# For history mode
+ARG ROUTING_MODE=history
+ENV VITE_ROUTING_MODE=$ROUTING_MODE
+RUN npm run build:${ROUTING_MODE}
 ```
 
-Then open http://localhost:5050
+Or at build time:
+```bash
+docker build --build-arg ROUTING_MODE=hash -t example-hash .
+docker build --build-arg ROUTING_MODE=history -t example-history .
+```
+
+## Implementation
+
+The routing mode is configured in `src/main.js`:
+
+```javascript
+const routingMode = import.meta.env.VITE_ROUTING_MODE || 'history'
+setHashRoutingEnabled(routingMode === 'hash')
+```
 
 ## Features Demonstrated
 
-- ✅ Basic routing with exact paths (`/`, `/about`)
-- ✅ Named parameters (`/user/:first/:last?`)
-- ✅ Optional parameters (`:last?`)
-- ✅ Wildcard routes (`/book/*`)
-- ✅ Catch-all 404 route (`*`)
-- ✅ `use:link` action for navigation
-- ✅ `use:active` action for active link highlighting
-- ✅ Accessing `location()` and `querystring()`
-- ✅ Accessing route `params` in components
-- ✅ Route event handlers (`onrouteLoaded`)
-
-## Routes
-
-- `/` - Home page with navigation
-- `/about` - About page showing location and querystring
-- `/user/:first/:last?` - User profile with required first name and optional last name
-- `/book/*` - Book details with wildcard parameter
-- `*` - 404 Not Found page (catch-all)
-
-## Try These URLs
-
-- http://localhost:5050/#/
-- http://localhost:5050/#/about
-- http://localhost:5050/#/about?foo=bar
-- http://localhost:5050/#/user/john/doe
-- http://localhost:5050/#/user/jane
-- http://localhost:5050/#/book/svelte-guide
-- http://localhost:5050/#/book/advanced/chapter-5
-- http://localhost:5050/#/nonexistent (404)
+- Named routes with `registerRoutes()`
+- Route parameters (`:id`, `:first/:last`)
+- Optional parameters (`:last?`)
+- Wildcard routes (`*`)
+- Static prefix parameters (`project-:code`)
+- Query string handling
+- Navigation guards (`beforeLeave`)
+- Route metadata and breadcrumbs
+- Permissions system
+- Loading states with `shouldDisplayLoadingOnRouteLoad`
+- Active link highlighting
+- Programmatic navigation (`push`, `replace`, `pop`)
+- Scroll restoration
+- Filters (OData-style structured mode)

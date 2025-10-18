@@ -1,8 +1,9 @@
 <script>
-import {parse} from 'regexparam'
+import {parse} from './parse-route.js'
 import { tick, untrack } from 'svelte'
 import { location, querystring, params, setParams, restoreScroll } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
+import { updateRouteMetadata, startRouteLoading, waitForRouteReady, hideLoading } from './helpers/route-metadata.svelte.js'
 
 // Re-export utilities so they can be imported from Router
 export { link, push, pop, replace, location, querystring, params, loc, restoreScroll } from './utils.svelte.js'
@@ -64,12 +65,14 @@ class RouteItem {
             this.conditions = component.conditions || []
             this.userData = component.userData
             this.props = component.props || {}
+            this.shouldDisplayLoadingOnRouteLoad = component.shouldDisplayLoadingOnRouteLoad || false
         }
         else {
             // Convert the component to a function that returns a Promise, to normalize it
             this.component = () => Promise.resolve(component)
             this.conditions = []
             this.props = {}
+            this.shouldDisplayLoadingOnRouteLoad = false
         }
 
         this._pattern = pattern
@@ -169,7 +172,11 @@ else {
 let component = $state(null)
 let componentParams = $state(null)
 let componentProps = $state({})
+let componentUserData = $state({})
 let componentObj = $state(null)
+let loadingComponent = $state(null)
+let loadingParams = $state(null)
+let isWaitingForData = $state(false)
 
 // Previous scroll state for restoration
 let previousScrollState = $state(null)
@@ -294,6 +301,9 @@ $effect(() => {
                 // Don't display anything
                 component = null
                 componentObj = null
+                componentUserData = {}
+                isWaitingForData = false
+                updateRouteMetadata({})
                 // Trigger an event to notify the user, then exit
                 dispatchNextTick('conditionsFailed', detail)
                 return
@@ -302,29 +312,41 @@ $effect(() => {
             // Trigger an event to alert that we're loading the route
             dispatchNextTick('routeLoading', Object.assign({}, detail))
 
+            // Check if this route should display loading on route load
+            const shouldDisplayLoadingOnRouteLoad = routesList[i].shouldDisplayLoadingOnRouteLoad
+
             // If there's a component to show while we're loading the route, display it
             const obj = routesList[i].component
             // Do not replace the component if we're loading the same one as before
             if (componentObj != obj) {
+                // Store loading component info if exists
                 if (obj.loading) {
-                    component = obj.loading
-                    componentObj = obj
-                    componentParams = obj.loadingParams
-                    componentProps = {}
+                    loadingComponent = obj.loading
+                    loadingParams = obj.loadingParams
 
-                    // Trigger the routeLoaded event for the loading component
-                    dispatchNextTick('routeLoaded', Object.assign({}, detail, {
-                        component: component,
-                        name: component.name,
-                        params: componentParams
-                    }))
+                    // If NOT waiting for data, show loading component immediately
+                    if (!shouldDisplayLoadingOnRouteLoad) {
+                        component = obj.loading
+                        componentObj = obj
+                        componentParams = obj.loadingParams
+                        componentProps = {}
+
+                        // Trigger the routeLoaded event for the loading component
+                        dispatchNextTick('routeLoaded', Object.assign({}, detail, {
+                            component: component,
+                            name: component.name,
+                            params: componentParams
+                        }))
+                    }
                 }
                 else {
+                    loadingComponent = null
+                    loadingParams = null
                     component = null
                     componentObj = null
                 }
 
-                // Invoke the Promise
+                // Invoke the Promise to load the actual component
                 const loaded = await obj()
 
                 // Check if we still want this component
@@ -337,6 +359,14 @@ $effect(() => {
                 componentObj = obj
             }
 
+            // If shouldDisplayLoadingOnRouteLoad is true, set waiting state and wait for component to signal ready
+            if (shouldDisplayLoadingOnRouteLoad && loadingComponent) {
+                isWaitingForData = true
+                startRouteLoading()
+                await waitForRouteReady()
+                isWaitingForData = false
+            }
+
             // Set componentParams only if we have a match
             if (match && typeof match == 'object' && Object.keys(match).length) {
                 componentParams = match
@@ -345,8 +375,12 @@ $effect(() => {
                 componentParams = null
             }
 
-            // Set static props
+            // Set static props and userData
             componentProps = routesList[i].props
+            componentUserData = detail.userData || {}
+
+            // Update route metadata
+            updateRouteMetadata(detail.userData || {})
 
             // Dispatch the routeLoaded event then exit
             dispatchNextTick('routeLoaded', Object.assign({}, detail, {
@@ -362,15 +396,41 @@ $effect(() => {
         // If we're still here, there was no match
         component = null
         componentObj = null
+        componentUserData = {}
+        isWaitingForData = false
         setParams(undefined)
+        updateRouteMetadata({})
     })()
 })
 </script>
 
-{#if component}
-    {#if componentParams}
-        <svelte:component this={component} params={componentParams} {onrouteEvent} {...componentProps} />
+{#if isWaitingForData && loadingComponent}
+    <!-- Show loading component while waiting for data -->
+    {#if loadingParams}
+        {@const LoadingComp = loadingComponent}
+        <LoadingComp params={loadingParams} />
     {:else}
-        <svelte:component this={component} {onrouteEvent} {...componentProps} />
+        {@const LoadingComp = loadingComponent}
+        <LoadingComp />
+    {/if}
+
+    <!-- Mount real component hidden (so it can fetch data) -->
+    <div style="display: none;">
+        {#if componentParams}
+            {@const Comp = component}
+            <Comp params={componentParams} {onrouteEvent} userData={componentUserData} {...componentProps} />
+        {:else}
+            {@const Comp = component}
+            <Comp {onrouteEvent} userData={componentUserData} {...componentProps} />
+        {/if}
+    </div>
+{:else if component}
+    <!-- Normal rendering (no waiting for data) -->
+    {#if componentParams}
+        {@const Comp = component}
+        <Comp params={componentParams} {onrouteEvent} userData={componentUserData} {...componentProps} />
+    {:else}
+        {@const Comp = component}
+        <Comp {onrouteEvent} userData={componentUserData} {...componentProps} />
     {/if}
 {/if}

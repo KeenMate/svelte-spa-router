@@ -1,5 +1,5 @@
 <script>
-import { push } from '../../../src/lib/utils.svelte.js'
+import { push } from '@keenmate/svelte-spa-router/utils'
 import { user } from '../stores/userStore.svelte.js'
 
 const currentUser = $derived(user())

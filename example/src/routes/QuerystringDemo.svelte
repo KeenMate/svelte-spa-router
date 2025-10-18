@@ -1,11 +1,33 @@
 <script>
-import { getParsedQuerystring, updateQuerystring } from '../../../src/lib/helpers/querystring-helpers.svelte.js'
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+import { querystring } from '@keenmate/svelte-spa-router/utils'
 
-// State for array format selection
-let arrayFormat = $state('repeat') // 'repeat' or 'comma'
+// Detect initial array format from URL
+function detectArrayFormat() {
+    const qs = querystring()
+    if (!qs) return 'repeat'
 
-// Reactive parsed querystring - updates automatically when URL changes
-const query = $derived(getParsedQuerystring({ arrayFormat }))
+    // Check if any parameter contains commas (indicating comma format)
+    const params = new URLSearchParams(qs)
+    for (const [key, value] of params.entries()) {
+        if (params.getAll(key).length > 1) {
+            // Multiple params with same key = repeat format
+            return 'repeat'
+        }
+        if (value.includes(',')) {
+            // Single param with comma = comma format
+            return 'comma'
+        }
+    }
+    return 'repeat'
+}
+
+// State for array format selection - detect initial format from URL
+let arrayFormat = $state(detectArrayFormat())
+
+// Note: We're using the shared reactive query from querystring-helpers
+// No need to call getParsedQuerystring() - it's already parsed and reactive!
 
 // Sample data
 const categories = ['all', 'books', 'electronics', 'clothing', 'food']
@@ -16,11 +38,12 @@ const sortOptions = [
 ]
 
 // Derived values from querystring
-const search = $derived(query.search || '')
-const category = $derived(query.category || 'all')
-const sort = $derived(query.sort || 'name')
-const page = $derived(query.page ? Number(query.page) : 1)
-const tags = $derived(Array.isArray(query.tags) ? query.tags : (query.tags ? [query.tags] : []))
+// Note: query() is a function, so we call it to get the current parsed querystring
+const search = $derived(query().search || '')
+const category = $derived(query().category || 'all')
+const sort = $derived(query().sort || 'name')
+const page = $derived(query().page ? Number(query().page) : 1)
+const tags = $derived(Array.isArray(query().tags) ? query().tags : (query().tags ? [query().tags] : []))
 
 // Sample items filtered by query
 const allItems = [
@@ -147,7 +170,7 @@ async function changePage(newPage) {
 
     <div class="info-box">
         <strong>🔗 Current URL State:</strong>
-        <pre><code>{JSON.stringify(query, null, 2)}</code></pre>
+        <pre><code>{JSON.stringify(query(), null, 2)}</code></pre>
         <p class="hint">Try bookmarking this page or sharing the URL - the filters will be preserved!</p>
     </div>
 
@@ -245,28 +268,40 @@ async function changePage(newPage) {
     </div>
 
     <div class="usage-example">
-        <h3>Usage Example:</h3>
-        <pre><code>{`import { getParsedQuerystring, updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
+        <h3>✨ New: Simplified API (Recommended)</h3>
+        <p class="api-note">Configure once in <code>main.js</code>, use everywhere:</p>
+        <pre><code>{`// 1️⃣ Configure in main.js (once)
+import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
 
-// Reactive parsed querystring with array format
+configureQuerystring({ arrayFormat: 'auto' }) // Auto-detects format!
+
+// 2️⃣ Use in any component (no config needed!)
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Access values - simple and clean!
+const search = $derived(query().search || '')
+const page = $derived(query().page ? Number(query().page) : 1)
+const tags = $derived(Array.isArray(query().tags) ? query().tags : [])
+
+// Update querystring
+async function toggleTag(tag) {
+    const newTags = tags.includes(tag) ? tags.filter(t => t !== tag) : [...tags, tag]
+    await updateQuerystring({ tags: newTags.length > 0 ? newTags : null, page: 1 })
+}`}</code></pre>
+
+        <h3>📚 Alternative: Manual Configuration (Per Component)</h3>
+        <p class="api-note">If you need different formats per component:</p>
+        <pre><code>{`import { getParsedQuerystring, updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Specify format per component
 const query = $derived(getParsedQuerystring({ arrayFormat: '${arrayFormat}' }))
 
-// Access values
 const search = $derived(query.search || '')
-const page = $derived(query.page ? Number(query.page) : 1)
 const tags = $derived(Array.isArray(query.tags) ? query.tags : [])
 
-// Update partial querystring with array format
-async function toggleTag(tag) {
-    const newTags = tags.includes(tag)
-        ? tags.filter(t => t !== tag)
-        : [...tags, tag]
-
-    await updateQuerystring({
-        tags: newTags.length > 0 ? newTags : null,
-        page: 1
-    }, { arrayFormat: '${arrayFormat}' })
-}`}</code></pre>
+// Specify format when updating
+await updateQuerystring({ tags: ['foo', 'bar'] }, { arrayFormat: '${arrayFormat}' })`}</code></pre>
     </div>
 </div>
 
@@ -565,6 +600,25 @@ h1 {
 
 .usage-example h3 {
     margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+.usage-example h3:not(:first-child) {
+    margin-top: 2rem;
+}
+
+.api-note {
+    margin: 0.5rem 0 1rem 0;
+    color: #666;
+    font-size: 0.95em;
+}
+
+.api-note code {
+    background: white;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    color: #ff3e00;
+    font-weight: 600;
 }
 
 .usage-example pre {
@@ -573,6 +627,7 @@ h1 {
     padding: 1rem;
     border-radius: 4px;
     overflow-x: auto;
+    margin-bottom: 1rem;
 }
 
 .usage-example code {

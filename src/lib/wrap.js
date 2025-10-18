@@ -27,6 +27,22 @@
  * @property {object} [userData] - Optional object that will be passed to events such as `routeLoading`, `routeLoaded`, `conditionsFailed`
  * @property {object} [props] - Optional key-value dictionary of static props that will be passed to the component. The props are expanded with {...props}, so the key in the dictionary becomes the name of the prop.
  * @property {RoutePrecondition[]|RoutePrecondition} [conditions] - Route pre-conditions to add, which will be executed in order
+ * @property {string} [title] - Page title for this route
+ * @property {Array<{label: string, path?: string}>} [breadcrumbs] - Breadcrumb trail for this route
+ * @property {boolean} [shouldDisplayLoadingOnRouteLoad] - If true, keeps loading component visible until component calls hideLoading()
+ */
+
+/**
+ * @typedef {Object} RouteOptions Options for creating a route
+ * @property {Function|SvelteComponent} component - Component (sync) or async import function
+ * @property {SvelteComponent} [loadingComponent] - Loading placeholder component
+ * @property {object} [loadingParams] - Props for loading component
+ * @property {object} [userData] - Custom user data
+ * @property {object} [props] - Static props for the component
+ * @property {RoutePrecondition[]|RoutePrecondition} [conditions] - Route guards/pre-conditions
+ * @property {string} [title] - Page title
+ * @property {Array<{label: string, path?: string}>} [breadcrumbs] - Breadcrumb trail
+ * @property {boolean} [shouldDisplayLoadingOnRouteLoad] - If true, keeps loading component visible until component calls hideLoading()
  */
 
 /**
@@ -84,10 +100,133 @@ export function wrap(args) {
         userData: args.userData,
         conditions: (args.conditions && args.conditions.length) ? args.conditions : undefined,
         props: (args.props && Object.keys(args.props).length) ? args.props : {},
+        shouldDisplayLoadingOnRouteLoad: args.shouldDisplayLoadingOnRouteLoad || false,
         _sveltesparouter: true
     }
 
     return obj
+}
+
+/**
+ * Creates a route definition (without wrap)
+ * Returns a configuration object that must be passed to wrap()
+ *
+ * @param {RouteOptions} options - Route configuration options
+ * @returns {WrapOptions} Route definition (pass to wrap())
+ *
+ * @example
+ * ```javascript
+ * import { wrap, createRouteDefinition } from '@keenmate/svelte-spa-router/wrap'
+ *
+ * const routes = {
+ *   '/admin': wrap(createRouteDefinition({
+ *     component: () => import('./Admin.svelte'),
+ *     title: 'Admin Panel',
+ *     loadingComponent: Loading
+ *   }))
+ * }
+ * ```
+ */
+export function createRouteDefinition(options) {
+    const {
+        component,
+        loadingComponent,
+        loadingParams,
+        userData,
+        props,
+        conditions,
+        title,
+        breadcrumbs,
+        shouldDisplayLoadingOnRouteLoad,
+        ...restOptions
+    } = options
+
+    // Determine if component is async or sync
+    const isAsync = typeof component === 'function' && component.length === 0
+
+    const definition = {
+        ...restOptions
+    }
+
+    if (isAsync) {
+        definition.asyncComponent = component
+    } else {
+        definition.component = component
+    }
+
+    if (loadingComponent) {
+        definition.loadingComponent = loadingComponent
+    }
+
+    if (loadingParams) {
+        definition.loadingParams = loadingParams
+    }
+
+    // Merge title and breadcrumbs into userData
+    const mergedUserData = {
+        ...(userData || {})
+    }
+
+    if (title) {
+        mergedUserData.title = title
+    }
+
+    if (breadcrumbs) {
+        mergedUserData.breadcrumbs = breadcrumbs
+    }
+
+    if (Object.keys(mergedUserData).length > 0) {
+        definition.userData = mergedUserData
+    }
+
+    if (props) {
+        definition.props = props
+    }
+
+    if (conditions) {
+        definition.conditions = conditions
+    }
+
+    if (shouldDisplayLoadingOnRouteLoad) {
+        definition.shouldDisplayLoadingOnRouteLoad = shouldDisplayLoadingOnRouteLoad
+    }
+
+    return definition
+}
+
+/**
+ * Creates a route (already wrapped)
+ * This is the most convenient way to create routes - no wrap() needed!
+ *
+ * @param {RouteOptions} options - Route configuration options
+ * @returns {WrappedComponent} Wrapped route component (ready to use)
+ *
+ * @example
+ * ```javascript
+ * import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+ *
+ * const routes = {
+ *   // No wrap() needed!
+ *   '/': createRoute({
+ *     component: () => import('./Home.svelte'),
+ *     title: 'Home'
+ *   }),
+ *   '/admin': createRoute({
+ *     component: () => import('./Admin.svelte'),
+ *     title: 'Admin Panel',
+ *     breadcrumbs: [
+ *       { label: 'Home', path: '/' },
+ *       { label: 'Admin' }
+ *     ],
+ *     loadingComponent: Loading,
+ *     conditions: [checkAuth]
+ *   })
+ * }
+ * ```
+ */
+export function createRoute(options) {
+    const definition = createRouteDefinition(options)
+    return wrap(definition)
 }
 
 export default wrap

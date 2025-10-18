@@ -1,5 +1,5 @@
 <script>
-import {link, location, querystring} from '../../../src/lib/utils.svelte.js'
+import {link, location, querystring} from '@keenmate/svelte-spa-router/utils'
 </script>
 
 <h1>About</h1>

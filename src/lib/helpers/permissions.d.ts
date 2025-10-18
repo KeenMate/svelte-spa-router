@@ -108,7 +108,7 @@ export function createPermissionCondition(
 ): (detail: any) => boolean;
 
 /**
- * Helper to create routes with permissions using wrap()
+ * Helper to create a protected route definition (without wrap)
  * Returns wrap options that you must pass to wrap()
  *
  * @param options - Protected route options
@@ -117,14 +117,41 @@ export function createPermissionCondition(
  * @example
  * ```typescript
  * import { wrap } from '@keenmate/svelte-spa-router/wrap'
- * import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+ * import { createProtectedRouteDefinition } from '@keenmate/svelte-spa-router/helpers/permissions'
  *
  * const routes = {
- *   '/admin': wrap(createProtectedRoute({
+ *   '/admin': wrap(createProtectedRouteDefinition({
  *     component: () => import('./Admin.svelte'),
  *     permissions: { any: ['admin.read'] },
  *     loadingComponent: Loading
  *   }))
+ * }
+ * ```
+ */
+export function createProtectedRouteDefinition(options: ProtectedRouteOptions): any;
+
+/**
+ * Helper to create a protected route (already wrapped)
+ * This is the most convenient way - no wrap() needed!
+ *
+ * @param options - Protected route options
+ * @returns Wrapped route component (ready to use directly)
+ *
+ * @example
+ * ```typescript
+ * import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+ *
+ * const routes = {
+ *   // No wrap() needed! createProtectedRoute handles it for you
+ *   '/admin': createProtectedRoute({
+ *     component: () => import('./Admin.svelte'),
+ *     permissions: { any: ['admin.read'] },
+ *     loadingComponent: Loading
+ *   }),
+ *   '/settings': createProtectedRoute({
+ *     component: () => import('./Settings.svelte'),
+ *     permissions: { all: ['settings.read', 'settings.write'] }
+ *   })
  * }
  * ```
  */

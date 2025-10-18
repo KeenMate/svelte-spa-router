@@ -151,16 +151,33 @@ export function params<T = Record<string, string>>(): T | undefined;
 /**
  * Navigate to a new page programmatically
  *
- * @param location - Path to navigate to (must start with '/' or '#/')
+ * Supports multiple formats:
+ * - String: `push('/about')`
+ * - Array: `push(['userProfile', { userId: 123 }])`
+ * - Array with query: `push(['userProfile', { userId: 123 }, { tab: 'settings' }])`
+ * - Object: `push({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })`
+ *
+ * @param location - Path to navigate to, or array [route, params, query], or options object
  * @returns Promise that resolves after navigation completes
  *
  * @example
  * ```typescript
  * import { push } from '@keenmate/svelte-spa-router/utils'
+ *
+ * // String format
  * await push('/about')
+ *
+ * // Array format
+ * await push(['userProfile', { userId: 123 }])
+ *
+ * // Array with query
+ * await push(['userProfile', { userId: 123 }, { tab: 'settings' }])
+ *
+ * // Object format
+ * await push({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })
  * ```
  */
-export function push(location: string): Promise<void>;
+export function push(location: string | [string, Record<string, any>?, Record<string, any>?] | LinkActionOptions): Promise<void>;
 
 /**
  * Navigate back in history (browser back button)
@@ -178,16 +195,33 @@ export function pop(): Promise<void>;
 /**
  * Replace current page without modifying history stack
  *
- * @param location - Path to navigate to (must start with '/' or '#/')
+ * Supports multiple formats:
+ * - String: `replace('/login')`
+ * - Array: `replace(['userProfile', { userId: 123 }])`
+ * - Array with query: `replace(['userProfile', { userId: 123 }, { tab: 'settings' }])`
+ * - Object: `replace({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })`
+ *
+ * @param location - Path to navigate to, or array [route, params, query], or options object
  * @returns Promise that resolves after navigation completes
  *
  * @example
  * ```typescript
  * import { replace } from '@keenmate/svelte-spa-router/utils'
+ *
+ * // String format
  * await replace('/login')
+ *
+ * // Array format
+ * await replace(['userProfile', { userId: 123 }])
+ *
+ * // Array with query
+ * await replace(['userProfile', { userId: 123 }, { tab: 'settings' }])
+ *
+ * // Object format
+ * await replace({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })
  * ```
  */
-export function replace(location: string): Promise<void>;
+export function replace(location: string | [string, Record<string, any>?, Record<string, any>?] | LinkActionOptions): Promise<void>;
 
 /**
  * Svelte action that enables router navigation on anchor tags

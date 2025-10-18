@@ -223,19 +223,45 @@ import {link} from '@keenmate/svelte-spa-router'
 <a href="/book/123" use:link>View Book</a>
 ```
 
-Programmatically:
+Programmatically with multiple formats:
 
 ```js
 import {push, pop, replace} from '@keenmate/svelte-spa-router'
 
-// Navigate to a new page
+// String format (simple paths)
 push('/book/42')
+
+// Array format (with named routes)
+push(['userProfile', { userId: 123 }])
+
+// Array with query parameters
+push(['userProfile', { userId: 123 }, { tab: 'settings' }])
+
+// Object format (most explicit)
+push({
+  route: 'userProfile',
+  params: { userId: 123 },
+  query: { tab: 'settings', page: '2' }
+})
 
 // Go back
 pop()
 
-// Replace current page
+// Replace current page (supports all formats above)
 replace('/book/3')
+replace(['bookDetail', { bookId: 456 }])
+```
+
+**Note:** To use named routes with `push()` and `replace()`, you need to register your routes first:
+
+```js
+import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
+
+registerRoutes({
+  home: '/',
+  userProfile: '/user/:userId',
+  bookDetail: '/book/:bookId'
+})
 ```
 
 ### Accessing route parameters
@@ -300,29 +326,361 @@ const tags = $derived(q.tags || [])  // ✅ TypeScript knows this is string[]
 
 ### Dynamic imports and code-splitting
 
+#### Using createRoute() (Recommended)
+
+The most convenient way to create routes with async loading, metadata, and conditions:
+
 ```js
-import {wrap} from '@keenmate/svelte-spa-router/wrap'
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
 import Home from './routes/Home.svelte'
 import NotFound from './routes/NotFound.svelte'
 
 const routes = {
     '/': Home,
 
-    // Dynamically imported component
-    '/author/:first/:last?': wrap({
-        asyncComponent: () => import('./routes/Author.svelte')
+    // No wrap() needed! createRoute() handles it for you
+    '/author/:first/:last?': createRoute({
+        component: () => import('./routes/Author.svelte'),
+        title: 'Author Profile',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Authors' }
+        ]
     }),
 
     // With loading component
-    '/book/*': wrap({
-        asyncComponent: () => import('./routes/Book.svelte'),
+    '/book/*': createRoute({
+        component: () => import('./routes/Book.svelte'),
+        title: 'Book Details',
         loadingComponent: LoadingPlaceholder,
-        loadingParams: {message: 'Loading book...'}
+        loadingParams: { message: 'Loading book...' }
     }),
 
     '*': NotFound,
 }
 ```
+
+#### Using wrap() Directly (Advanced)
+
+For more control, use `wrap()` directly or with `createRouteDefinition()`:
+
+```js
+import { wrap, createRouteDefinition } from '@keenmate/svelte-spa-router/wrap'
+import Home from './routes/Home.svelte'
+import NotFound from './routes/NotFound.svelte'
+
+const routes = {
+    '/': Home,
+
+    // Direct wrap() syntax
+    '/author/:first/:last?': wrap({
+        asyncComponent: () => import('./routes/Author.svelte')
+    }),
+
+    // Using createRouteDefinition() for consistency
+    '/book/*': wrap(createRouteDefinition({
+        component: () => import('./routes/Book.svelte'),
+        loadingComponent: LoadingPlaceholder,
+        loadingParams: { message: 'Loading book...' }
+    })),
+
+    '*': NotFound,
+}
+```
+
+**Metadata Access:**
+
+Title and breadcrumbs are stored in `userData` and accessible in route events:
+
+```svelte
+<script>
+let { params = {}, userData = {} } = $props()
+
+// Access metadata
+const title = userData.title
+const breadcrumbs = userData.breadcrumbs || []
+</script>
+
+<h1>{title || 'Default Title'}</h1>
+
+{#if breadcrumbs.length > 0}
+<nav>
+  {#each breadcrumbs as crumb}
+    {#if crumb.path}
+      <a href={crumb.path} use:link>{crumb.label}</a>
+    {:else}
+      <span>{crumb.label}</span>
+    {/if}
+  {/each}
+</nav>
+{/if}
+```
+
+### Loading States & Dynamic Metadata
+
+The router provides flexible loading control with support for three distinct patterns, allowing you to choose the approach that best fits your application architecture.
+
+#### Pattern 1: Router-managed Loading (Zone-specific)
+
+Use `loadingComponent` with `shouldDisplayLoadingOnRouteLoad: true` for multi-zone layouts where the Router manages the loading state:
+
+```javascript
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+import { hideLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+import Loading from './components/Loading.svelte'
+
+const routes = {
+    '/document/:id': createRoute({
+        component: () => import('./routes/DocumentDetail.svelte'),
+        loadingComponent: Loading,
+        shouldDisplayLoadingOnRouteLoad: true,  // Keep loading visible until component signals ready
+        title: 'Document Detail',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Documents', path: '/metadata-demo' },
+            { id: 'documentDetail', label: 'Loading...', path: '/document/:id' }
+        ]
+    })
+}
+```
+
+In your component, signal when data is loaded:
+
+```svelte
+<script>
+import { onMount } from 'svelte'
+import { hideLoading, updateTitle, updateBreadcrumb } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+let { params } = $props()
+let document = $state(null)
+
+onMount(async () => {
+    // Fetch data
+    document = await fetchDocument(params.id)
+
+    // Update metadata with loaded data
+    updateTitle(document.name)
+    updateBreadcrumb('documentDetail', {
+        label: document.name,
+        path: `/document/${params.id}`
+    })
+
+    // Signal that loading is complete
+    hideLoading()
+})
+</script>
+
+<h1>{document?.name || 'Loading...'}</h1>
+```
+
+**Perfect for:**
+- Multi-zone layouts (toolpanel + content areas)
+- Apps where each zone needs its own loading UI
+- When you want the Router to manage loading component visibility
+
+#### Pattern 2: Component-managed Loading (Default)
+
+Components handle their own loading state with no special configuration:
+
+```javascript
+const routes = {
+    '/product/:id': createRoute({
+        component: () => import('./routes/ProductDetail.svelte'),
+        title: 'Product Detail'
+    })
+}
+```
+
+```svelte
+<script>
+let { params } = $props()
+let product = $state(null)
+let loading = $state(true)
+
+onMount(async () => {
+    product = await fetchProduct(params.id)
+    loading = false
+})
+</script>
+
+{#if loading}
+    <div class="loading">Loading product...</div>
+{:else}
+    <h1>{product.name}</h1>
+    <p>{product.description}</p>
+{/if}
+```
+
+**Perfect for:**
+- Simple apps with straightforward loading needs
+- Components that manage their own UI states
+- When you want full control over loading presentation
+
+#### Pattern 3: Global Loading Overlay (User-defined)
+
+Define a global loading overlay in your `App.svelte` that reacts to route loading state:
+
+```svelte
+<!-- App.svelte -->
+<script>
+import { routeIsLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+import Router from '@keenmate/svelte-spa-router'
+
+const isLoading = $derived(routeIsLoading())
+</script>
+
+<div class="app">
+    {#if isLoading}
+    <div class="global-loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+    {/if}
+
+    <Router {routes} />
+</div>
+
+<style>
+.global-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+</style>
+```
+
+Then manually control loading in your components:
+
+```svelte
+<script>
+import { showLoading, hideLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+let { params } = $props()
+let data = $state(null)
+
+async function loadData() {
+    showLoading()  // Show global overlay
+    try {
+        data = await fetchData(params.id)
+    } finally {
+        hideLoading()  // Hide global overlay
+    }
+}
+
+onMount(loadData)
+</script>
+```
+
+**Perfect for:**
+- Consistent loading UI across entire app
+- Apps with complex async operations beyond route loading
+- When you want a single global loading indicator
+
+#### Combining Patterns
+
+You can combine Pattern 1 and Pattern 3 for comprehensive loading feedback:
+
+```javascript
+// Route uses both loadingComponent and triggers global overlay
+'/document/:id': createRoute({
+    component: () => import('./routes/DocumentDetail.svelte'),
+    loadingComponent: Loading,  // Zone-specific loading
+    shouldDisplayLoadingOnRouteLoad: true,  // Also triggers global overlay
+    title: 'Document Detail'
+})
+```
+
+This shows both:
+- The `Loading` component in the content area (zone-specific)
+- The global overlay (if defined in App.svelte)
+
+#### Dynamic Metadata Helpers
+
+Update page metadata after data loads:
+
+```javascript
+import {
+    updateTitle,           // Update just the title
+    updateBreadcrumb,      // Update specific breadcrumb by ID
+    updateRouteMetadata    // Update full metadata object
+} from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+// Update title only
+updateTitle('Invoice.pdf')
+
+// Update specific breadcrumb by ID (partial update)
+updateBreadcrumb('documentDetail', {
+    label: 'Invoice.pdf',
+    path: '/document/123'
+})
+
+// Update full metadata
+updateRouteMetadata({
+    title: 'Invoice.pdf',
+    breadcrumbs: [
+        { label: 'Home', path: '/' },
+        { label: 'Documents', path: '/documents' },
+        { label: 'Invoice.pdf', path: '/document/123' }
+    ]
+})
+```
+
+#### Reactive Metadata Access
+
+Access current route metadata reactively:
+
+```svelte
+<script>
+import { routeTitle, routeBreadcrumbs, routeUserData } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+const title = $derived(routeTitle())
+const breadcrumbs = $derived(routeBreadcrumbs())
+const userData = $derived(routeUserData())
+</script>
+
+<h1>{title || 'Default Title'}</h1>
+
+{#if breadcrumbs.length > 0}
+<nav>
+    {#each breadcrumbs as crumb}
+        {#if crumb.path}
+            <a href={crumb.path} use:link>{crumb.label}</a>
+        {:else}
+            <span>{crumb.label}</span>
+        {/if}
+    {/each}
+</nav>
+{/if}
+```
+
+**Available helpers:**
+```javascript
+import {
+    // Loading state control
+    showLoading,           // Manually show loading state
+    hideLoading,           // Hide loading state (signal component is ready)
+    routeIsLoading,        // Check if currently loading (reactive)
+
+    // Metadata updates
+    updateTitle,           // Update just the title
+    updateBreadcrumb,      // Update specific breadcrumb by ID
+    updateRouteMetadata,   // Update full metadata object
+
+    // Reactive metadata access
+    routeTitle,            // Get current title
+    routeBreadcrumbs,      // Get current breadcrumbs
+    routeUserData          // Get full userData object
+} from '@keenmate/svelte-spa-router/helpers/route-metadata'
+```
+
+See `/loading-demo` and `/document/:id` routes in the example-history app for complete interactive demos.
 
 ### Route guards (pre-conditions)
 
@@ -384,28 +742,54 @@ configurePermissions({
 
 **2. Protect routes with permissions:**
 
+#### Using createProtectedRoute() (Recommended)
+
+The most convenient way - no wrap() needed!
+
 ```javascript
-import { wrap } from '@keenmate/svelte-spa-router/wrap'
 import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
 
 const routes = {
   '/': Home,
 
-  // User needs at least one of these permissions
-  '/admin': wrap(createProtectedRoute({
+  // No wrap() needed! createProtectedRoute() returns ready-to-use wrapped component
+  '/admin': createProtectedRoute({
     component: () => import('./Admin.svelte'),
     permissions: { any: ['admin.read', 'admin.write'] },
-    loadingComponent: Loading
-  })),
+    loadingComponent: Loading,
+    title: 'Admin Panel',
+    breadcrumbs: [
+      { label: 'Home', path: '/' },
+      { label: 'Admin' }
+    ]
+  }),
 
   // User needs ALL of these permissions
-  '/settings': wrap(createProtectedRoute({
+  '/settings': createProtectedRoute({
     component: () => import('./Settings.svelte'),
-    permissions: { all: ['settings.read', 'settings.write'] }
-  })),
+    permissions: { all: ['settings.read', 'settings.write'] },
+    title: 'Settings'
+  }),
 
   '/unauthorized': Unauthorized,
   '*': NotFound
+}
+```
+
+#### Using wrap() with createProtectedRouteDefinition() (Advanced)
+
+For more control or when combining with other wrap options:
+
+```javascript
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+import { createProtectedRouteDefinition } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+const routes = {
+  '/admin': wrap(createProtectedRouteDefinition({
+    component: () => import('./Admin.svelte'),
+    permissions: { any: ['admin.read', 'admin.write'] },
+    loadingComponent: Loading
+  }))
 }
 ```
 
@@ -845,7 +1229,13 @@ import Router from '@keenmate/svelte-spa-router'
 // Navigation utilities
 import { link, push, pop, replace, location, querystring, params } from '@keenmate/svelte-spa-router'
 
-// Route wrapping (async, conditions, loading)
+// Named routes (for use with push/replace/link)
+import { registerRoutes, buildUrl } from '@keenmate/svelte-spa-router/routes'
+
+// Route creation (recommended - no wrap() needed!)
+import { createRoute, createRouteDefinition } from '@keenmate/svelte-spa-router/wrap'
+
+// Route wrapping (advanced - for manual wrapping)
 import { wrap } from '@keenmate/svelte-spa-router/wrap'
 
 // Active link highlighting
@@ -871,12 +1261,17 @@ import {
   updateFilters
 } from '@keenmate/svelte-spa-router/helpers/filters'
 
-// Permission system
+// Permission system (recommended - no wrap() needed!)
 import {
   configurePermissions,
-  createPermissionCondition,
   createProtectedRoute,
   hasPermission
+} from '@keenmate/svelte-spa-router/helpers/permissions'
+
+// Permission system (advanced - for manual wrapping)
+import {
+  createPermissionCondition,
+  createProtectedRouteDefinition
 } from '@keenmate/svelte-spa-router/helpers/permissions'
 
 // Navigation guards
@@ -886,6 +1281,19 @@ import {
   NavigationCancelledError,
   createDirtyCheckGuard
 } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+
+// Route metadata & loading control
+import {
+  showLoading,
+  hideLoading,
+  routeIsLoading,
+  updateTitle,
+  updateBreadcrumb,
+  updateRouteMetadata,
+  routeTitle,
+  routeBreadcrumbs,
+  routeUserData
+} from '@keenmate/svelte-spa-router/helpers/route-metadata'
 ```
 
 ### Common Patterns

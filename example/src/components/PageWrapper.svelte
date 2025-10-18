@@ -1,5 +1,5 @@
 <script>
-import { registerBeforeLeave, unregisterBeforeLeave } from '../../../src/lib/helpers/navigation-guard.svelte.js'
+import { registerBeforeLeave, unregisterBeforeLeave } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
 import { onMount, onDestroy } from 'svelte'
 
 /**

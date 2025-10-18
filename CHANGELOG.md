@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Convenient Route Creation API
+- **New `createRoute()` and `createRouteDefinition()` functions** for easier route configuration
+  - `createRoute()` - Returns already wrapped component (most convenient, no `wrap()` needed)
+  - `createRouteDefinition()` - Returns route definition for use with `wrap()` (advanced use)
+  - Consistent API pattern matching `createProtectedRoute()` / `createProtectedRouteDefinition()`
+  - Support for `title` and `breadcrumbs` metadata directly in route options
+  - Automatic detection of sync vs async components
+
+- **Enhanced Permission System**
+  - `createProtectedRoute()` - Now returns already wrapped component (breaking change from definition-only)
+  - `createProtectedRouteDefinition()` - New function that returns definition (replaces old `createProtectedRoute()` behavior)
+  - Maintains backward compatibility for existing `wrap(createProtectedRoute(...))` usage
+
+- **Route Metadata Support**
+  - `title` - Set page title for routes
+  - `breadcrumbs` - Define breadcrumb trail with `{ label, path? }` structure
+  - Metadata stored in `userData` object, accessible in route events and components
+
+#### Dynamic Metadata & Loading Control
+- **Reactive Metadata Helpers**: `helpers/route-metadata.svelte.js`
+  - `routeTitle()` - Get current route title reactively
+  - `routeBreadcrumbs()` - Get current breadcrumb trail reactively
+  - `routeUserData()` - Get full route userData reactively
+  - `updateRouteMetadata(userData)` - Update metadata after data loads (e.g., change title from "Document" to "Invoice.pdf")
+  - **`updateTitle(title)` - Update just the title** (simpler than updateRouteMetadata)
+  - **`updateBreadcrumb(id, updates)` - Partial breadcrumb updates** (update specific segments by ID)
+  - Automatically updated by Router on route changes
+
+- **Partial Breadcrumb Updates** (NEW!)
+  - Add `id` property to breadcrumb items in route config: `{ id: 'docDetail', label: 'Loading...', path: '/doc/:id' }`
+  - Update specific breadcrumbs after data loads: `updateBreadcrumb('docDetail', { label: 'Invoice.pdf', path: '/doc/123' })`
+  - **No need to replace the entire breadcrumbs array** - only update what changes!
+  - Perfect for nested paths: `/documents/:id/logs/:logId` where each segment needs dynamic data
+  - Static segments (Home, Documents, etc.) stay unchanged
+
+- **Flexible Loading Control** with `shouldDisplayLoadingOnRouteLoad` flag
+  - **Pattern 1 (Router-managed with loadingComponent)**: Set `shouldDisplayLoadingOnRouteLoad: true` - Router keeps loading component visible until component calls `hideLoading()`
+  - **Pattern 2 (Component-managed)**: Default behavior - component handles its own loading state
+  - **Pattern 3 (Global overlay)**: User-defined global loading UI in App.svelte that reacts to `routeIsLoading()`
+  - `showLoading()` - Manually show loading state (triggers global overlay if defined)
+  - `hideLoading()` - Component signals data is loaded (hides loading component/overlay)
+  - `routeIsLoading()` - Check if route is currently loading (reactive state)
+  - Perfect for routes that fetch data and need dynamic titles/breadcrumbs
+  - Supports multi-zone layouts (toolpanel + content) with different loading UIs per zone
+
+**Use cases**:
+- Document detail page: Show "Document" while loading, then "Invoice template.pdf" after data loads
+- User profile: Show "User Profile" while loading, then "John Doe" after data loads
+- Product page: Show "Product" while loading, then "iPhone 15 Pro" after data loads
+- Nested paths: `/documents/:id/logs` where both document name and "Logs" need to be in breadcrumbs
+
+#### Named Routes Enhancement
+- **Array/Object Syntax for Navigation**: `push()` and `replace()` functions now support the same convenient array/object syntax as the `link` action
+  - Array format: `push(['userProfile', { userId: 123 }, { tab: 'settings' }])`
+  - Object format: `push({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })`
+  - String format (legacy): `push('/about')` - still fully supported for backward compatibility
+  - Eliminates the need to manually call `buildUrl()` for programmatic navigation
+  - See `example-history/src/routes/LinksDemo.svelte` for interactive demos
+
 ### Added - Querystring & Filter System
 
 #### Querystring Helpers

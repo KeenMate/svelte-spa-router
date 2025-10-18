@@ -1,5 +1,5 @@
 <script>
-import {link} from '../../../src/lib/utils.svelte.js'
+import {link} from '@keenmate/svelte-spa-router/utils'
 
 let { params = {} } = $props()
 </script>

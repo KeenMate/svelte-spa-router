@@ -220,18 +220,26 @@ function navigate(location, shouldReplace = false) {
 /**
  * Navigates to a new page programmatically.
  *
- * @param {string} location - Path to navigate to (must start with `/` or '#/')
+ * @param {string|Array|LinkActionOpts} location - Path to navigate to, or array [route, params, query], or options object
  * @return {Promise<void>} Promise that resolves after the page navigation has completed
  */
 export async function push(location) {
-    if (!location || location.length < 1 || (location.charAt(0) != '/' && location.indexOf('#/') !== 0)) {
+    // Normalize input (support string, array, or object like the link action)
+    const opts = typeof location === 'string' ? { href: location } : linkOpts(location)
+
+    // Build URL from route if needed
+    let href = opts.route
+        ? buildUrl(opts.route, opts.params, opts.query)
+        : opts.href
+
+    if (!href || href.length < 1 || (href.charAt(0) != '/' && href.indexOf('#/') !== 0)) {
         throw Error('Invalid parameter location')
     }
 
     // Execute this code when the current call stack is complete
     await tick()
 
-    navigate(location, false)
+    navigate(href, false)
 }
 
 /**
@@ -249,11 +257,19 @@ export async function pop() {
 /**
  * Replaces the current page but without modifying the history stack.
  *
- * @param {string} location - Path to navigate to (must start with `/` or '#/')
+ * @param {string|Array|LinkActionOpts} location - Path to navigate to, or array [route, params, query], or options object
  * @return {Promise<void>} Promise that resolves after the page navigation has completed
  */
 export async function replace(location) {
-    if (!location || location.length < 1 || (location.charAt(0) != '/' && location.indexOf('#/') !== 0)) {
+    // Normalize input (support string, array, or object like the link action)
+    const opts = typeof location === 'string' ? { href: location } : linkOpts(location)
+
+    // Build URL from route if needed
+    let href = opts.route
+        ? buildUrl(opts.route, opts.params, opts.query)
+        : opts.href
+
+    if (!href || href.length < 1 || (href.charAt(0) != '/' && href.indexOf('#/') !== 0)) {
         throw Error('Invalid parameter location')
     }
 
@@ -262,7 +278,7 @@ export async function replace(location) {
 
     if (hashRoutingEnabled) {
         // Hash mode - use history.replaceState
-        const dest = (location.charAt(0) == '#' ? '' : '#') + location
+        const dest = (href.charAt(0) == '#' ? '' : '#') + href
         try {
             const newState = {
                 ...history.state
@@ -280,7 +296,7 @@ export async function replace(location) {
         window.dispatchEvent(new Event('hashchange'))
     } else {
         // History mode - use navigate with shouldReplace=true
-        navigate(location, true)
+        navigate(href, true)
     }
 }
 

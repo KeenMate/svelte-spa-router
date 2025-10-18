@@ -5,6 +5,8 @@
  * You can customize the permission checking logic to match your authentication system.
  */
 
+import { wrap } from '../wrap.js'
+
 /**
  * Global permission checker function
  * Override this with your own implementation
@@ -127,33 +129,34 @@ export function createPermissionCondition(requirements) {
 }
 
 /**
- * Helper to create routes with permissions using wrap()
- * This is a convenience function that combines component loading with permission checks
+ * Helper to create a protected route definition (without wrap)
+ * This returns just the route configuration object for use with wrap()
  *
  * @param {Object} options - Route options
- * @param {Function} options.component - Async component import function
+ * @param {Function} options.component - Async component import function or synchronous component
  * @param {Object} [options.permissions] - Permission requirements
  * @param {string[]} [options.permissions.any] - User needs at least one
  * @param {string[]} [options.permissions.all] - User needs all
  * @param {any} [options.loadingComponent] - Loading component to show
  * @param {Object} [options.props] - Additional props to pass to component
  * @param {any} [options.userData] - Additional user data to attach
- * @returns {Object} Wrapped route configuration
+ * @returns {Object} Route configuration object (needs to be passed to wrap())
  *
  * @example
  * ```javascript
- * import { createProtectedRoute } from 'svelte-spa-router-5/helpers/permissions'
+ * import { wrap } from '@keenmate/svelte-spa-router/wrap'
+ * import { createProtectedRouteDefinition } from '@keenmate/svelte-spa-router/helpers/permissions'
  *
  * const routes = {
- *   '/admin': createProtectedRoute({
+ *   '/admin': wrap(createProtectedRouteDefinition({
  *     component: () => import('./Admin.svelte'),
  *     permissions: { any: ['admin.read'] },
  *     loadingComponent: Loading
- *   })
+ *   }))
  * }
  * ```
  */
-export function createProtectedRoute(options) {
+export function createProtectedRouteDefinition(options) {
     const {
         component,
         permissions,
@@ -188,9 +191,44 @@ export function createProtectedRoute(options) {
         wrapOptions.conditions.push(createPermissionCondition(permissions))
     }
 
-    // Note: We can't import wrap here to avoid circular dependency
-    // User must import wrap themselves
     return wrapOptions
+}
+
+/**
+ * Helper to create a protected route (already wrapped)
+ * This is the most convenient way to create protected routes - no wrap() needed!
+ *
+ * @param {Object} options - Route options
+ * @param {Function} options.component - Async component import function or synchronous component
+ * @param {Object} [options.permissions] - Permission requirements
+ * @param {string[]} [options.permissions.any] - User needs at least one
+ * @param {string[]} [options.permissions.all] - User needs all
+ * @param {any} [options.loadingComponent] - Loading component to show
+ * @param {Object} [options.props] - Additional props to pass to component
+ * @param {any} [options.userData] - Additional user data to attach
+ * @returns {any} Wrapped route component (ready to use directly in routes object)
+ *
+ * @example
+ * ```javascript
+ * import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+ *
+ * const routes = {
+ *   // No wrap() needed! createProtectedRoute handles it for you
+ *   '/admin': createProtectedRoute({
+ *     component: () => import('./Admin.svelte'),
+ *     permissions: { any: ['admin.read'] },
+ *     loadingComponent: Loading
+ *   }),
+ *   '/settings': createProtectedRoute({
+ *     component: () => import('./Settings.svelte'),
+ *     permissions: { all: ['settings.read', 'settings.write'] }
+ *   })
+ * }
+ * ```
+ */
+export function createProtectedRoute(options) {
+    const definition = createProtectedRouteDefinition(options)
+    return wrap(definition)
 }
 
 /**

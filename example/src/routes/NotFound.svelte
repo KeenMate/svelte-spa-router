@@ -1,5 +1,5 @@
 <script>
-import {link, location} from '../../../src/lib/utils.svelte.js'
+import {link, location} from '@keenmate/svelte-spa-router/utils'
 </script>
 
 <h1>404 - Not Found</h1>
