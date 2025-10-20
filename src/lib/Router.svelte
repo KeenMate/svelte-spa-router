@@ -1,7 +1,7 @@
 <script>
 import {parse} from './parse-route.js'
 import { tick, untrack } from 'svelte'
-import { location, querystring, params, setParams, restoreScroll } from './utils.svelte.js'
+import { location, querystring, params, setParams, restoreScroll, getZoneComponent, setZoneComponents } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 import { updateRouteMetadata, startRouteLoading, waitForRouteReady, hideLoading } from './helpers/route-metadata.svelte.js'
 
@@ -18,6 +18,10 @@ let {
      * Optional prefix for the routes in this router. This is useful for example in the case of nested routers.
      */
     prefix = '',
+    /**
+     * Optional zone name for multi-zone routing. When set, this router instance only renders the component for this zone.
+     */
+    zone = '',
     /**
      * If set to true, the router will restore scroll positions on back navigation
      * and scroll to top on forward navigation.
@@ -61,7 +65,15 @@ class RouteItem {
 
         // Check if the component is wrapped and we have conditions
         if (typeof component == 'object' && component._sveltesparouter === true) {
-            this.component = component.component
+            // Check if this is a zone-based route
+            if (component._isZoneMode) {
+                this.zones = component.zones
+                this.component = null
+                this.isZoneMode = true
+            } else {
+                this.component = component.component
+                this.isZoneMode = false
+            }
             this.conditions = component.conditions || []
             this.userData = component.userData
             this.props = component.props || {}
@@ -70,6 +82,8 @@ class RouteItem {
         else {
             // Convert the component to a function that returns a Promise, to normalize it
             this.component = () => Promise.resolve(component)
+            this.zones = null
+            this.isZoneMode = false
             this.conditions = []
             this.props = {}
             this.shouldDisplayLoadingOnRouteLoad = false
@@ -177,6 +191,9 @@ let componentObj = $state(null)
 let loadingComponent = $state(null)
 let loadingParams = $state(null)
 let isWaitingForData = $state(false)
+
+// For zone-based routing: get component from zone state if zone prop is set
+let zoneComponentData = $derived(zone ? getZoneComponent(zone) : null)
 
 // Previous scroll state for restoration
 let previousScrollState = $state(null)
@@ -312,55 +329,119 @@ $effect(() => {
             // Trigger an event to alert that we're loading the route
             dispatchNextTick('routeLoading', Object.assign({}, detail))
 
-            // Check if this route should display loading on route load
-            const shouldDisplayLoadingOnRouteLoad = routesList[i].shouldDisplayLoadingOnRouteLoad
+            // Check if this is a zone-based route
+            if (routesList[i].isZoneMode) {
+                // Zone-based route: load all zone components
+                const zoneComponents = {}
+                const zones = routesList[i].zones
 
-            // If there's a component to show while we're loading the route, display it
-            const obj = routesList[i].component
-            // Do not replace the component if we're loading the same one as before
-            if (componentObj != obj) {
-                // Store loading component info if exists
-                if (obj.loading) {
-                    loadingComponent = obj.loading
-                    loadingParams = obj.loadingParams
+                // Load all zone components in parallel
+                await Promise.all(
+                    Object.entries(zones).map(async ([zoneName, zoneLoader]) => {
+                        const loaded = await zoneLoader()
+                        // Extract default export if present
+                        zoneComponents[zoneName] = {
+                            component: (loaded && loaded.default) || loaded,
+                            params: (match && typeof match == 'object' && Object.keys(match).length) ? match : null,
+                            props: routesList[i].props,
+                            userData: detail.userData || {}
+                        }
+                    })
+                )
 
-                    // If NOT waiting for data, show loading component immediately
-                    if (!shouldDisplayLoadingOnRouteLoad) {
-                        component = obj.loading
-                        componentObj = obj
-                        componentParams = obj.loadingParams
-                        componentProps = {}
-
-                        // Trigger the routeLoaded event for the loading component
-                        dispatchNextTick('routeLoaded', Object.assign({}, detail, {
-                            component: component,
-                            name: component.name,
-                            params: componentParams
-                        }))
-                    }
-                }
-                else {
-                    loadingComponent = null
-                    loadingParams = null
-                    component = null
-                    componentObj = null
-                }
-
-                // Invoke the Promise to load the actual component
-                const loaded = await obj()
-
-                // Check if we still want this component
+                // Check if we still want this route
                 if (untrack(() => newLoc != lastLoc)) {
                     return
                 }
 
-                // If there is a "default" property, pick that
-                component = (loaded && loaded.default) || loaded
-                componentObj = obj
+                // Update zone components in shared state (all Router instances will see this)
+                setZoneComponents(zoneComponents)
+
+                // Set params from match
+                if (match && typeof match == 'object' && Object.keys(match).length) {
+                    componentParams = match
+                } else {
+                    componentParams = null
+                }
+
+                // Set static props and userData
+                componentProps = routesList[i].props
+                componentUserData = detail.userData || {}
+
+                // Update route metadata
+                updateRouteMetadata(detail.userData || {})
+
+                // Set params in shared state
+                setParams(componentParams)
+
+                // For non-zone Router instances, clear component
+                component = null
+                componentObj = null
+                loadingComponent = null
+                loadingParams = null
+
+                // Dispatch the routeLoaded event then exit
+                dispatchNextTick('routeLoaded', Object.assign({}, detail, {
+                    zones: Object.keys(zoneComponents),
+                    params: componentParams
+                }))
+                return
+            } else {
+                // Single component route (original behavior)
+                // Clear zone components when switching to single-component route
+                setZoneComponents({})
+
+                // Check if this route should display loading on route load
+                const shouldDisplayLoadingOnRouteLoad = routesList[i].shouldDisplayLoadingOnRouteLoad
+
+                // If there's a component to show while we're loading the route, display it
+                const obj = routesList[i].component
+                // Do not replace the component if we're loading the same one as before
+                if (componentObj != obj) {
+                    // Store loading component info if exists
+                    if (obj.loading) {
+                        loadingComponent = obj.loading
+                        loadingParams = obj.loadingParams
+
+                        // If NOT waiting for data, show loading component immediately
+                        if (!shouldDisplayLoadingOnRouteLoad) {
+                            component = obj.loading
+                            componentObj = obj
+                            componentParams = obj.loadingParams
+                            componentProps = {}
+
+                            // Trigger the routeLoaded event for the loading component
+                            dispatchNextTick('routeLoaded', Object.assign({}, detail, {
+                                component: component,
+                                name: component.name,
+                                params: componentParams
+                            }))
+                        }
+                    }
+                    else {
+                        loadingComponent = null
+                        loadingParams = null
+                        component = null
+                        componentObj = null
+                    }
+
+                    // Invoke the Promise to load the actual component
+                    const loaded = await obj()
+
+                    // Check if we still want this component
+                    if (untrack(() => newLoc != lastLoc)) {
+                        return
+                    }
+
+                    // If there is a "default" property, pick that
+                    component = (loaded && loaded.default) || loaded
+                    componentObj = obj
+                }
             }
 
             // If shouldDisplayLoadingOnRouteLoad is true, set waiting state and wait for component to signal ready
-            if (shouldDisplayLoadingOnRouteLoad && loadingComponent) {
+            // Note: This only applies to single-component routes, not zone routes
+            if (!routesList[i].isZoneMode && routesList[i].shouldDisplayLoadingOnRouteLoad && loadingComponent) {
                 isWaitingForData = true
                 startRouteLoading()
                 await waitForRouteReady()
@@ -404,7 +485,20 @@ $effect(() => {
 })
 </script>
 
-{#if isWaitingForData && loadingComponent}
+{#if zone}
+    <!-- Zone-based rendering: render component for this zone -->
+    {#if zoneComponentData}
+        {@const Comp = zoneComponentData.component}
+        {@const zoneParams = zoneComponentData.params}
+        {@const zoneProps = zoneComponentData.props}
+        {@const zoneUserData = zoneComponentData.userData}
+        {#if zoneParams}
+            <Comp params={zoneParams} {onrouteEvent} userData={zoneUserData} {...zoneProps} />
+        {:else}
+            <Comp {onrouteEvent} userData={zoneUserData} {...zoneProps} />
+        {/if}
+    {/if}
+{:else if isWaitingForData && loadingComponent}
     <!-- Show loading component while waiting for data -->
     {#if loadingParams}
         {@const LoadingComp = loadingComponent}

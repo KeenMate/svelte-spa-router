@@ -20,8 +20,9 @@
 
 /**
  * @typedef {Object} WrapOptions Options object for the call to `wrap`
- * @property {SvelteComponent} [component] - Svelte component to load (this is incompatible with `asyncComponent`)
- * @property {AsyncSvelteComponent} [asyncComponent] - Function that returns a Promise that fulfills with a Svelte component (e.g. `{asyncComponent: () => import('Foo.svelte')}`)
+ * @property {SvelteComponent} [component] - Svelte component to load (this is incompatible with `asyncComponent` and `zones`)
+ * @property {AsyncSvelteComponent} [asyncComponent] - Function that returns a Promise that fulfills with a Svelte component (e.g. `{asyncComponent: () => import('Foo.svelte')}`) (incompatible with `zones`)
+ * @property {Object.<string, SvelteComponent|AsyncSvelteComponent>} [zones] - Dictionary of zone names to components (incompatible with `component` and `asyncComponent`)
  * @property {SvelteComponent} [loadingComponent] - Svelte component to be displayed while the async route is loading (as a placeholder); when unset or false-y, no component is shown while component
  * @property {object} [loadingParams] - Optional dictionary passed to the `loadingComponent` component as params (for an exported prop called `params`)
  * @property {object} [userData] - Optional object that will be passed to events such as `routeLoading`, `routeLoaded`, `conditionsFailed`
@@ -60,6 +61,55 @@ export function wrap(args) {
         throw Error('Parameter args is required')
     }
 
+    // Check if zones mode
+    const isZoneMode = !!args.zones
+
+    if (isZoneMode) {
+        // Zones mode: validate zones
+        if (args.component || args.asyncComponent) {
+            throw Error('Cannot use both zones and component/asyncComponent')
+        }
+        if (!args.zones || typeof args.zones !== 'object' || Object.keys(args.zones).length === 0) {
+            throw Error('zones must be a non-empty object')
+        }
+
+        // Normalize each zone component to async function
+        const asyncZones = {}
+        for (const [zoneName, zoneComponent] of Object.entries(args.zones)) {
+            if (typeof zoneComponent === 'function' && zoneComponent.length === 0) {
+                // Already async (import function)
+                asyncZones[zoneName] = zoneComponent
+            } else {
+                // Sync component - wrap in Promise
+                asyncZones[zoneName] = () => Promise.resolve(zoneComponent)
+            }
+        }
+
+        // Validate conditions if provided
+        if (args.conditions) {
+            if (!Array.isArray(args.conditions)) {
+                args.conditions = [args.conditions]
+            }
+            for (let i = 0; i < args.conditions.length; i++) {
+                if (!args.conditions[i] || typeof args.conditions[i] != 'function') {
+                    throw Error('Invalid parameter conditions[' + i + ']')
+                }
+            }
+        }
+
+        // Return zone-based route object
+        return {
+            zones: asyncZones,
+            userData: args.userData,
+            conditions: (args.conditions && args.conditions.length) ? args.conditions : undefined,
+            props: (args.props && Object.keys(args.props).length) ? args.props : {},
+            shouldDisplayLoadingOnRouteLoad: args.shouldDisplayLoadingOnRouteLoad || false,
+            _sveltesparouter: true,
+            _isZoneMode: true
+        }
+    }
+
+    // Single component mode (original behavior)
     // We need to have one and only one of component and asyncComponent
     // This does a "XNOR"
     if (!args.component == !args.asyncComponent) {

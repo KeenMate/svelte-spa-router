@@ -123,7 +123,7 @@ docker-push-examples: ## Push Docker images to registry
 	@echo "Docker images pushed successfully!"
 
 package: clean ## Package for npm publication
-	@echo "Packaging @keenmate/svelte-spa-router v5.0.0-rc04..."
+	@echo "Packaging @keenmate/svelte-spa-router v5.0.0-rc05..."
 	@echo ""
 	@echo "Files to be published (as defined in package.json 'files' field):"
 	@echo "  - src/lib/**/*.js (all JavaScript files)"

@@ -180,6 +180,26 @@ export function setParams(newParams) {
     paramsState = newParams
 }
 
+// Zone components state for multi-zone routing
+let zoneComponentsState = $state({})
+
+/**
+ * Get component for a specific zone
+ * @param {string} zoneName - Name of the zone
+ * @returns {Object|null} Zone component data or null if not set
+ */
+export function getZoneComponent(zoneName) {
+    return zoneComponentsState[zoneName] || null
+}
+
+/**
+ * Internal function to set zone components (used by router)
+ * @param {Object} zoneComponents - Dictionary of zone names to component data
+ */
+export function setZoneComponents(zoneComponents) {
+    zoneComponentsState = zoneComponents || {}
+}
+
 /**
  * Internal navigation function supporting both hash and history modes
  *

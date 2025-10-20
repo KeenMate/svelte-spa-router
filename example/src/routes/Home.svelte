@@ -30,7 +30,7 @@ setBasePath(import.meta.env.BASE_URL || '/')</code></pre>
                 <li><code>write</code></li>
                 <li><code>user:view</code></li>
             </ul>
-            <p class="access">✅ Can access: Home, About, User pages</p>
+            <p class="access">✅ Can access: Home and demo pages</p>
             <p class="no-access">❌ Cannot access: Admin, Settings</p>
         </div>
 
@@ -58,7 +58,7 @@ setBasePath(import.meta.env.BASE_URL || '/')</code></pre>
 <table>
     <thead>
         <tr>
-            <th>Component</th>
+            <th>Component/Function</th>
             <th>Type</th>
             <th>Description</th>
         </tr>
@@ -67,17 +67,17 @@ setBasePath(import.meta.env.BASE_URL || '/')</code></pre>
         <tr>
             <td><code>&lt;Router&gt;</code></td>
             <td>Component</td>
-            <td>Main router component. Pass routes object and event handlers.</td>
+            <td>Main router component. Pass routes object, zone name (optional), and event handlers.</td>
         </tr>
         <tr>
             <td><code>location()</code></td>
             <td>Function</td>
-            <td>Returns current path (e.g., <code>/about</code>)</td>
+            <td>Returns current path (e.g., <code>/products</code>)</td>
         </tr>
         <tr>
             <td><code>querystring()</code></td>
             <td>Function</td>
-            <td>Returns query parameters (e.g., <code>foo=bar</code>)</td>
+            <td>Returns raw query string (e.g., <code>foo=bar&amp;id=42</code>)</td>
         </tr>
         <tr>
             <td><code>params()</code></td>
@@ -85,9 +85,9 @@ setBasePath(import.meta.env.BASE_URL || '/')</code></pre>
             <td>Returns route parameters (e.g., <code>{'{'}id: '42'{'}'}</code>)</td>
         </tr>
         <tr>
-            <td><code>push(path)</code></td>
+            <td><code>push(path, options?)</code></td>
             <td>Function</td>
-            <td>Navigate to new page programmatically</td>
+            <td>Navigate to new page programmatically. Options: query params, filters, state</td>
         </tr>
         <tr>
             <td><code>pop()</code></td>
@@ -95,7 +95,7 @@ setBasePath(import.meta.env.BASE_URL || '/')</code></pre>
             <td>Navigate back (browser back button)</td>
         </tr>
         <tr>
-            <td><code>replace(path)</code></td>
+            <td><code>replace(path, options?)</code></td>
             <td>Function</td>
             <td>Replace current route without adding to history</td>
         </tr>
@@ -112,7 +112,7 @@ setBasePath(import.meta.env.BASE_URL || '/')</code></pre>
         <tr>
             <td><code>wrap()</code></td>
             <td>Function</td>
-            <td>Wrap routes for dynamic imports, guards, and props</td>
+            <td>Wrap routes for multi-zone, dynamic imports, guards, loading states, and props</td>
         </tr>
     </tbody>
 </table>
@@ -146,33 +146,64 @@ setBasePath(import.meta.env.BASE_URL || '/')</code></pre>
     </tbody>
 </table>
 
-<h2>Helper Functions</h2>
+<h2>Helper Modules</h2>
 
 <table>
     <thead>
         <tr>
-            <th>Function</th>
             <th>Module</th>
+            <th>Key Functions</th>
             <th>Description</th>
         </tr>
     </thead>
     <tbody>
         <tr>
+            <td><code>helpers/permissions</code></td>
+            <td><code>configurePermissions()</code>, <code>createProtectedRoute()</code>, <code>hasPermission()</code></td>
+            <td>Role-based access control (RBAC) for routes and UI elements</td>
+        </tr>
+        <tr>
+            <td><code>helpers/querystring</code></td>
+            <td><code>parseQuery()</code>, <code>stringifyQuery()</code></td>
+            <td>Parse and stringify query strings with type safety</td>
+        </tr>
+        <tr>
+            <td><code>helpers/filters</code></td>
+            <td><code>parseFilters()</code>, <code>stringifyFilters()</code></td>
+            <td>Parse and manage filter parameters in URLs</td>
+        </tr>
+        <tr>
+            <td><code>helpers/route-metadata</code></td>
+            <td><code>routeIsLoading()</code>, <code>getRouteBreadcrumbs()</code>, <code>updateBreadcrumb()</code></td>
+            <td>Access route metadata like loading state, title, breadcrumbs</td>
+        </tr>
+        <tr>
+            <td><code>helpers/navigation-guard</code></td>
+            <td><code>onBeforeRouteLeave()</code></td>
+            <td>Guard navigation away from current route (e.g., unsaved changes)</td>
+        </tr>
+        <tr>
+            <td><code>helpers/url-helpers</code></td>
             <td><code>joinPaths(...paths)</code></td>
-            <td>helpers/url-helpers</td>
             <td>Intelligently join path segments, handles slashes</td>
         </tr>
     </tbody>
 </table>
 
-<h2>Example Routes</h2>
+<h2>Features & Demos</h2>
 
 <nav>
     <ul>
-        <li><a href="/about" use:link>About</a> - Simple route</li>
-        <li><a href="/user/john/doe" use:link>User: John Doe</a> - Named parameters</li>
-        <li><a href="/user/jane" use:link>User: Jane</a> - Optional parameter</li>
-        <li><a href="/book/svelte-guide" use:link>Book</a> - Wildcard route</li>
+        <li><a href="/links-demo" use:link>Links Demo</a> - SPA navigation with link action</li>
+        <li><a href="/querystring-demo" use:link>Querystring Demo</a> - Parse and stringify query parameters</li>
+        <li><a href="/filters-demo" use:link>Filters Demo</a> - URL filter management with type safety</li>
+        <li><a href="/route-data-demo" use:link>Route Data Demo</a> - Access route params and metadata</li>
+        <li><a href="/navigation-guard-demo" use:link>Navigation Guard Demo</a> - Prevent navigation (unsaved changes)</li>
+        <li><a href="/metadata-demo" use:link>Metadata Demo</a> - Route metadata, breadcrumbs, titles</li>
+        <li><a href="/loading-demo" use:link>Loading Demo</a> - Loading states for async routes</li>
+        <li><a href="/multi-zone-demo" use:link>Multi-Zone Demo</a> - Load multiple components per route</li>
+        <li><a href="/admin" use:link>Admin Panel</a> - Permission-protected route</li>
+        <li><a href="/settings" use:link>Settings</a> - Permission-protected route</li>
         <li><a href="/nonexistent" use:link>404 Page</a> - Catch-all route</li>
     </ul>
 </nav>

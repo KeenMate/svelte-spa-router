@@ -161,7 +161,7 @@ describe('Permissions Helper', () => {
         permissions: { any: ['read'] }
       })
 
-      expect(route).toHaveProperty('asyncComponent')
+      expect(route).toHaveProperty('component')
       expect(route).toHaveProperty('conditions')
       expect(route).toHaveProperty('userData')
       expect(route.userData.permissions).toEqual({ any: ['read'] })
@@ -178,7 +178,8 @@ describe('Permissions Helper', () => {
         loadingComponent: LoadingComponent
       })
 
-      expect(route.loadingComponent).toBe(LoadingComponent)
+      // Loading component is attached to the async component function
+      expect(route.component.loading).toBe(LoadingComponent)
     })
 
     it('should support custom props', () => {

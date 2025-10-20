@@ -9,8 +9,6 @@ import { routeIsLoading } from '@keenmate/svelte-spa-router/helpers/route-metada
 import { user, toggleUser, getCurrentUser, checkPermissions } from './stores/userStore.svelte.js'
 
 import Home from './routes/Home.svelte'
-import About from './routes/About.svelte'
-import User from './routes/User.svelte'
 import Book from './routes/Book.svelte'
 import LinksDemo from './routes/LinksDemo.svelte'
 import NotFound from './routes/NotFound.svelte'
@@ -26,6 +24,19 @@ import LoadingDemo from './routes/LoadingDemo.svelte'
 import DocumentDetail from './routes/DocumentDetail.svelte'
 import DocumentLogs from './routes/DocumentLogs.svelte'
 import ProductDetail from './routes/ProductDetail.svelte'
+import MultiZoneDemo from './routes/MultiZoneDemo.svelte'
+import ProductSidebar from './routes/zones/ProductSidebar.svelte'
+import ProductMain from './routes/zones/ProductMain.svelte'
+import ProductPanel from './routes/zones/ProductPanel.svelte'
+import ProductsMenu from './routes/zones/ProductsMenu.svelte'
+import ProductsMain from './routes/zones/ProductsMain.svelte'
+import ProductsToolbar from './routes/zones/ProductsToolbar.svelte'
+import UsersMenu from './routes/zones/UsersMenu.svelte'
+import UsersMain from './routes/zones/UsersMain.svelte'
+import UsersToolbar from './routes/zones/UsersToolbar.svelte'
+import OrdersMenu from './routes/zones/OrdersMenu.svelte'
+import OrdersMain from './routes/zones/OrdersMain.svelte'
+import OrdersToolbar from './routes/zones/OrdersToolbar.svelte'
 import Loading from './components/Loading.svelte'
 
 // Configure permissions system
@@ -41,8 +52,6 @@ configurePermissions({
 // Define routes with permissions
 const routes = {
     '/': Home,
-    '/about': About,
-    '/user/:first/:last?': User,
     '/book/*': Book,
     '/links-demo': LinksDemo,
     '/querystring-demo': QuerystringDemo,
@@ -98,8 +107,69 @@ const routes = {
         component: Settings,
         conditions: [createPermissionCondition({ any: ['settings:manage'] })]
     }),
+    '/multi-zone-demo': MultiZoneDemo,
+    '/product-zones/:productId': wrap({
+        zones: {
+            'sidebar': ProductSidebar,
+            'main': ProductMain,
+            'panel': ProductPanel
+        },
+        title: 'Product Details (Multi-Zone)',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Multi-Zone Demo', path: '/multi-zone-demo' },
+            { label: 'Product' }
+        ]
+    }),
+    '/products': wrap({
+        zones: {
+            'sidebar': ProductsMenu,
+            'main': ProductsMain,
+            'panel': ProductsToolbar
+        },
+        title: 'Products',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Multi-Zone Demo', path: '/multi-zone-demo' },
+            { label: 'Products' }
+        ]
+    }),
+    '/users': wrap({
+        zones: {
+            'sidebar': UsersMenu,
+            'main': UsersMain,
+            'panel': UsersToolbar
+        },
+        title: 'Users',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Multi-Zone Demo', path: '/multi-zone-demo' },
+            { label: 'Users' }
+        ]
+    }),
+    '/orders': wrap({
+        zones: {
+            'sidebar': OrdersMenu,
+            'main': OrdersMain,
+            'panel': OrdersToolbar
+        },
+        title: 'Orders',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Multi-Zone Demo', path: '/multi-zone-demo' },
+            { label: 'Orders' }
+        ]
+    }),
     '*': NotFound
 }
+
+// Check if current location is a zone route
+const isZoneRoute = $derived(
+    location().startsWith('/product-zones/') ||
+    location().startsWith('/products') ||
+    location().startsWith('/users') ||
+    location().startsWith('/orders')
+)
 
 const currentUser = $derived(user())
 const isLoading = $derived(routeIsLoading())
@@ -128,8 +198,6 @@ function handleToggleUser() {
         <h1>@keenmate/svelte-spa-router Example</h1>
         <nav>
             <a href="/" use:link use:active>Home</a>
-            <a href="/about" use:link use:active>About</a>
-            <a href="/user/john/doe" use:link use:active>User</a>
             <a href="/links-demo" use:link use:active>Links</a>
             <a href="/querystring-demo" use:link use:active>Querystring</a>
             <a href="/filters-demo" use:link use:active>Filters</a>
@@ -137,6 +205,7 @@ function handleToggleUser() {
             <a href="/navigation-guard-demo" use:link use:active>Nav Guard</a>
             <a href="/metadata-demo" use:link use:active>Metadata</a>
             <a href="/loading-demo" use:link use:active>Loading</a>
+            <a href="/multi-zone-demo" use:link use:active>Zones</a>
             <a href="/admin" use:link use:active>Admin</a>
             <a href="/settings" use:link use:active>Settings</a>
         </nav>
@@ -148,9 +217,28 @@ function handleToggleUser() {
         </div>
     </header>
 
-    <main>
-        <Router {routes} onrouteLoaded={handleRouteLoaded} />
-    </main>
+    {#if isZoneRoute}
+        <!-- Multi-zone layout -->
+        <div class="zone-layout">
+            <aside class="zone-sidebar">
+                <div class="zone-header">Zone: "sidebar"</div>
+                <Router {routes} zone="sidebar" onrouteLoaded={handleRouteLoaded} />
+            </aside>
+            <main class="zone-main">
+                <div class="zone-header">Zone: "main"</div>
+                <Router {routes} zone="main" onrouteLoaded={handleRouteLoaded} />
+            </main>
+            <aside class="zone-panel">
+                <div class="zone-header">Zone: "panel"</div>
+                <Router {routes} zone="panel" onrouteLoaded={handleRouteLoaded} />
+            </aside>
+        </div>
+    {:else}
+        <!-- Single component layout -->
+        <main>
+            <Router {routes} onrouteLoaded={handleRouteLoaded} />
+        </main>
+    {/if}
 
     <footer>
         <p>Current route: <code>{location()}</code></p>
@@ -269,5 +357,85 @@ function handleToggleUser() {
         padding: 0.2rem 0.5rem;
         border-radius: 3px;
         font-family: monospace;
+    }
+
+    /* Multi-zone layout styles */
+    .zone-layout {
+        display: grid;
+        grid-template-columns: 250px 1fr 320px;
+        gap: 1.5rem;
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+        flex: 1;
+    }
+
+    .zone-header {
+        background: #2563eb;
+        color: white;
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-align: center;
+        border-radius: 6px 6px 0 0;
+        margin: -1rem -1rem 1rem -1rem;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 0.5px;
+    }
+
+    .zone-main .zone-header {
+        margin: 0 0 1rem 0;
+        border-radius: 6px 6px 0 0;
+    }
+
+    .zone-panel .zone-header {
+        margin: 0 0 1rem 0;
+        border-radius: 6px 6px 0 0;
+    }
+
+    .zone-sidebar,
+    .zone-main,
+    .zone-panel {
+        overflow-y: auto;
+        position: relative;
+    }
+
+    .zone-sidebar {
+        background: #f9f9f9;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .zone-main {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .zone-panel {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    /* Responsive layout for zones */
+    @media (max-width: 1200px) {
+        .zone-layout {
+            grid-template-columns: 200px 1fr 280px;
+            gap: 1rem;
+            padding: 1rem;
+        }
+    }
+
+    @media (max-width: 900px) {
+        .zone-layout {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        .zone-sidebar,
+        .zone-panel {
+            max-height: 300px;
+        }
     }
 </style>

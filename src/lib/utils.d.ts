@@ -286,3 +286,45 @@ export function restoreScroll(state?: {
  * @internal
  */
 export function setParams(newParams: Record<string, string> | undefined): void;
+
+/**
+ * Zone component data
+ */
+export interface ZoneComponentData {
+    /** The loaded Svelte component */
+    component: any;
+    /** Route parameters */
+    params: Record<string, string> | null;
+    /** Static props for the component */
+    props: Record<string, any>;
+    /** User data attached to the route */
+    userData: any;
+}
+
+/**
+ * Get component data for a specific zone
+ * Used by Router instances with zone prop
+ *
+ * @param zoneName - Name of the zone
+ * @returns Zone component data or null if not set
+ *
+ * @example
+ * ```typescript
+ * import { getZoneComponent } from '@keenmate/svelte-spa-router/utils'
+ *
+ * const sidebarData = getZoneComponent('sidebar')
+ * if (sidebarData) {
+ *   console.log('Sidebar component:', sidebarData.component)
+ * }
+ * ```
+ */
+export function getZoneComponent(zoneName: string): ZoneComponentData | null;
+
+/**
+ * Internal function to set zone components
+ * Used by the router component
+ *
+ * @param zoneComponents - Dictionary of zone names to component data
+ * @internal
+ */
+export function setZoneComponents(zoneComponents: Record<string, ZoneComponentData>): void;

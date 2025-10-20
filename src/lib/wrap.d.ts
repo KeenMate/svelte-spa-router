@@ -21,8 +21,10 @@ export type RoutePrecondition = (detail: any) => boolean | Promise<boolean>;
  * Wrapped component object
  */
 export interface WrappedComponent {
-    /** Component loader function */
-    component: () => Promise<any>;
+    /** Component loader function (not used in zone mode) */
+    component?: () => Promise<any>;
+    /** Zone components (used in zone mode) */
+    zones?: Record<string, () => Promise<any>>;
     /** Route preconditions */
     conditions?: RoutePrecondition[];
     /** Static props for the component */
@@ -31,16 +33,20 @@ export interface WrappedComponent {
     userData?: any;
     /** Internal router flag */
     _sveltesparouter: true;
+    /** Internal zone mode flag */
+    _isZoneMode?: boolean;
 }
 
 /**
  * Options for the wrap function
  */
 export interface WrapOptions {
-    /** Synchronous component (incompatible with asyncComponent) */
+    /** Synchronous component (incompatible with asyncComponent and zones) */
     component?: any;
-    /** Async component import function (incompatible with component) */
+    /** Async component import function (incompatible with component and zones) */
     asyncComponent?: () => Promise<any>;
+    /** Zone components: dictionary of zone names to components (incompatible with component and asyncComponent) */
+    zones?: Record<string, any | (() => Promise<any>)>;
     /** Loading placeholder component */
     loadingComponent?: any;
     /** Props for loading component */
