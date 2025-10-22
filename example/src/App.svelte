@@ -10,6 +10,8 @@ import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorH
 import { user, toggleUser, getCurrentUser, checkPermissions, hasDocumentAccess } from './stores/userStore.svelte.js'
 
 import Home from './routes/Home.svelte'
+import About from './routes/About.svelte'
+import User from './routes/User.svelte'
 import Book from './routes/Book.svelte'
 import LinksDemo from './routes/LinksDemo.svelte'
 import NotFound from './routes/NotFound.svelte'
@@ -63,6 +65,8 @@ configurePermissions({
 // Define routes with permissions
 const routes = {
     '/': Home,
+    '/about': About,
+    '/user/:first/:last?': User,
     '/book/*': Book,
     '/links-demo': LinksDemo,
     '/querystring-demo': QuerystringDemo,

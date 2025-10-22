@@ -38,7 +38,8 @@ async function navigateWithString() {
 
 async function navigateWithContext() {
     // String path with navigation context data
-    await push('/navigation-context-demo', {
+    // push(route, routeParams, queryString, navigationContext)
+    await push('/navigation-context-demo', {}, {}, {
         orderId: 12345,
         customer: 'Alice',
         source: 'programmatic'
@@ -229,12 +230,13 @@ registerRoutes(&#123;
     <button onclick={navigateWithContext}>
         Navigate with hidden context data
     </button>
-    <pre><code>await push('/navigation-context-demo', {'{'}
+    <pre><code>// push(route, routeParams, queryString, navigationContext)
+await push('/navigation-context-demo', &#123;&#125;, &#123;&#125;, &#123;
   orderId: 12345,
   customer: 'Alice',
   source: 'programmatic'
-{'}'})</code></pre>
-    <p class="note">Format: <code>push(path, navigationContext)</code></p>
+&#125;)</code></pre>
+    <p class="note">Format: <code>push(route, &#123;&#125;, &#123;&#125;, navigationContext)</code></p>
     <p class="note">Resolves to: <code>/navigation-context-demo</code> (clean URL)</p>
     <p class="note">💡 Context data accessible via <code>navigationContext()</code> in target route</p>
 </div>

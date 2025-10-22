@@ -17,13 +17,10 @@ let {
      * Will be called before navigating away from this page
      * Should throw NavigationCancelledError to prevent navigation
      */
-    beforeLeave = undefined,
-
-    /**
-     * Children content
-     */
-    children
+    beforeLeave = undefined
 } = $props()
+
+let { children } = $props()
 
 onMount(() => {
     if (beforeLeave) {
