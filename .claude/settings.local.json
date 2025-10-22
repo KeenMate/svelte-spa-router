@@ -24,7 +24,9 @@
       "Bash(npm create vite@latest . -- --template svelte)",
       "Bash(powershell.exe -ExecutionPolicy Bypass -File rename-refactor.ps1)"
     ],
-    "deny": [],
+    "deny": [
+      "Bash(make dev:*)"
+    ],
     "ask": []
   }
 }
