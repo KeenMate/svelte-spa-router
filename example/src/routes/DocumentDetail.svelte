@@ -133,9 +133,6 @@
           <a href={`/document/${params.id}/logs`} use:link class="btn">
             View Activity Logs →
           </a>
-          <a href="/metadata-demo" use:link class="btn btn-secondary">
-            Back to Demo List
-          </a>
         </div>
       </div>
     {/if}

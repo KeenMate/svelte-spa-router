@@ -115,10 +115,5 @@ async function refetchData() &#123;
   Refresh Data
 &lt;/button&gt;</code></pre>
     </section>
-
-    <div class="navigation">
-      <a href="/metadata-demo" use:link class="btn">← Back to Metadata Demo</a>
-      <a href="/" use:link class="btn btn-secondary">Home</a>
-    </div>
   </div>
 </PageWrapper>
