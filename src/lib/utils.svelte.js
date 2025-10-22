@@ -1,4 +1,4 @@
-import { tick } from 'svelte'
+﻿import { tick } from 'svelte'
 import { joinPaths } from './helpers/url-helpers.svelte.js'
 import { buildUrl, hasRoute } from './routes.svelte.js'
 
@@ -11,6 +11,7 @@ import { buildUrl, hasRoute } from './routes.svelte.js'
 // Configuration state - must be set before app initialization
 let hashRoutingEnabled = $state(true)
 let basePath = $state('/')
+let paramReplacementPlaceholder = $state('N-A')
 
 /**
  * Enable or disable hash-based routing
@@ -66,6 +67,25 @@ export function getBasePath() {
 }
 
 /**
+ * Set the placeholder value for missing route parameters
+ * Used when building URLs from named routes with incomplete parameters
+ *
+ * @param {string} value - Placeholder value (default: 'N-A')
+ */
+export function setParamReplacementPlaceholder(value) {
+    paramReplacementPlaceholder = value
+}
+
+/**
+ * Get current parameter replacement placeholder
+ *
+ * @returns {string} Placeholder value
+ */
+export function getParamReplacementPlaceholder() {
+    return paramReplacementPlaceholder
+}
+
+/**
  * Returns the current location from the hash or pathname.
  *
  * @returns {Location} Location object
@@ -115,6 +135,9 @@ function getLocation() {
 // Trigger for manual updates (must be declared before locationState)
 let updateTrigger = $state(0)
 
+// Navigation context state for passing data between routes without URL
+let navigationContextState = $state(null)
+
 // Reactive location state - use derived to make it reactive to config changes
 let locationState = $derived.by(() => {
     // This will re-run when hashRoutingEnabled or basePath changes (both are $state)
@@ -130,13 +153,25 @@ if (typeof window !== 'undefined') {
     // Listen to hashchange for hash mode
     window.addEventListener('hashchange', () => {
         if (hashRoutingEnabled) {
+            // Restore context from history state if available
+            if (history.state && history.state.__svelte_spa_router_navigation_context !== undefined) {
+                setNavigationContext(history.state.__svelte_spa_router_navigation_context)
+            } else {
+                setNavigationContext(null)
+            }
             updateTrigger++
         }
     }, false)
 
     // Listen to popstate for history mode (back/forward buttons)
-    window.addEventListener('popstate', () => {
+    window.addEventListener('popstate', (event) => {
         if (!hashRoutingEnabled) {
+            // Restore context from history state if available
+            if (event.state && event.state.__svelte_spa_router_navigation_context !== undefined) {
+                setNavigationContext(event.state.__svelte_spa_router_navigation_context)
+            } else {
+                setNavigationContext(null)
+            }
             updateTrigger++
         }
     }, false)
@@ -180,6 +215,25 @@ export function setParams(newParams) {
     paramsState = newParams
 }
 
+/**
+ * Get route context data
+ * Context is data passed during navigation that doesn't appear in the URL
+ * Example: push('/orders', { context: { orderId: 123 } })
+ *
+ * @returns {any} Context object or null if no context was set
+ */
+export function navigationContext() {
+    return navigationContextState
+}
+
+/**
+ * Internal function to set context (used by push/replace)
+ * @private
+ */
+function setNavigationContext(newContext) {
+    navigationContextState = newContext
+}
+
 // Zone components state for multi-zone routing
 let zoneComponentsState = $state({})
 
@@ -205,17 +259,53 @@ export function setZoneComponents(zoneComponents) {
  *
  * @param {string} location - Path to navigate to
  * @param {boolean} shouldReplace - If true, replaces current history entry instead of pushing
+ * @param {any} context - Optional context data to pass to the route
  * @private
  */
-function navigate(location, shouldReplace = false) {
+function navigate(location, shouldReplace = false, context = null) {
+    // Store context in reactive state (always works)
+    setNavigationContext(context)
+
     if (hashRoutingEnabled) {
-        // Hash mode - same as before
+        // Hash mode
         const dest = (location.charAt(0) == '#' ? '' : '#') + location
         if (shouldReplace) {
             window.location.replace(dest)
         } else {
-            // Save scroll state before navigation
-            history.replaceState({...history.state, __svelte_spa_router_scrollX: window.scrollX, __svelte_spa_router_scrollY: window.scrollY}, undefined)
+            // Try to save context in history state for back/forward support
+            let processedNavigationContext = context
+            let shouldSaveContext = true
+
+            try {
+                // First try structured clone
+                if (context !== null) {
+                    structuredClone(context)
+                }
+            } catch (e) {
+                // If structured clone fails, try JSON serialization
+                try {
+                    if (context !== null) {
+                        const jsonString = JSON.stringify(context)
+                        processedNavigationContext = JSON.parse(jsonString)
+                    }
+                } catch (jsonError) {
+                    // If JSON also fails, don't save context
+                    console.warn('Navigation context data cannot be stored in history (not serializable). Navigation context will not persist on back/forward navigation.', jsonError)
+                    shouldSaveContext = false
+                }
+            }
+
+            try {
+                history.replaceState({
+                    ...history.state,
+                    __svelte_spa_router_scrollX: window.scrollX,
+                    __svelte_spa_router_scrollY: window.scrollY,
+                    ...(shouldSaveContext && { __svelte_spa_router_navigation_context: processedNavigationContext })
+                }, undefined)
+            } catch (e) {
+                // If even without context it fails, just ignore
+                console.warn('Failed to save state to history:', e)
+            }
             window.location.hash = dest
         }
     } else {
@@ -224,28 +314,101 @@ function navigate(location, shouldReplace = false) {
         // Note: Don't append window.location.search here - the location parameter
         // already contains the querystring if one should be present
 
+        // Try to create state with context
+        let state = null
+        let processedNavigationContext = context
+
+        try {
+            // First try structured clone (handles more types than JSON)
+            if (context !== null) {
+                structuredClone(context)
+                processedNavigationContext = context
+            }
+            state = {
+                __svelte_spa_router_navigation_context: processedNavigationContext
+            }
+        } catch (e) {
+            // If structured clone fails, try JSON serialization
+            try {
+                if (context !== null) {
+                    const jsonString = JSON.stringify(context)
+                    processedNavigationContext = JSON.parse(jsonString)
+                    state = {
+                        __svelte_spa_router_navigation_context: processedNavigationContext,
+                        __svelte_spa_router_navigation_context_serialized: true
+                    }
+                } else {
+                    state = {}
+                }
+            } catch (jsonError) {
+                // If JSON serialization also fails, don't store in history
+                console.warn('Navigation context data cannot be stored in history (not serializable). Navigation context will not persist on back/forward navigation.', jsonError)
+                state = {}
+            }
+        }
+
         if (shouldReplace) {
-            window.history.replaceState({}, '', fullPath)
+            window.history.replaceState(state, '', fullPath)
         } else {
-            // Save scroll state before navigation
-            history.replaceState({...history.state, __svelte_spa_router_scrollX: window.scrollX, __svelte_spa_router_scrollY: window.scrollY}, undefined)
-            window.history.pushState({}, '', fullPath)
+            // Save scroll state and context before navigation
+            try {
+                history.replaceState({
+                    ...history.state,
+                    __svelte_spa_router_scrollX: window.scrollX,
+                    __svelte_spa_router_scrollY: window.scrollY,
+                    ...(processedNavigationContext !== null && state.__svelte_spa_router_navigation_context !== undefined && { __svelte_spa_router_navigation_context: processedNavigationContext })
+                }, undefined)
+            } catch (e) {
+                // If it fails, just ignore
+                console.warn('Failed to save state to history:', e)
+            }
+            window.history.pushState(state, '', fullPath)
         }
 
         // Manually trigger popstate to update location
-        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }))
+        window.dispatchEvent(new PopStateEvent('popstate', { state }))
     }
 }
 
 /**
  * Navigates to a new page programmatically.
  *
- * @param {string|Array|LinkActionOpts} location - Path to navigate to, or array [route, params, query], or options object
+ * Supports multiple signatures:
+ * - push(location) - string, array, or object
+ * - push(location, navigationContext) - with context data (legacy)
+ * - push(route, routeParams, queryString, navigationContext) - multi-parameter
+ *
+ * @param {string|Array|LinkActionOpts} location - Path/route to navigate to
+ * @param {any} [param2] - Route params (multi-param) or navigation context (legacy)
+ * @param {any} [param3] - Query string (multi-param only)
+ * @param {any} [param4] - Navigation context (multi-param only)
  * @return {Promise<void>} Promise that resolves after the page navigation has completed
  */
-export async function push(location) {
-    // Normalize input (support string, array, or object like the link action)
-    const opts = typeof location === 'string' ? { href: location } : linkOpts(location)
+export async function push(location, param2, param3, param4) {
+    let opts
+    let context = null
+
+    // Detect signature based on arguments
+    if (typeof location === 'string' && (param2 !== undefined && (typeof param2 === 'object' && !Array.isArray(param2)) || param3 !== undefined || param4 !== undefined)) {
+        // Multi-parameter signature: push(route, routeParams, queryString, navigationContext)
+        const route = location
+        const routeParams = param2 || {}
+        const queryString = param3 || {}
+        context = param4 || null
+
+        // Determine if route is a path (starts with /) or a named route
+        if (route.startsWith('/')) {
+            opts = { href: route, params: routeParams, query: queryString }
+        } else {
+            opts = { route, params: routeParams, query: queryString }
+        }
+    } else {
+        // Legacy signatures: push(location) or push(location, navigationContext)
+        opts = typeof location === 'string' ? { href: location } : linkOpts(location)
+
+        // param2 is navigation context in legacy mode
+        context = param2 !== undefined ? param2 : (opts.navigationContext || null)
+    }
 
     // Build URL from route if needed
     let href = opts.route
@@ -259,7 +422,7 @@ export async function push(location) {
     // Execute this code when the current call stack is complete
     await tick()
 
-    navigate(href, false)
+    navigate(href, false, context)
 }
 
 /**
@@ -277,12 +440,42 @@ export async function pop() {
 /**
  * Replaces the current page but without modifying the history stack.
  *
- * @param {string|Array|LinkActionOpts} location - Path to navigate to, or array [route, params, query], or options object
+ * Supports multiple signatures:
+ * - replace(location) - string, array, or object
+ * - replace(location, navigationContext) - with context data (legacy)
+ * - replace(route, routeParams, queryString, navigationContext) - multi-parameter
+ *
+ * @param {string|Array|LinkActionOpts} location - Path/route to navigate to
+ * @param {any} [param2] - Route params (multi-param) or navigation context (legacy)
+ * @param {any} [param3] - Query string (multi-param only)
+ * @param {any} [param4] - Navigation context (multi-param only)
  * @return {Promise<void>} Promise that resolves after the page navigation has completed
  */
-export async function replace(location) {
-    // Normalize input (support string, array, or object like the link action)
-    const opts = typeof location === 'string' ? { href: location } : linkOpts(location)
+export async function replace(location, param2, param3, param4) {
+    let opts
+    let context = null
+
+    // Detect signature based on arguments
+    if (typeof location === 'string' && (param2 !== undefined && (typeof param2 === 'object' && !Array.isArray(param2)) || param3 !== undefined || param4 !== undefined)) {
+        // Multi-parameter signature: replace(route, routeParams, queryString, navigationContext)
+        const route = location
+        const routeParams = param2 || {}
+        const queryString = param3 || {}
+        context = param4 || null
+
+        // Determine if route is a path (starts with /) or a named route
+        if (route.startsWith('/')) {
+            opts = { href: route, params: routeParams, query: queryString }
+        } else {
+            opts = { route, params: routeParams, query: queryString }
+        }
+    } else {
+        // Legacy signatures: replace(location) or replace(location, navigationContext)
+        opts = typeof location === 'string' ? { href: location } : linkOpts(location)
+
+        // param2 is navigation context in legacy mode
+        context = param2 !== undefined ? param2 : (opts.navigationContext || null)
+    }
 
     // Build URL from route if needed
     let href = opts.route
@@ -296,28 +489,7 @@ export async function replace(location) {
     // Execute this code when the current call stack is complete
     await tick()
 
-    if (hashRoutingEnabled) {
-        // Hash mode - use history.replaceState
-        const dest = (href.charAt(0) == '#' ? '' : '#') + href
-        try {
-            const newState = {
-                ...history.state
-            }
-            delete newState['__svelte_spa_router_scrollX']
-            delete newState['__svelte_spa_router_scrollY']
-            window.history.replaceState(newState, undefined, dest)
-        }
-        catch (e) {
-            // eslint-disable-next-line no-console
-            console.warn('Caught exception while replacing the current page. If you\'re running this in the Svelte REPL, please note that the `replace` method might not work in this environment.')
-        }
-
-        // The method above doesn't trigger the hashchange event, so let's do that manually
-        window.dispatchEvent(new Event('hashchange'))
-    } else {
-        // History mode - use navigate with shouldReplace=true
-        navigate(href, true)
-    }
+    navigate(href, true, context)
 }
 
 /**
@@ -480,10 +652,10 @@ function updateLink(node, opts) {
 
 // Internal function that ensures the argument of the link action is always an object
 function linkOpts(val) {
-    // Handle array format: ['routeName', {params}]
+    // Handle array format: [route, params, query, navigationContext]
     if (Array.isArray(val)) {
-        const [route, params = {}, query = {}] = val
-        return { route, params, query }
+        const [route, params = {}, query = {}, navigationContext] = val
+        return { route, params, query, navigationContext }
     }
 
     // Handle string format (legacy): just an href

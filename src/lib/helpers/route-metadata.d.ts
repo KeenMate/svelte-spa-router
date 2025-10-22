@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Type definitions for route metadata helpers
  */
 
@@ -16,7 +16,7 @@ export interface BreadcrumbItem {
 
 /**
  * Update route metadata (called internally by Router or manually by user)
- * @param userData - User data from the route containing title, breadcrumbs, etc.
+ * @param routeContext - route context from the route containing title, breadcrumbs, etc.
  *
  * @example
  * ```typescript
@@ -32,7 +32,7 @@ export interface BreadcrumbItem {
  * })
  * ```
  */
-export function updateRouteMetadata(userData?: Record<string, any>): void;
+export function updateRouteMetadata(routeContext?: Record<string, any>): void;
 
 /**
  * Get current route title reactively
@@ -63,19 +63,19 @@ export function routeTitle(): string;
 export function routeBreadcrumbs(): BreadcrumbItem[];
 
 /**
- * Get full route user data reactively
- * @returns Current route's userData object
+ * Get full route route context reactively
+ * @returns Current route's routeContext object
  *
  * @example
  * ```typescript
- * import { routeUserData } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+ * import { routerouteContext } from '@keenmate/svelte-spa-router/helpers/route-metadata'
  *
  * // In a component
- * const userData = $derived(routeUserData())
- * const customField = userData.myCustomField
+ * const routeContext = $derived(routerouteContext())
+ * const customField = routeContext.myCustomField
  * ```
  */
-export function routeUserData(): Record<string, any>;
+export function routerouteContext(): Record<string, any>;
 
 /**
  * Hide the loading screen

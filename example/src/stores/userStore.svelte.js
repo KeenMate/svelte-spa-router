@@ -7,12 +7,16 @@ const USERS = {
     donna: {
         id: 1,
         name: 'Donna Hayward',
-        permissions: ['read', 'write', 'user:view']
+        permissions: ['read', 'write', 'user:view'],
+        // Donna can only access documents 1, 2, 3
+        accessibleDocuments: [1, 2, 3]
     },
     audrey: {
         id: 2,
         name: 'Audrey Horne',
-        permissions: ['read', 'admin', 'user:view', 'user:edit', 'settings:manage']
+        permissions: ['read', 'admin', 'user:view', 'user:edit', 'settings:manage'],
+        // Audrey can access all documents
+        accessibleDocuments: [1, 2, 3, 4, 5]
     }
 }
 
@@ -76,4 +80,15 @@ export function checkPermissions(user, permissionSpec) {
  */
 export function user() {
     return currentUser
+}
+
+/**
+ * Check if current user has access to a specific document
+ * This simulates a resource-based authorization check
+ */
+export function hasDocumentAccess(documentId) {
+    if (!currentUser || !currentUser.accessibleDocuments) {
+        return false
+    }
+    return currentUser.accessibleDocuments.includes(Number(documentId))
 }

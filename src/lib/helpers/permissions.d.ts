@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Type definitions for permission checking utilities
  */
 
@@ -43,14 +43,16 @@ export interface PermissionConfig {
 export interface ProtectedRouteOptions {
     /** Async component import function */
     component: () => Promise<any>;
-    /** Permission requirements */
+    /** Permission requirements (role-based authorization) */
     permissions?: PermissionRequirements;
+    /** Custom authorization callback (resource-based authorization) */
+    authorizationCallback?: (detail: any) => boolean | Promise<boolean>;
     /** Loading component to show while loading */
     loadingComponent?: any;
     /** Additional props to pass to component */
     props?: Record<string, any>;
-    /** Additional user data to attach to route */
-    userData?: any;
+    /** Additional route context to attach to route */
+    routeContext?: any;
     /** Additional wrap options */
     [key: string]: any;
 }

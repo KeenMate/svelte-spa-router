@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**@keenmate/svelte-spa-router** is a modern router for Svelte 5 SPAs built with runes (`$state`, `$props`, `$effect`, `$derived`). It supports dual-mode routing (hash-based `#/path` and history API `/path`) with comprehensive permission management for role-based access control.
+**@keenmate/svelte-spa-router** is a modern router for Svelte 5 SPAs built with runes (`$state`, `$props`, `$effect`, `$derived`). It supports dual-mode routing (hash-based `#/path` and history API `/path`) with comprehensive permission management for both role-based and resource-based access control.
 
 **Key Technologies:**
 - Svelte 5 with runes (NOT Svelte stores)
@@ -47,15 +47,15 @@ The router is organized into several key modules:
 - Handles async component loading with race condition protection
 - Manages route conditions/guards evaluation
 - Implements scroll restoration with browser History API
-- Event system via callback props (onrouteLoading, onrouteLoaded, onconditionsFailed)
+- Event system via callback props (onrouteLoading, onrouteLoaded, onconditionsFailed, onNotFound)
 
 **utils.svelte.js** - Core routing utilities and state management
-- Contains all reactive state using `$state()` (locationState, paramsState)
+- Contains all reactive state using `$state()` (locationState, paramsState, navigationContextState)
 - Dual-mode routing: hash-based (default) or history API
-- Configuration: `setHashRoutingEnabled()`, `setBasePath()`
-- Navigation functions: `push()`, `pop()`, `replace()`
-- State accessors: `location()`, `querystring()`, `params()`, `loc()`
-- `link` action for SPA navigation with modifier key support
+- Configuration: `setHashRoutingEnabled()`, `setBasePath()`, `setParamReplacementPlaceholder()`
+- Navigation functions: `push()`, `pop()`, `replace()` with multi-parameter signatures
+- State accessors: `location()`, `querystring()`, `params()`, `navigationContext()`, `loc()`
+- `link` action for SPA navigation with modifier key support and 4-element array format
 
 **wrap.js** - Route wrapping utility
 - Enables async component loading and code splitting
@@ -68,11 +68,33 @@ The router is organized into several key modules:
 - Works with both routing modes
 
 **helpers/permissions.svelte.js** - Permission system
-- Flexible RBAC (role-based access control)
+- Flexible RBAC (role-based access control) and resource-based authorization
 - `configurePermissions()` - Setup function called in main.js
-- `createProtectedRoute()` - Helper to create routes with permission checks
+- `createProtectedRoute()` - Helper to create routes with permission and authorization checks
+- `createProtectedRouteDefinition()` - Returns route definition for use with wrap()
 - `hasPermission()` - UI-level permission checking
 - Permission requirements: `any: [...]` (OR), `all: [...]` (AND)
+- `authorizationCallback` parameter for resource-based authorization (API calls, database checks)
+- Conditions execute in order: permissions (fast) → authorizationCallback (slow)
+
+**helpers/error-handler.svelte.js** - Global error handling system
+- `configureGlobalErrorHandler()` - Configure error handling behavior
+- SessionStorage-based restart loop prevention
+- Recovery strategies: navigateSafe, restart, showError, custom
+- Helper functions: `restart()`, `navigate()`, `showError()`, `canRestart()`, `getRestartCount()`
+- Error filtering with regex or string patterns
+
+**helpers/GlobalErrorHandler.svelte** - Error handler component
+- Catches all unhandled errors via `window.addEventListener('error')`
+- Executes configured recovery strategy
+- Shows toast notifications or full-page error UI
+- Supports custom error components
+
+**helpers/ErrorDisplay.svelte** - Default error UI
+- Beautiful full-page error display
+- Shows error message, stack trace (dev mode), and error context
+- Recovery actions: Go Home, Reload, Continue
+- Warning when multiple errors detected
 
 **helpers/url-helpers.svelte.js** - URL utilities
 - `joinPaths()` - Intelligent path joining with slash normalization
@@ -166,6 +188,54 @@ const routes = {
 }
 ```
 
+### Navigation Patterns
+
+**Multi-parameter Navigation:**
+```javascript
+import { push, replace } from '@keenmate/svelte-spa-router'
+
+// Multi-parameter signature: push(route, routeParams, queryString, navigationContext)
+await push('userProfile', { userId: 123 }, { tab: 'settings' })
+// Route resolution: starts with / = exact path, otherwise = named route lookup
+await push('/about', {}, { source: 'nav' })
+
+// Array format (4 elements): [route, params, query, navigationContext]
+await push(['bookDetail', { bookId: 456 }, { tab: 'reviews' }, { source: 'menu' }])
+
+// Object format
+await push({
+    route: 'userProfile',
+    params: { userId: 123 },
+    query: { tab: 'settings' },
+    navigationContext: { source: 'toolbar' }
+})
+```
+
+**Navigation Context:**
+- Pass data during navigation without showing it in URL (WinForms-like)
+- Access via `navigationContext()` in target component
+- Cleared when user manually navigates (types URL, refreshes)
+
+**Strict Parameter Replacement:**
+```javascript
+import { setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router/utils'
+
+// Configure placeholder for missing route parameters (default: 'N-A')
+setParamReplacementPlaceholder('N-A')
+
+// Route pattern: /users/:userId/:section
+// Missing section parameter:
+push('userProfile', { userId: 123 })
+// Result: /users/123/N-A
+
+// Missing parameters trigger onNotFound callback for error tracking
+```
+
+**Why strict replacement?**
+- Predictable URLs - no silent parameter removal
+- Easy to spot missing data in development
+- `onNotFound` callback tracks issues for debugging
+
 ### Route Guards/Conditions
 Use `wrap()` to add async conditions:
 ```javascript
@@ -182,18 +252,56 @@ Use `wrap()` to add async conditions:
 ```
 
 ### Protected Routes with Permissions
+
+**Basic Permission-based Route:**
 ```javascript
-import { wrap } from '@keenmate/svelte-spa-router/wrap'
 import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
 
 const routes = {
-    '/admin': wrap(createProtectedRoute({
+    // createProtectedRoute() returns ready-to-use wrapped component (no wrap() needed!)
+    '/admin': createProtectedRoute({
         component: () => import('./Admin.svelte'),
         permissions: { any: ['admin.read', 'admin.write'] },
         loadingComponent: Loading
-    }))
+    })
 }
 ```
+
+**Combining Role-based and Resource-based Authorization:**
+```javascript
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { push } from '@keenmate/svelte-spa-router'
+
+const routes = {
+    '/document/:id': createProtectedRoute({
+        component: () => import('./DocumentDetail.svelte'),
+        // Role-based: Check user has 'read' permission (fast check)
+        permissions: { any: ['read'] },
+        // Resource-based: Check user can access THIS document (slow API call)
+        authorizationCallback: async (detail) => {
+            const documentId = detail.params.id
+            const hasAccess = await checkDocumentAccess(documentId)
+
+            if (!hasAccess) {
+                await push('/unauthorized', {
+                    resource: 'document',
+                    id: documentId
+                })
+                return false
+            }
+
+            return true
+        },
+        loadingComponent: Loading
+    })
+}
+```
+
+**Key Points:**
+- `createProtectedRoute()` returns a wrapped component (no additional `wrap()` needed)
+- `createProtectedRouteDefinition()` returns a definition for use with `wrap()` (advanced usage)
+- Conditions execute in order: permissions first (fast), then authorizationCallback (slow)
+- This prevents unnecessary API calls when user doesn't have basic permissions
 
 ### Component Props in Svelte 5
 Route components receive params via props:

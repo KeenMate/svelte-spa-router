@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Multi-Parameter Navigation & Strict Parameter Replacement
+- **Multi-parameter signature for `push()` and `replace()`** - Natural function call style
+  - `push(route, routeParams, queryString, navigationContext)`
+  - `replace(route, routeParams, queryString, navigationContext)`
+  - Route resolution: Starts with `/` = exact path, otherwise = named route lookup
+  - Examples: `push('userProfile', { userId: 123 }, { tab: 'settings' })`
+  - Backward compatible with all existing formats (string, array, object)
+
+- **4-element array support** - Navigation context in arrays
+  - `push(['route', params, query, navigationContext])`
+  - `link={['route', params, query, navigationContext]}`
+  - Example: `<a use:link={['bookDetail', {bookId: 123}, {tab: 'reviews'}, {source: 'list'}]}>`
+
+- **Strict parameter replacement with placeholder**
+  - `setParamReplacementPlaceholder(value)` - Configure placeholder for missing params (default: 'N-A')
+  - Missing params replaced with placeholder instead of being removed
+  - Predictable URLs: `/users/:userId/:section` with missing section → `/users/123/N-A`
+  - Triggers `onNotFound` callback for error tracking
+
+#### Resource-Based Authorization
+- **`authorizationCallback` parameter for `createProtectedRoute()`** - Combine role + resource checks
+  - Supports both role-based (permissions) and resource-based (authorizationCallback) authorization
+  - Conditions execute in order: permissions first (fast), then authorizationCallback (API call)
+  - Example: Check if user has 'editor' role, then check if they can access specific document
+  - Perfect for document access, resource ownership, dynamic permissions
+  - Callback receives full route detail: `{ route, location, params, query, routeContext, navigationContext }`
+
+#### Global Error Handler System
+- **Production-ready global error handler** for catching and recovering from unhandled errors
+  - `configureGlobalErrorHandler()` - Configure error handling behavior in `main.js`
+  - `GlobalErrorHandler` component - Wraps your app and catches all errors
+  - `ErrorDisplay` component - Beautiful default error UI with recovery options
+  - **Recovery Strategies**: `navigateSafe`, `restart`, `showError`, `custom`
+  - **Loop Prevention**: SessionStorage-based restart tracking prevents infinite reload loops
+  - **Custom Callbacks**: `onError` for logging/monitoring, `onRecover` for custom recovery logic
+  - **Helper Functions**: `restart()`, `navigate()`, `showError()`, `canRestart()`, `getRestartCount()`
+  - **Error Filtering**: Ignore known non-critical errors (ResizeObserver, etc.)
+  - **UI Options**: Toast notifications, full-page error component, or custom error component
+  - **TypeScript Support**: Full type definitions for all APIs
+  - **Example Integration**: Working demo with Sentry integration example
+
+#### 404 Not Found Tracking
+- **`onNotFound` callback on Router component** - Track 404s for analytics/monitoring
+  - Fires when catch-all route (`'*'`) matches (user sees 404 page)
+  - Fires when no route matches at all (no 404 page defined)
+  - Perfect for logging to Sentry, Google Analytics, or other monitoring services
+  - Event detail includes `{ location, querystring }`
+  - Example: `<Router {routes} onNotFound={(e) => Sentry.captureMessage('404', { extra: e.detail })} />`
+
 #### Convenient Route Creation API
 - **New `createRoute()` and `createRouteDefinition()` functions** for easier route configuration
   - `createRoute()` - Returns already wrapped component (most convenient, no `wrap()` needed)
@@ -25,14 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Route Metadata Support**
   - `title` - Set page title for routes
   - `breadcrumbs` - Define breadcrumb trail with `{ label, path? }` structure
-  - Metadata stored in `userData` object, accessible in route events and components
+  - Metadata stored in `routeContext` object, accessible in route events and components
 
 #### Dynamic Metadata & Loading Control
 - **Reactive Metadata Helpers**: `helpers/route-metadata.svelte.js`
   - `routeTitle()` - Get current route title reactively
   - `routeBreadcrumbs()` - Get current breadcrumb trail reactively
-  - `routeUserData()` - Get full route userData reactively
-  - `updateRouteMetadata(userData)` - Update metadata after data loads (e.g., change title from "Document" to "Invoice.pdf")
+  - `routeContext()` - Get full route context reactively
+  - `updateRouteMetadata(routeContext)` - Update metadata after data loads (e.g., change title from "Document" to "Invoice.pdf")
   - **`updateTitle(title)` - Update just the title** (simpler than updateRouteMetadata)
   - **`updateBreadcrumb(id, updates)` - Partial breadcrumb updates** (update specific segments by ID)
   - Automatically updated by Router on route changes
@@ -189,6 +238,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pattern matching support
 
 ### Changed
+
+#### Naming Changes (Non-Breaking in Usage, Breaking for Type Imports)
+- **`userData` → `routeContext`**: Renamed for clarity
+  - Refers to static route-level configuration data
+  - `wrap({ routeContext: { ... } })`
+  - `routeContext()` helper function
+  - All TypeScript interfaces updated
+
+- **`context` → `navigationContext`**: Renamed for clarity
+  - Refers to dynamic data passed during navigation (doesn't appear in URL)
+  - `push('/path', { orderId: 123 })` - second parameter is navigationContext
+  - `navigationContext()` accessor function
+  - `wrap({ navigationContext: { ... } })`
+
+These changes clarify the distinction between:
+- **routeContext**: Static metadata defined in route configuration
+- **navigationContext**: Dynamic data passed at navigation time (WinForms-like experience)
 
 #### API Changes (Breaking)
 - **Stores → Functions**:

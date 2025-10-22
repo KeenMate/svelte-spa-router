@@ -1,4 +1,4 @@
-<script>
+﻿<script>
 import {parse} from './parse-route.js'
 import { tick, untrack } from 'svelte'
 import { location, querystring, params, setParams, restoreScroll, getZoneComponent, setZoneComponents } from './utils.svelte.js'
@@ -33,7 +33,8 @@ let {
     onrouteEvent,
     onrouteLoading,
     onrouteLoaded,
-    onconditionsFailed
+    onconditionsFailed,
+    onNotFound
 } = $props()
 
 /**
@@ -75,7 +76,7 @@ class RouteItem {
                 this.isZoneMode = false
             }
             this.conditions = component.conditions || []
-            this.userData = component.userData
+            this.routeContext = component.routeContext
             this.props = component.props || {}
             this.shouldDisplayLoadingOnRouteLoad = component.shouldDisplayLoadingOnRouteLoad || false
         }
@@ -186,7 +187,7 @@ else {
 let component = $state(null)
 let componentParams = $state(null)
 let componentProps = $state({})
-let componentUserData = $state({})
+let componentrouteContext = $state({})
 let componentObj = $state(null)
 let loadingComponent = $state(null)
 let loadingParams = $state(null)
@@ -202,6 +203,7 @@ let previousScrollState = $state(null)
 let lastLoc = null
 let currentLocation = $state(null)
 let currentQuerystring = $state('')
+let lastNotFoundLocation = null
 
 // Dispatch events using callbacks
 function dispatchEvent(name, detail) {
@@ -213,6 +215,8 @@ function dispatchEvent(name, detail) {
         onrouteLoaded({ detail })
     } else if (name === 'conditionsFailed' && onconditionsFailed) {
         onconditionsFailed({ detail })
+    } else if (name === 'notFound' && onNotFound) {
+        onNotFound({ detail })
     }
 }
 
@@ -309,8 +313,17 @@ $effect(() => {
                 route: routesList[i].path,
                 location: newLoc.location,
                 querystring: newLoc.querystring,
-                userData: routesList[i].userData,
+                routeContext: routesList[i].routeContext,
                 params: (match && typeof match == 'object' && Object.keys(match).length) ? match : null
+            }
+
+            // Fire onNotFound if this is the catch-all route (only once per location)
+            if (routesList[i].path === '*' && onNotFound && lastNotFoundLocation !== newLoc.location) {
+                lastNotFoundLocation = newLoc.location
+                dispatchNextTick('notFound', {
+                    location: newLoc.location,
+                    querystring: newLoc.querystring
+                })
             }
 
             // Check if the route can be loaded - if all conditions succeed
@@ -318,7 +331,7 @@ $effect(() => {
                 // Don't display anything
                 component = null
                 componentObj = null
-                componentUserData = {}
+                componentrouteContext = {}
                 isWaitingForData = false
                 updateRouteMetadata({})
                 // Trigger an event to notify the user, then exit
@@ -344,7 +357,7 @@ $effect(() => {
                             component: (loaded && loaded.default) || loaded,
                             params: (match && typeof match == 'object' && Object.keys(match).length) ? match : null,
                             props: routesList[i].props,
-                            userData: detail.userData || {}
+                            routeContext: detail.routeContext || {}
                         }
                     })
                 )
@@ -364,12 +377,12 @@ $effect(() => {
                     componentParams = null
                 }
 
-                // Set static props and userData
+                // Set static props and routeContext
                 componentProps = routesList[i].props
-                componentUserData = detail.userData || {}
+                componentrouteContext = detail.routeContext || {}
 
                 // Update route metadata
-                updateRouteMetadata(detail.userData || {})
+                updateRouteMetadata(detail.routeContext || {})
 
                 // Set params in shared state
                 setParams(componentParams)
@@ -456,12 +469,12 @@ $effect(() => {
                 componentParams = null
             }
 
-            // Set static props and userData
+            // Set static props and routeContext
             componentProps = routesList[i].props
-            componentUserData = detail.userData || {}
+            componentrouteContext = detail.routeContext || {}
 
             // Update route metadata
-            updateRouteMetadata(detail.userData || {})
+            updateRouteMetadata(detail.routeContext || {})
 
             // Dispatch the routeLoaded event then exit
             dispatchNextTick('routeLoaded', Object.assign({}, detail, {
@@ -474,10 +487,11 @@ $effect(() => {
             return
         }
 
-        // If we're still here, there was no match
+        // If we're still here, there was no match (and no catch-all route)
+        // Note: onNotFound is already fired if catch-all route ('*') matched
         component = null
         componentObj = null
-        componentUserData = {}
+        componentrouteContext = {}
         isWaitingForData = false
         setParams(undefined)
         updateRouteMetadata({})
@@ -491,11 +505,11 @@ $effect(() => {
         {@const Comp = zoneComponentData.component}
         {@const zoneParams = zoneComponentData.params}
         {@const zoneProps = zoneComponentData.props}
-        {@const zoneUserData = zoneComponentData.userData}
+        {@const zonerouteContext = zoneComponentData.routeContext}
         {#if zoneParams}
-            <Comp params={zoneParams} {onrouteEvent} userData={zoneUserData} {...zoneProps} />
+            <Comp params={zoneParams} {onrouteEvent} routeContext={zonerouteContext} {...zoneProps} />
         {:else}
-            <Comp {onrouteEvent} userData={zoneUserData} {...zoneProps} />
+            <Comp {onrouteEvent} routeContext={zonerouteContext} {...zoneProps} />
         {/if}
     {/if}
 {:else if isWaitingForData && loadingComponent}
@@ -512,19 +526,19 @@ $effect(() => {
     <div style="display: none;">
         {#if componentParams}
             {@const Comp = component}
-            <Comp params={componentParams} {onrouteEvent} userData={componentUserData} {...componentProps} />
+            <Comp params={componentParams} {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
         {:else}
             {@const Comp = component}
-            <Comp {onrouteEvent} userData={componentUserData} {...componentProps} />
+            <Comp {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
         {/if}
     </div>
 {:else if component}
     <!-- Normal rendering (no waiting for data) -->
     {#if componentParams}
         {@const Comp = component}
-        <Comp params={componentParams} {onrouteEvent} userData={componentUserData} {...componentProps} />
+        <Comp params={componentParams} {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
     {:else}
         {@const Comp = component}
-        <Comp {onrouteEvent} userData={componentUserData} {...componentProps} />
+        <Comp {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
     {/if}
 {/if}

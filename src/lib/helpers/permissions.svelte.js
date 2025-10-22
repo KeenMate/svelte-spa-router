@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Permission checking utilities for route guards
  *
  * This module provides a flexible permission system that works with wrap() conditions.
@@ -116,9 +116,9 @@ export function createPermissionCondition(requirements) {
         const hasPermission = permissionChecker(user, requirements)
 
         if (!hasPermission) {
-            // Store the attempted route in userData for potential redirect after login
-            detail.userData = detail.userData || {}
-            detail.userData.deniedRoute = detail.location
+            // Store the attempted route in routeContext for potential redirect after login
+            detail.routeContext = detail.routeContext || {}
+            detail.routeContext.deniedRoute = detail.location
 
             unauthorizedHandler(detail)
             return false
@@ -134,12 +134,13 @@ export function createPermissionCondition(requirements) {
  *
  * @param {Object} options - Route options
  * @param {Function} options.component - Async component import function or synchronous component
- * @param {Object} [options.permissions] - Permission requirements
+ * @param {Object} [options.permissions] - Permission requirements (role-based)
  * @param {string[]} [options.permissions.any] - User needs at least one
  * @param {string[]} [options.permissions.all] - User needs all
+ * @param {Function} [options.authorizationCallback] - Custom authorization check (resource-based)
  * @param {any} [options.loadingComponent] - Loading component to show
  * @param {Object} [options.props] - Additional props to pass to component
- * @param {any} [options.userData] - Additional user data to attach
+ * @param {any} [options.routeContext] - Additional route context to attach
  * @returns {Object} Route configuration object (needs to be passed to wrap())
  *
  * @example
@@ -147,11 +148,32 @@ export function createPermissionCondition(requirements) {
  * import { wrap } from '@keenmate/svelte-spa-router/wrap'
  * import { createProtectedRouteDefinition } from '@keenmate/svelte-spa-router/helpers/permissions'
  *
+ * // Role-based only
  * const routes = {
  *   '/admin': wrap(createProtectedRouteDefinition({
  *     component: () => import('./Admin.svelte'),
  *     permissions: { any: ['admin.read'] },
  *     loadingComponent: Loading
+ *   }))
+ * }
+ *
+ * // Resource-based only
+ * const routes = {
+ *   '/document/:id': wrap(createProtectedRouteDefinition({
+ *     component: () => import('./DocumentEditor.svelte'),
+ *     authorizationCallback: async (detail) => {
+ *       const res = await fetch(`/api/documents/${detail.params.id}/check-access`)
+ *       return res.ok
+ *     }
+ *   }))
+ * }
+ *
+ * // Both role-based and resource-based
+ * const routes = {
+ *   '/document/:id/edit': wrap(createProtectedRouteDefinition({
+ *     component: () => import('./DocumentEditor.svelte'),
+ *     permissions: { any: ['editor', 'admin'] },
+ *     authorizationCallback: checkDocumentAccess
  *   }))
  * }
  * ```
@@ -160,9 +182,10 @@ export function createProtectedRouteDefinition(options) {
     const {
         component,
         permissions,
+        authorizationCallback,
         loadingComponent,
         props,
-        userData,
+        routeContext,
         ...restOptions
     } = options
 
@@ -179,16 +202,23 @@ export function createProtectedRouteDefinition(options) {
         wrapOptions.props = props
     }
 
-    // Merge user data
-    wrapOptions.userData = {
-        ...(userData || {}),
+    // Merge route context
+    wrapOptions.routeContext = {
+        ...(routeContext || {}),
         permissions: permissions || {}
     }
 
-    // Add permission condition if permissions specified
+    // Add conditions in order: permissions first, then authorization callback
+    wrapOptions.conditions = wrapOptions.conditions || []
+
+    // Add permission condition if permissions specified (role-based)
     if (permissions) {
-        wrapOptions.conditions = wrapOptions.conditions || []
         wrapOptions.conditions.push(createPermissionCondition(permissions))
+    }
+
+    // Add authorization callback if specified (resource-based)
+    if (authorizationCallback) {
+        wrapOptions.conditions.push(authorizationCallback)
     }
 
     return wrapOptions
@@ -200,28 +230,52 @@ export function createProtectedRouteDefinition(options) {
  *
  * @param {Object} options - Route options
  * @param {Function} options.component - Async component import function or synchronous component
- * @param {Object} [options.permissions] - Permission requirements
+ * @param {Object} [options.permissions] - Permission requirements (role-based)
  * @param {string[]} [options.permissions.any] - User needs at least one
  * @param {string[]} [options.permissions.all] - User needs all
+ * @param {Function} [options.authorizationCallback] - Custom authorization check (resource-based)
  * @param {any} [options.loadingComponent] - Loading component to show
  * @param {Object} [options.props] - Additional props to pass to component
- * @param {any} [options.userData] - Additional user data to attach
+ * @param {any} [options.routeContext] - Additional route context to attach
  * @returns {any} Wrapped route component (ready to use directly in routes object)
  *
  * @example
  * ```javascript
  * import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+ * import { push } from '@keenmate/svelte-spa-router/utils'
  *
+ * // Role-based only
  * const routes = {
- *   // No wrap() needed! createProtectedRoute handles it for you
  *   '/admin': createProtectedRoute({
  *     component: () => import('./Admin.svelte'),
  *     permissions: { any: ['admin.read'] },
  *     loadingComponent: Loading
- *   }),
- *   '/settings': createProtectedRoute({
- *     component: () => import('./Settings.svelte'),
- *     permissions: { all: ['settings.read', 'settings.write'] }
+ *   })
+ * }
+ *
+ * // Resource-based only
+ * async function checkDocumentAccess(detail) {
+ *   const res = await fetch(`/api/documents/${detail.params.id}/check-access`)
+ *   if (!res.ok) {
+ *     await push('/unauthorized', { resource: 'document', id: detail.params.id })
+ *     return false
+ *   }
+ *   return true
+ * }
+ *
+ * const routes = {
+ *   '/document/:id': createProtectedRoute({
+ *     component: () => import('./DocumentEditor.svelte'),
+ *     authorizationCallback: checkDocumentAccess
+ *   })
+ * }
+ *
+ * // Both role-based AND resource-based
+ * const routes = {
+ *   '/document/:id/edit': createProtectedRoute({
+ *     component: () => import('./DocumentEditor.svelte'),
+ *     permissions: { any: ['editor', 'admin'] },         // Checked first (fast)
+ *     authorizationCallback: checkDocumentAccess         // Checked second (API call)
  *   })
  * }
  * ```

@@ -7,6 +7,8 @@
  * 3. Use named routes in the link action
  */
 
+import { getParamReplacementPlaceholder } from './utils.svelte.js'
+
 // Route registry - maps route names to path patterns
 let routeRegistry = $state({})
 
@@ -83,8 +85,9 @@ export function buildUrl(name, params = {}, query = {}) {
     let url = pattern.replace(/:(\w+)/g, (match, paramName) => {
         const value = params[paramName]
         if (value === undefined || value === null) {
-            console.warn(`Missing parameter "${paramName}" for route "${name}"`)
-            return match // Keep the :param if value is missing
+            const placeholder = getParamReplacementPlaceholder()
+            console.warn(`Missing parameter "${paramName}" for route "${name}", using placeholder "${placeholder}"`)
+            return placeholder
         }
         return encodeURIComponent(String(value))
     })

@@ -1,7 +1,7 @@
 {
   "name": "@keenmate/svelte-spa-router",
-  "version": "5.0.0-rc05",
-  "description": "Router for SPAs using Svelte 5 with runes, dual-mode routing, and permissions",
+  "version": "5.0.0-rc06",
+  "description": "Router for SPAs using Svelte 5 with runes, dual-mode routing, permissions, and error handling",
   "main": "./src/lib/index.js",
   "svelte": "./src/lib/Router.svelte",
   "type": "module",
@@ -62,6 +62,13 @@
     "./helpers/route-metadata": {
       "types": "./src/lib/helpers/route-metadata.d.ts",
       "import": "./src/lib/helpers/route-metadata.svelte.js"
+    },
+    "./helpers/error-handler": {
+      "types": "./src/lib/helpers/error-handler.d.ts",
+      "import": "./src/lib/helpers/error-handler.svelte.js"
+    },
+    "./helpers/GlobalErrorHandler": {
+      "svelte": "./src/lib/helpers/GlobalErrorHandler.svelte"
     },
     "./constants": {
       "types": "./src/lib/constants.d.ts",

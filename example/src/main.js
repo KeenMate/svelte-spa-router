@@ -2,6 +2,7 @@ import { mount } from 'svelte'
 import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router/utils'
 import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
 import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
 import App from './App.svelte'
 
 // Configure routing mode based on environment variable
@@ -46,6 +47,40 @@ configureFilters({
 
         return parts.length > 0 ? parts.join(' AND ') : ''
     }
+})
+
+// Configure global error handler
+// This catches all unhandled errors and provides recovery strategies
+configureGlobalErrorHandler({
+    // Log errors to console (you could send to Sentry, LogRocket, etc.)
+    onError: (error, errorInfo, context) => {
+        console.error('Global error logged:', error)
+        console.log('Error info:', errorInfo)
+        console.log('Session errors:', context.sessionErrors.length)
+
+        // Example: Send to monitoring service
+        // Sentry.captureException(error, { extra: errorInfo })
+    },
+
+    // Recovery strategy
+    strategy: 'navigateSafe', // Navigate to home on error
+    safeRoute: '/',
+
+    // Loop prevention
+    maxRestarts: 3,
+    restartWindow: 60000, // 1 minute
+
+    // UI options
+    showToast: true,
+    showErrorComponent: false,
+
+    // Ignore known non-critical errors
+    ignoreErrors: [
+        /ResizeObserver loop/i,
+    ],
+
+    // Development mode shows detailed error info
+    isDevelopment: import.meta.env.DEV,
 })
 
 const app = mount(App, {

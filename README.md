@@ -12,8 +12,12 @@ Main features:
 - **Dual-mode routing**: Supports both hash-based (`#/path`) and history API (`/path`) routing
 - Built with **Svelte 5 runes** for better reactivity and performance
 - **TypeScript-first**: Full generic support for `params()`, `query()`, and `filters()` with intellisense
+- **Flexible Navigation**: Multi-parameter signatures, named routes, navigation context (WinForms-like data passing)
+- **Strict Parameter Replacement**: Configurable placeholder for missing route parameters (no silent failures)
+- **Global Error Handler**: Production-ready error handling with loop prevention and recovery strategies
+- **404 Tracking**: Built-in `onNotFound` callback for analytics and monitoring
 - **Querystring & Filter helpers**: Flexible, reactive helpers for URL-driven UIs with auto-detection of array formats
-- **Permission system**: Built-in role-based access control with route guards
+- **Permission system**: Built-in role-based AND resource-based access control with route guards
 - Insanely simple to use, and has a minimal footprint
 - Uses the tiny [regexparam](https://github.com/lukeed/regexparam) for parsing routes, with support for parameters (e.g. `/book/:id?`) and more
 - No server configuration needed for hash mode; clean URLs with history mode
@@ -231,11 +235,19 @@ import {push, pop, replace} from '@keenmate/svelte-spa-router'
 // String format (simple paths)
 push('/book/42')
 
+// Multi-parameter signature (NEW!)
+push('userProfile', { userId: 123 }, { tab: 'settings' })
+// Route name starting with / = exact path, otherwise = named route lookup
+push('/about', {}, { source: 'nav' })
+
 // Array format (with named routes)
 push(['userProfile', { userId: 123 }])
 
 // Array with query parameters
 push(['userProfile', { userId: 123 }, { tab: 'settings' }])
+
+// Array with navigation context (4 elements)
+push(['userProfile', { userId: 123 }, { tab: 'settings' }, { source: 'menu' }])
 
 // Object format (most explicit)
 push({
@@ -244,12 +256,21 @@ push({
   query: { tab: 'settings', page: '2' }
 })
 
+// Object with navigation context
+push({
+  route: 'userProfile',
+  params: { userId: 123 },
+  query: { tab: 'settings' },
+  navigationContext: { source: 'toolbar', userId: 789 }
+})
+
 // Go back
 pop()
 
 // Replace current page (supports all formats above)
 replace('/book/3')
 replace(['bookDetail', { bookId: 456 }])
+replace('bookDetail', { bookId: 456 }, { preview: 'true' })
 ```
 
 **Note:** To use named routes with `push()` and `replace()`, you need to register your routes first:
@@ -263,6 +284,60 @@ registerRoutes({
   bookDetail: '/book/:bookId'
 })
 ```
+
+### Navigation Context
+
+Pass data during navigation without showing it in the URL (similar to WinForms):
+
+```js
+import { push, navigationContext } from '@keenmate/svelte-spa-router'
+
+// Navigate with hidden context data
+await push('/order-confirmation', {
+  orderId: 12345,
+  customer: 'Alice',
+  totalAmount: 99.99
+})
+
+// In the target route component, access the context
+const navContext = $derived(navigationContext())
+// { orderId: 12345, customer: 'Alice', totalAmount: 99.99 }
+```
+
+Navigation context:
+- Does NOT appear in the URL
+- Perfect for passing sensitive data or large objects
+- Accessible via `navigationContext()` in the target route
+- Cleared when user manually navigates (types URL, refreshes, etc.)
+
+### Strict Parameter Replacement
+
+Configure how missing route parameters are handled:
+
+```javascript
+// main.js
+import { setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router/utils'
+
+// Set placeholder for missing parameters (default: 'N-A')
+setParamReplacementPlaceholder('N-A')
+```
+
+**Behavior:**
+
+```javascript
+// Route pattern: /users/:userId/:section
+// If userId is provided but section is missing:
+push('userProfile', { userId: 123 })
+// Result: /users/123/N-A
+
+// Missing parameters trigger onNotFound callback for error tracking
+```
+
+**Why strict replacement?**
+- Predictable URLs - no silent parameter removal
+- Easy to spot missing data in development
+- `onNotFound` callback tracks issues for debugging
+- Configure placeholder to match your app's style
 
 ### Accessing route parameters
 
@@ -748,6 +823,7 @@ The most convenient way - no wrap() needed!
 
 ```javascript
 import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { push } from '@keenmate/svelte-spa-router'
 
 const routes = {
   '/': Home,
@@ -769,6 +845,32 @@ const routes = {
     component: () => import('./Settings.svelte'),
     permissions: { all: ['settings.read', 'settings.write'] },
     title: 'Settings'
+  }),
+
+  // Combine role-based and resource-based authorization (NEW!)
+  '/document/:id': createProtectedRoute({
+    component: () => import('./DocumentDetail.svelte'),
+    // Role-based: User must have 'read' permission
+    permissions: { any: ['read'] },
+    // Resource-based: User must have access to THIS specific document
+    authorizationCallback: async (detail) => {
+      const documentId = detail.params.id
+      const hasAccess = await checkDocumentAccess(documentId)
+
+      if (!hasAccess) {
+        // push(route, routeParams, queryString, navigationContext)
+        await push('/unauthorized', {}, {}, {
+          resource: 'document',
+          id: documentId
+        })
+        return false
+      }
+
+      return true
+    },
+    loadingComponent: Loading,
+    shouldDisplayLoadingOnRouteLoad: true,
+    title: 'Document Detail'
   }),
 
   '/unauthorized': Unauthorized,
@@ -817,6 +919,34 @@ import { link } from '@keenmate/svelte-spa-router'
 **Permission requirements:**
 - `any: [...]` - User needs at least ONE of these permissions (OR logic)
 - `all: [...]` - User needs ALL of these permissions (AND logic)
+
+**Authorization execution order:**
+
+When using both `permissions` and `authorizationCallback`:
+1. **Permissions check** (fast, synchronous) - checks user roles/permissions
+2. **Authorization callback** (slow, can be async) - checks resource-level access (API calls, database queries, etc.)
+
+This order ensures fast checks happen first, preventing unnecessary API calls when user doesn't have basic permissions.
+
+**Resource-based authorization details:**
+
+The `authorizationCallback` receives a detail object with:
+```typescript
+{
+  route: string,
+  location: string,
+  params: Record<string, string>,
+  query: Record<string, any>,
+  routeContext: any,
+  navigationContext: any
+}
+```
+
+Perfect for:
+- Document access control (check if user can access specific document)
+- Resource ownership (check if user owns this resource)
+- Dynamic permissions (permissions stored in database)
+- API-based authorization (call your backend for access check)
 
 See `example-permissions/` for a complete working example with mock authentication.
 
@@ -1227,7 +1357,7 @@ const routes = {
 import Router from '@keenmate/svelte-spa-router'
 
 // Navigation utilities
-import { link, push, pop, replace, location, querystring, params } from '@keenmate/svelte-spa-router'
+import { link, push, pop, replace, location, querystring, params, navigationContext } from '@keenmate/svelte-spa-router'
 
 // Named routes (for use with push/replace/link)
 import { registerRoutes, buildUrl } from '@keenmate/svelte-spa-router/routes'
@@ -1242,7 +1372,7 @@ import { wrap } from '@keenmate/svelte-spa-router/wrap'
 import active from '@keenmate/svelte-spa-router/active'
 
 // Configuration
-import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router/utils'
+import { setHashRoutingEnabled, setBasePath, setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router/utils'
 
 // Querystring helpers (shared reactive state)
 import { configureQuerystring, query } from '@keenmate/svelte-spa-router/helpers/querystring'
@@ -1350,6 +1480,110 @@ cd example-history
 npm install
 npm run dev
 ```
+
+## Global Error Handler
+
+Production-ready error handling for your Svelte app.
+
+### Quick Start
+
+```javascript
+// main.js
+import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
+import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
+
+configureGlobalErrorHandler({
+    onError: (error, errorInfo, context) => {
+        // Log to Sentry, LogRocket, etc.
+        Sentry.captureException(error, { extra: errorInfo })
+    },
+
+    strategy: 'navigateSafe', // Navigate to home on error
+    safeRoute: '/',
+
+    maxRestarts: 3,
+    restartWindow: 60000, // 1 minute
+
+    showToast: true,
+    isDevelopment: import.meta.env.DEV
+})
+```
+
+```svelte
+<!-- App.svelte -->
+<script>
+import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
+</script>
+
+<GlobalErrorHandler>
+    <Router {routes} />
+</GlobalErrorHandler>
+```
+
+### Recovery Strategies
+
+- **`navigateSafe`** (default) - Navigate to safe route (e.g., home page)
+- **`restart`** - Reload the page with loop prevention
+- **`showError`** - Display error component and let user decide
+- **`custom`** - Execute custom recovery logic via `onRecover` callback
+
+### Custom Recovery
+
+```javascript
+configureGlobalErrorHandler({
+    strategy: 'custom',
+    onRecover: (error, errorInfo, context, helpers) => {
+        const { restart, navigate, showError, canRestart } = helpers
+
+        if (error.name === 'ChunkLoadError') {
+            restart() // New deployment - safe to restart
+        } else if (error.message.includes('auth')) {
+            navigate('/login')
+        } else {
+            navigate('/')
+        }
+    }
+})
+```
+
+### Features
+
+- ✅ Catches ALL errors (render, effect, event handlers, async, promises)
+- ✅ Loop prevention (tracks restarts in sessionStorage)
+- ✅ Toast notifications or full-page error UI
+- ✅ Custom error components
+- ✅ Error filtering (ignore known non-critical errors)
+- ✅ TypeScript support
+
+## 404 Not Found Tracking
+
+Track 404s for analytics and monitoring:
+
+```svelte
+<Router
+    {routes}
+    onNotFound={(e) => {
+        console.log('404:', e.detail.location)
+
+        // Send to Sentry
+        Sentry.captureMessage('404 Not Found', {
+            extra: {
+                path: e.detail.location,
+                querystring: e.detail.querystring
+            }
+        })
+
+        // Send to Google Analytics
+        gtag('event', 'page_not_found', {
+            page_path: e.detail.location
+        })
+    }}
+/>
+```
+
+The `onNotFound` callback fires when:
+- The catch-all route (`'*'`) matches (user sees your 404 page)
+- No route matches at all (no 404 page defined)
 
 ## Documentation
 

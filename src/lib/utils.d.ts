@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Type definitions for @keenmate/svelte-spa-router utilities
  */
 
@@ -14,6 +14,8 @@ export interface LinkActionOptions {
     params?: Record<string, any>;
     /** Query string parameters */
     query?: Record<string, any>;
+    /** Navigation context data to pass to the route (doesn't appear in URL) */
+    navigationContext?: any;
     /** If true, link is disabled */
     disabled?: boolean;
     /** If true, replaces current history entry instead of pushing (history mode only) */
@@ -72,6 +74,27 @@ export function getHashRoutingEnabled(): boolean;
  * @returns Current base path setting
  */
 export function getBasePath(): string;
+
+/**
+ * Set the placeholder value for missing route parameters
+ * Used when building URLs from named routes with incomplete parameters
+ *
+ * @param value - Placeholder value (default: 'N-A')
+ *
+ * @example
+ * ```typescript
+ * import { setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router/utils'
+ * setParamReplacementPlaceholder('MISSING')
+ * ```
+ */
+export function setParamReplacementPlaceholder(value: string): void;
+
+/**
+ * Get current parameter replacement placeholder
+ *
+ * @returns Placeholder value
+ */
+export function getParamReplacementPlaceholder(): string;
 
 /**
  * Get the current location path
@@ -149,15 +172,53 @@ export function loc(): Location;
 export function params<T = Record<string, string>>(): T | undefined;
 
 /**
+ * Get route navigation context data
+ * Navigation context is data passed during navigation that doesn't appear in the URL
+ *
+ * @template T - Optional type for the navigation context data (provides intellisense)
+ * @returns Context object or null if no context was set
+ *
+ * @example
+ * ```typescript
+ * import { context, push } from '@keenmate/svelte-spa-router/utils'
+ *
+ * // Navigate with context
+ * await push('/orders', { orderId: 123, customer: 'John' })
+ *
+ * // In the route component
+ * interface OrderNavigationContext {
+ *   orderId: number
+ *   customer: string
+ * }
+ *
+ * const ctx = $derived(navigationContext<OrderContext>())
+ * if (ctx) {
+ *   console.log(`Order ${ctx.orderId} for ${ctx.customer}`)
+ * }
+ * ```
+ */
+export function navigationContext<T = any>(): T | null;
+
+/**
  * Navigate to a new page programmatically
  *
  * Supports multiple formats:
  * - String: `push('/about')`
- * - Array: `push(['userProfile', { userId: 123 }])`
- * - Array with query: `push(['userProfile', { userId: 123 }, { tab: 'settings' }])`
+ * - String with navigation context: `push('/orders', { orderId: 123 })`
+ * - Multi-parameter: `push(route, routeParams, queryString, navigationContext)`
+ * - Array (3 elements): `push(['userProfile', { userId: 123 }, { tab: 'settings' }])`
+ * - Array (4 elements): `push(['userProfile', { userId: 123 }, { tab: 'x' }, { role: 'admin' }])`
  * - Object: `push({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })`
+ * - Object with navigation context: `push({ href: '/orders', navigationContext: { orderId: 123 } })`
  *
- * @param location - Path to navigate to, or array [route, params, query], or options object
+ * Multi-parameter route resolution:
+ * - Route starts with `/` → exact path (e.g., `/about`)
+ * - Route doesn't start with `/` → named route lookup (e.g., `'userProfile'`)
+ *
+ * @param location - Path/route to navigate to, or array, or options object
+ * @param param2 - Route params (multi-param mode) or navigation context (string mode)
+ * @param param3 - Query string (multi-param mode only)
+ * @param param4 - Navigation context (multi-param mode only)
  * @returns Promise that resolves after navigation completes
  *
  * @example
@@ -167,17 +228,38 @@ export function params<T = Record<string, string>>(): T | undefined;
  * // String format
  * await push('/about')
  *
- * // Array format
- * await push(['userProfile', { userId: 123 }])
+ * // String with navigation context (WinForms-like)
+ * await push('/orders', { orderId: 123, customer: 'John' })
  *
- * // Array with query
+ * // Multi-parameter: exact path
+ * await push('/users/123', null, { tab: 'settings' })
+ *
+ * // Multi-parameter: named route
+ * await push('userProfile', { userId: 123 })
+ * await push('userProfile', { userId: 123 }, { tab: 'settings' })
+ * await push('userProfile', { userId: 123 }, { tab: 'x' }, { role: 'admin' })
+ *
+ * // Array format (3 elements)
  * await push(['userProfile', { userId: 123 }, { tab: 'settings' }])
  *
+ * // Array format (4 elements with context)
+ * await push(['userProfile', { userId: 123 }, { tab: 'x' }, { role: 'admin' }])
+ *
  * // Object format
- * await push({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })
+ * await push({
+ *   route: 'userProfile',
+ *   params: { userId: 123 },
+ *   query: { tab: 'settings' },
+ *   navigationContext: { role: 'admin' }
+ * })
  * ```
  */
-export function push(location: string | [string, Record<string, any>?, Record<string, any>?] | LinkActionOptions): Promise<void>;
+export function push(
+    location: string | [string, Record<string, any>?, Record<string, any>?, any?] | LinkActionOptions,
+    param2?: any,
+    param3?: Record<string, any>,
+    param4?: any
+): Promise<void>;
 
 /**
  * Navigate back in history (browser back button)
@@ -197,11 +279,21 @@ export function pop(): Promise<void>;
  *
  * Supports multiple formats:
  * - String: `replace('/login')`
- * - Array: `replace(['userProfile', { userId: 123 }])`
- * - Array with query: `replace(['userProfile', { userId: 123 }, { tab: 'settings' }])`
+ * - String with navigation context: `replace('/orders', { orderId: 123 })`
+ * - Multi-parameter: `replace(route, routeParams, queryString, navigationContext)`
+ * - Array (3 elements): `replace(['userProfile', { userId: 123 }, { tab: 'settings' }])`
+ * - Array (4 elements): `replace(['userProfile', { userId: 123 }, { tab: 'x' }, { role: 'admin' }])`
  * - Object: `replace({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })`
+ * - Object with navigation context: `replace({ href: '/orders', navigationContext: { orderId: 123 } })`
  *
- * @param location - Path to navigate to, or array [route, params, query], or options object
+ * Multi-parameter route resolution:
+ * - Route starts with `/` → exact path (e.g., `/about`)
+ * - Route doesn't start with `/` → named route lookup (e.g., `'userProfile'`)
+ *
+ * @param location - Path/route to navigate to, or array, or options object
+ * @param param2 - Route params (multi-param mode) or navigation context (string mode)
+ * @param param3 - Query string (multi-param mode only)
+ * @param param4 - Navigation context (multi-param mode only)
  * @returns Promise that resolves after navigation completes
  *
  * @example
@@ -211,17 +303,38 @@ export function pop(): Promise<void>;
  * // String format
  * await replace('/login')
  *
- * // Array format
- * await replace(['userProfile', { userId: 123 }])
+ * // String with navigation context
+ * await replace('/orders', { orderId: 123, customer: 'John' })
  *
- * // Array with query
+ * // Multi-parameter: exact path
+ * await replace('/users/123', null, { tab: 'settings' })
+ *
+ * // Multi-parameter: named route
+ * await replace('userProfile', { userId: 123 })
+ * await replace('userProfile', { userId: 123 }, { tab: 'settings' })
+ * await replace('userProfile', { userId: 123 }, { tab: 'x' }, { role: 'admin' })
+ *
+ * // Array format (3 elements)
  * await replace(['userProfile', { userId: 123 }, { tab: 'settings' }])
  *
+ * // Array format (4 elements with context)
+ * await replace(['userProfile', { userId: 123 }, { tab: 'x' }, { role: 'admin' }])
+ *
  * // Object format
- * await replace({ route: 'userProfile', params: { userId: 123 }, query: { tab: 'settings' } })
+ * await replace({
+ *   route: 'userProfile',
+ *   params: { userId: 123 },
+ *   query: { tab: 'settings' },
+ *   navigationContext: { role: 'admin' }
+ * })
  * ```
  */
-export function replace(location: string | [string, Record<string, any>?, Record<string, any>?] | LinkActionOptions): Promise<void>;
+export function replace(
+    location: string | [string, Record<string, any>?, Record<string, any>?, any?] | LinkActionOptions,
+    param2?: any,
+    param3?: Record<string, any>,
+    param4?: any
+): Promise<void>;
 
 /**
  * Svelte action that enables router navigation on anchor tags
@@ -230,14 +343,15 @@ export function replace(location: string | [string, Record<string, any>?, Record
  * - Old style: `<a href="/books" use:link>`
  * - Object with href: `<a use:link={{href: '/books'}}>`
  * - Named routes: `<a use:link={{route: 'bookDetail', params: {bookId: 123}}}>`
- * - Array shorthand: `<a use:link={['bookDetail', {bookId: 123}]}>`
+ * - Array shorthand (3 elements): `<a use:link={['bookDetail', {bookId: 123}, {preview: 'true'}]}>`
+ * - Array shorthand (4 elements): `<a use:link={['bookDetail', {bookId: 123}, {preview: 'true'}, {source: 'list'}]}>`
  *
  * In history mode, respects:
  * - Modifier keys (Ctrl+Click opens in new tab)
  * - Target attribute (_blank, etc.)
  *
  * @param node - The anchor element (automatically set by Svelte)
- * @param opts - String (href), array [route, params, query?], or options object
+ * @param opts - String (href), array [route, params, query?, navigationContext?], or options object
  *
  * @example
  * ```svelte
@@ -254,8 +368,11 @@ export function replace(location: string | [string, Record<string, any>?, Record
  * <!-- Named routes -->
  * <a use:link={{route: 'bookDetail', params: {bookId: 123}}}>View Book</a>
  *
- * <!-- Array shorthand -->
- * <a use:link={['bookDetail', {bookId: 123}]}>View Book</a>
+ * <!-- Array shorthand (3 elements) -->
+ * <a use:link={['bookDetail', {bookId: 123}, {preview: 'true'}]}>View Book</a>
+ *
+ * <!-- Array shorthand (4 elements with navigation context) -->
+ * <a use:link={['bookDetail', {bookId: 123}, {preview: 'true'}, {source: 'list'}]}>View Book</a>
  *
  * <!-- With query string -->
  * <a use:link={{route: 'books', query: {category: 'fiction'}}}>Fiction</a>
@@ -263,9 +380,9 @@ export function replace(location: string | [string, Record<string, any>?, Record
  */
 export function link(
     node: HTMLElement,
-    opts?: string | [string, Record<string, any>?, Record<string, any>?] | LinkActionOptions
+    opts?: string | [string, Record<string, any>?, Record<string, any>?, any?] | LinkActionOptions
 ): {
-    update(updated: string | [string, Record<string, any>?, Record<string, any>?] | LinkActionOptions): void;
+    update(updated: string | [string, Record<string, any>?, Record<string, any>?, any?] | LinkActionOptions): void;
 };
 
 /**
@@ -297,8 +414,8 @@ export interface ZoneComponentData {
     params: Record<string, string> | null;
     /** Static props for the component */
     props: Record<string, any>;
-    /** User data attached to the route */
-    userData: any;
+    /** route context attached to the route */
+    routeContext: any;
 }
 
 /**

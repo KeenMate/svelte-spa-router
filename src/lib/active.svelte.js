@@ -145,6 +145,9 @@ export default function active(node, opts) {
     }
     nodes.push(el)
 
+    // Update current location before checking (ensures we have the latest routing mode config)
+    currentLocation = getCurrentLocation()
+
     // Trigger the action right away
     checkActive(el)
 

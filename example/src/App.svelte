@@ -1,12 +1,13 @@
-<script>
+﻿<script>
 import Router from '@keenmate/svelte-spa-router'
-import {link, location, push} from '@keenmate/svelte-spa-router/utils'
+import {link, location, querystring, push} from '@keenmate/svelte-spa-router/utils'
 import active from '@keenmate/svelte-spa-router/active'
 import wrap from '@keenmate/svelte-spa-router/wrap'
 import { createRoute } from '@keenmate/svelte-spa-router/wrap'
-import { configurePermissions, createPermissionCondition } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { configurePermissions, createPermissionCondition, createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
 import { routeIsLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
-import { user, toggleUser, getCurrentUser, checkPermissions } from './stores/userStore.svelte.js'
+import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
+import { user, toggleUser, getCurrentUser, checkPermissions, hasDocumentAccess } from './stores/userStore.svelte.js'
 
 import Home from './routes/Home.svelte'
 import Book from './routes/Book.svelte'
@@ -37,6 +38,10 @@ import UsersToolbar from './routes/zones/UsersToolbar.svelte'
 import OrdersMenu from './routes/zones/OrdersMenu.svelte'
 import OrdersMain from './routes/zones/OrdersMain.svelte'
 import OrdersToolbar from './routes/zones/OrdersToolbar.svelte'
+import ErrorHandlingDemo from './routes/ErrorHandlingDemo.svelte'
+import NotFoundDemo from './routes/NotFoundDemo.svelte'
+import NavigationContextDemo from './routes/NavigationContextDemo.svelte'
+import AuthorizationDemo from './routes/AuthorizationDemo.svelte'
 import Loading from './components/Loading.svelte'
 
 // Configure permissions system
@@ -45,7 +50,13 @@ configurePermissions({
     getCurrentUser,
     onUnauthorized: (detail) => {
         console.log('Unauthorized access attempt:', detail)
-        push('/unauthorized')
+        const returnTo = location()
+        const returnQuery = querystring()
+        // push(route, routeParams, queryString, navigationContext)
+        push('/unauthorized', {}, {}, {
+            returnTo,
+            returnQuery
+        })
     }
 })
 
@@ -68,8 +79,36 @@ const routes = {
     '/navigation-guard-demo': NavigationGuardDemo,
     '/metadata-demo': MetadataDemo,
     '/loading-demo': LoadingDemo,
-    '/document/:id': wrap({
+    '/error-handling-demo': ErrorHandlingDemo,
+    '/not-found-demo': NotFoundDemo,
+    '/navigation-context-demo': NavigationContextDemo,
+    '/authorization-demo': AuthorizationDemo,
+    '/document/:id': createProtectedRoute({
         component: DocumentDetail,
+        permissions: { any: ['read'] },
+        authorizationCallback: async (detail) => {
+            const documentId = detail.params.id
+            const hasAccess = hasDocumentAccess(documentId)
+
+            if (!hasAccess) {
+                // Use returnTo from navigationContext if available (passed when navigating to this route)
+                // Otherwise fall back to current location (though this will be /document/:id)
+                const returnTo = detail.navigationContext?.returnTo || location()
+                const returnQuery = detail.navigationContext?.returnQuery || querystring()
+
+                // push(route, routeParams, queryString, navigationContext)
+                await push('/unauthorized', {}, {}, {
+                    resource: 'document',
+                    id: documentId,
+                    user: getCurrentUser().name,
+                    returnTo,
+                    returnQuery
+                })
+                return false
+            }
+
+            return true
+        },
         loadingComponent: Loading,
         shouldDisplayLoadingOnRouteLoad: true,
         title: 'Document Detail',
@@ -178,11 +217,23 @@ function handleRouteLoaded(event) {
     console.log('Route loaded:', event.detail)
 }
 
+function handleNotFound(event) {
+    console.log('404 Not Found:', event.detail)
+    // Example: Send to Sentry or other monitoring service
+    // Sentry.captureMessage('404 Not Found', {
+    //     extra: {
+    //         path: event.detail.location,
+    //         querystring: event.detail.querystring
+    //     }
+    // })
+}
+
 function handleToggleUser() {
     toggleUser()
 }
 </script>
 
+<GlobalErrorHandler>
 <div class="app">
     <!-- Global Loading Overlay -->
     {#if isLoading}
@@ -205,6 +256,10 @@ function handleToggleUser() {
             <a href="/navigation-guard-demo" use:link use:active>Nav Guard</a>
             <a href="/metadata-demo" use:link use:active>Metadata</a>
             <a href="/loading-demo" use:link use:active>Loading</a>
+            <a href="/error-handling-demo" use:link use:active>Errors</a>
+            <a href="/not-found-demo" use:link use:active>404 Demo</a>
+            <a href="/navigation-context-demo" use:link use:active>Nav Context</a>
+            <a href="/authorization-demo" use:link use:active>Authorization</a>
             <a href="/multi-zone-demo" use:link use:active>Zones</a>
             <a href="/admin" use:link use:active>Admin</a>
             <a href="/settings" use:link use:active>Settings</a>
@@ -222,21 +277,21 @@ function handleToggleUser() {
         <div class="zone-layout">
             <aside class="zone-sidebar">
                 <div class="zone-header">Zone: "sidebar"</div>
-                <Router {routes} zone="sidebar" onrouteLoaded={handleRouteLoaded} />
+                <Router {routes} zone="sidebar" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </aside>
             <main class="zone-main">
                 <div class="zone-header">Zone: "main"</div>
-                <Router {routes} zone="main" onrouteLoaded={handleRouteLoaded} />
+                <Router {routes} zone="main" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </main>
             <aside class="zone-panel">
                 <div class="zone-header">Zone: "panel"</div>
-                <Router {routes} zone="panel" onrouteLoaded={handleRouteLoaded} />
+                <Router {routes} zone="panel" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </aside>
         </div>
     {:else}
         <!-- Single component layout -->
         <main>
-            <Router {routes} onrouteLoaded={handleRouteLoaded} />
+            <Router {routes} onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
         </main>
     {/if}
 
@@ -244,6 +299,7 @@ function handleToggleUser() {
         <p>Current route: <code>{location()}</code></p>
     </footer>
 </div>
+</GlobalErrorHandler>
 
 <style>
     :global(body) {

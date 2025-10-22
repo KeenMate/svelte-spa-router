@@ -20,7 +20,9 @@
       "Bash(npx svelte-kit sync)",
       "Bash(cat:*)",
       "Read(//c/Git/KM/svelte-spa-router-test/**)",
-      "Read(//c/Git/KM/**)"
+      "Read(//c/Git/KM/**)",
+      "Bash(npm create vite@latest . -- --template svelte)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File rename-refactor.ps1)"
     ],
     "deny": [],
     "ask": []

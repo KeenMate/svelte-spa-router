@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Type definitions for wrap utilities
  */
 
@@ -29,8 +29,8 @@ export interface WrappedComponent {
     conditions?: RoutePrecondition[];
     /** Static props for the component */
     props?: Record<string, any>;
-    /** User data attached to the route */
-    userData?: any;
+    /** route context attached to the route */
+    routeContext?: any;
     /** Internal router flag */
     _sveltesparouter: true;
     /** Internal zone mode flag */
@@ -51,8 +51,8 @@ export interface WrapOptions {
     loadingComponent?: any;
     /** Props for loading component */
     loadingParams?: Record<string, any>;
-    /** Custom user data */
-    userData?: any;
+    /** Custom route context */
+    routeContext?: any;
     /** Static props for the component */
     props?: Record<string, any>;
     /** Route guards/preconditions */
@@ -75,8 +75,8 @@ export interface RouteOptions {
     loadingComponent?: any;
     /** Props for loading component */
     loadingParams?: Record<string, any>;
-    /** Custom user data */
-    userData?: any;
+    /** Custom route context */
+    routeContext?: any;
     /** Static props for the component */
     props?: Record<string, any>;
     /** Route guards/preconditions */

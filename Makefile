@@ -59,8 +59,8 @@ build: ## Build the package (run tests and lint)
 	@echo "Running tests..."
 	$(NPM) test
 	@echo ""
-	@echo "Running linter..."
-	$(NPM) run lint || echo "Linting complete (may have warnings)"
+	@echo "Running build..."
+	$(NPM) run build 
 	@echo ""
 	@echo "Package build complete!"
 
@@ -123,7 +123,7 @@ docker-push-examples: ## Push Docker images to registry
 	@echo "Docker images pushed successfully!"
 
 package: clean ## Package for npm publication
-	@echo "Packaging @keenmate/svelte-spa-router v5.0.0-rc05..."
+	@echo "Packaging @keenmate/svelte-spa-router v5.0.0-rc06..."
 	@echo ""
 	@echo "Files to be published (as defined in package.json 'files' field):"
 	@echo "  - src/lib/**/*.js (all JavaScript files)"

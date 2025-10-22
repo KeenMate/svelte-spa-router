@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Route metadata helpers for accessing title and breadcrumbs
  *
  * This module provides reactive access to the current route's metadata
@@ -11,7 +11,7 @@
  */
 let currentRouteTitle = $state('')
 let currentRouteBreadcrumbs = $state([])
-let currentRouteUserData = $state({})
+let currentRouterouteContext = $state({})
 
 /**
  * Loading control state
@@ -21,12 +21,12 @@ let isRouteLoading = $state(false)
 
 /**
  * Update route metadata (called by Router or user code)
- * @param {Object} userData - User data from the route
+ * @param {Object} routeContext - route context from the route
  */
-export function updateRouteMetadata(userData = {}) {
-    currentRouteTitle = userData.title || ''
-    currentRouteBreadcrumbs = userData.breadcrumbs || []
-    currentRouteUserData = userData
+export function updateRouteMetadata(routeContext = {}) {
+    currentRouteTitle = routeContext.title || ''
+    currentRouteBreadcrumbs = routeContext.breadcrumbs || []
+    currentRouterouteContext = routeContext
 }
 
 /**
@@ -60,19 +60,19 @@ export function routeBreadcrumbs() {
 }
 
 /**
- * Get full route user data reactively
- * @returns {Object} Current route's userData
+ * Get full route route context reactively
+ * @returns {Object} Current route's routeContext
  *
  * @example
  * ```javascript
- * import { routeUserData } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+ * import { routerouteContext } from '@keenmate/svelte-spa-router/helpers/route-metadata'
  *
- * const userData = $derived(routeUserData())
- * const customData = $derived(userData.myCustomField)
+ * const routeContext = $derived(routerouteContext())
+ * const customData = $derived(routeContext.myCustomField)
  * ```
  */
-export function routeUserData() {
-    return currentRouteUserData
+export function routerouteContext() {
+    return currentRouterouteContext
 }
 
 /**
@@ -112,9 +112,9 @@ export function updateBreadcrumb(id, updates) {
         }
         currentRouteBreadcrumbs = breadcrumbs
 
-        // Also update userData to keep it in sync
-        currentRouteUserData = {
-            ...currentRouteUserData,
+        // Also update routeContext to keep it in sync
+        currentRouterouteContext = {
+            ...currentRouterouteContext,
             breadcrumbs
         }
     }
@@ -136,9 +136,9 @@ export function updateBreadcrumb(id, updates) {
 export function updateTitle(title) {
     currentRouteTitle = title
 
-    // Also update userData to keep it in sync
-    currentRouteUserData = {
-        ...currentRouteUserData,
+    // Also update routeContext to keep it in sync
+    currentRouterouteContext = {
+        ...currentRouterouteContext,
         title
     }
 }
