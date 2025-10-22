@@ -174,10 +174,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `example-history/src/routes/RouteDataDemo.svelte` - Route data extraction examples
 
 ### Fixed
+
+#### Router Core Fixes
 - **Router Initialization**: Fixed location state initialization to be reactive to config changes
   - Issue: Direct URL access (e.g., `http://localhost:5050/querystring-demo`) showed homepage
   - Solution: Changed from `$state(getLocation())` to `$derived.by()` to react to config changes
   - Now correctly reads `setHashRoutingEnabled()` before initializing location state
+
+#### Loading State Fixes
+- **Component Double Mounting**: Fixed race condition causing components to mount twice
+  - Issue: Router template had component in two separate `{:else if}` blocks - one hidden, one visible
+  - When `isWaitingForData` changed, Svelte unmounted from first block and remounted in second
+  - Resulted in `onMount()` running twice, causing duplicate data fetches and delays
+  - Solution: Refactored template to keep component in single block with `style:display` toggle
+  - Component now mounts once and visibility is controlled via CSS
+
+- **Component Params Not Available on Mount**: Fixed params being empty when component loads
+  - Issue: Router set `isWaitingForData = true` and waited for `hideLoading()` BEFORE setting `componentParams`
+  - Component mounted without params, causing "params not ready" errors
+  - Solution: Moved `componentParams`, `componentProps`, `componentrouteContext` assignment BEFORE waiting logic
+  - Component now has access to params immediately on mount
+
+- **Global vs Route Loading Conflict**: Fixed overlapping loading indicators
+  - Issue: Both global loader and route-specific loader showed simultaneously
+  - Solution: Added `shouldShowGlobalLoading()` helper that only returns true when route doesn't have custom loading
+  - Added `hasCustomLoadingComponent` flag set by `startRouteLoading(hasCustomComponent)`
+  - Global loader now only shows for routes without custom loading components
+
+- **Manual Loading Not Showing**: Fixed `showLoading()` not displaying global loader
+  - Issue: `showLoading()` set `isRouteLoading = true` but didn't reset `hasCustomLoadingComponent` flag
+  - If current route had custom loading, `shouldShowGlobalLoading()` returned false
+  - Solution: Made `showLoading()` also set `hasCustomLoadingComponent = false`
+  - Manual loading triggers now correctly show global loader
+
+#### Authorization & Navigation Context Fixes
+- **"Go Back" After Unauthorized**: Fixed return navigation after authorization failures
+  - Issue: Unauthorized page's "Return to Home" button always went to home instead of previous location
+  - Root cause: Using `push('/unauthorized', { data })` was ambiguous - interpreted as routeParams instead of navigationContext
+  - Solution: Changed all unauthorized redirects to use explicit 4-parameter signature: `push(route, {}, {}, navContext)`
+  - Added `returnTo` and `returnQuery` to navigation context for proper "Go Back" functionality
+  - Unauthorized page now displays "Go Back" button when `returnTo` is available
+
+- **Document Authorization Navigation**: Fixed document access redirects
+  - Updated `authorizationCallback` to pass `returnTo` and `returnQuery` via navigationContext
+  - Fixed "View Document" buttons to pass navigation context for proper back navigation
+  - All authorization demo flows now preserve return path for better UX
+
+#### Protected Route Fixes
+- **Async Component Params Empty**: Fixed params not being passed to protected routes
+  - Issue: `createProtectedRouteDefinition` was using `asyncComponent: component` which caused wrap() to double-wrap async imports
+  - Solution: Kept `asyncComponent: component` which properly passes async imports to wrap()
+  - Protected routes now receive params correctly when using `() => import('./Component.svelte')`
+
+#### Example Application Fixes
+- **Missing Routes**: Added missing example routes
+  - Added `/about` route (About component)
+  - Added `/user/:first/:last?` route (User component with optional last name)
+  - Links in LinksDemo now work correctly
+
+- **Navigation Context Demo**: Fixed incorrect route paths and push signatures
+  - Changed `/context-demo` references to correct `/navigation-context-demo` route
+  - Fixed `backToList()` function to navigate to correct route
+  - Updated code examples to show proper 4-parameter signature
+  - Fixed "View" and "Edit" buttons to use correct navigation context syntax
+
+- **HTML Entity Escaping**: Fixed Svelte parse errors
+  - Changed unescaped `{}` in code examples to HTML entities `&#123;&#125;`
+  - Prevents Svelte from treating them as reactive expressions
 
 ### Documentation
 - Updated `README.md` with comprehensive querystring and filter system documentation

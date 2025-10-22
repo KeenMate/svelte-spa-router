@@ -17,9 +17,9 @@ export class NavigationCancelledError extends Error {
 
 /**
  * Array of registered beforeLeave handlers
- * @type {Array<Function>}
+ * @type {Set<Function>}
  */
-let beforeLeaveHandlers = $state([])
+let beforeLeaveHandlers = $state(new Set())
 
 /**
  * Register a beforeLeave guard handler
@@ -51,8 +51,8 @@ export function registerBeforeLeave(handler) {
     }
 
     // Avoid duplicate registrations
-    if (!beforeLeaveHandlers.includes(handler)) {
-        beforeLeaveHandlers.push(handler)
+    if (!beforeLeaveHandlers.has(handler)) {
+        beforeLeaveHandlers.add(handler)
     }
 }
 
@@ -63,7 +63,7 @@ export function registerBeforeLeave(handler) {
  * @param {Function} handler - The handler to unregister
  */
 export function unregisterBeforeLeave(handler) {
-    beforeLeaveHandlers = beforeLeaveHandlers.filter(h => h !== handler)
+    beforeLeaveHandlers.delete(handler)
 }
 
 /**
@@ -71,7 +71,7 @@ export function unregisterBeforeLeave(handler) {
  * Useful for testing or manual cleanup
  */
 export function clearBeforeLeaveHandlers() {
-    beforeLeaveHandlers = []
+    beforeLeaveHandlers.clear()
 }
 
 /**
@@ -95,12 +95,12 @@ export function getBeforeLeaveHandlers() {
  */
 export async function runBeforeLeaveGuards(context) {
     // No handlers registered, allow navigation
-    if (beforeLeaveHandlers.length === 0) {
+    if (beforeLeaveHandlers.size === 0) {
         return true
     }
 
     // Run all handlers sequentially
-    for (const handler of beforeLeaveHandlers) {
+    for (const handler of beforeLeaveHandlers.values()) {
         try {
             await handler(context)
         } catch (error) {
@@ -153,7 +153,7 @@ export function createDirtyCheckGuard(isDirtyFn, message = 'You have unsaved cha
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', (e) => {
         // Check if any handler indicates dirty state
-        for (const handler of beforeLeaveHandlers) {
+        for (const handler of beforeLeaveHandlers.values()) {
             try {
                 // Check if handler has isDirty property
                 if (handler.isDirty) {
