@@ -46,8 +46,6 @@ const helperBeforeLeave = createDirtyCheckGuard(
     () => formIsDirty,
     '[Helper Mode] You have unsaved changes. Leave anyway?'
 )
-// Add isDirty for browser beforeunload
-helperBeforeLeave.isDirty = () => formIsDirty
 
 // Direct mode registration - only register/unregister when mode changes
 $effect(() => {
