@@ -144,6 +144,20 @@ export function showLoading(): void;
 export function routeIsLoading(): boolean;
 
 /**
+ * Check if route should use global loading indicator
+ * Returns true only if route is loading AND doesn't have a custom loading component
+ * @returns True if global loading should be shown
+ *
+ * @example
+ * ```typescript
+ * import { shouldShowGlobalLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+ *
+ * const showGlobalLoader = $derived(shouldShowGlobalLoading())
+ * ```
+ */
+export function shouldShowGlobalLoading(): boolean;
+
+/**
  * Update a specific breadcrumb by ID without replacing the entire breadcrumbs array
  * This is useful when you want to update dynamic segments after data loads
  *

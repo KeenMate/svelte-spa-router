@@ -190,7 +190,7 @@ export function createProtectedRouteDefinition(options) {
     } = options
 
     const wrapOptions = {
-        asyncComponent: component,
+        asyncComponent: component,  // Always treat as asyncComponent for wrap()
         ...restOptions
     }
 

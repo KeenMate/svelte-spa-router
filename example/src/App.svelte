@@ -5,7 +5,7 @@ import active from '@keenmate/svelte-spa-router/active'
 import wrap from '@keenmate/svelte-spa-router/wrap'
 import { createRoute } from '@keenmate/svelte-spa-router/wrap'
 import { configurePermissions, createPermissionCondition, createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
-import { routeIsLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+import { shouldShowGlobalLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
 import { user, toggleUser, getCurrentUser, checkPermissions, hasDocumentAccess } from './stores/userStore.svelte.js'
 
@@ -88,7 +88,7 @@ const routes = {
     '/navigation-context-demo': NavigationContextDemo,
     '/authorization-demo': AuthorizationDemo,
     '/document/:id': createProtectedRoute({
-        component: DocumentDetail,
+        component: () => import('./routes/DocumentDetail.svelte'),
         permissions: { any: ['read'] },
         authorizationCallback: async (detail) => {
             const documentId = detail.params.id
@@ -215,7 +215,7 @@ const isZoneRoute = $derived(
 )
 
 const currentUser = $derived(user())
-const isLoading = $derived(routeIsLoading())
+const showGlobalLoader = $derived(shouldShowGlobalLoading())
 
 function handleRouteLoaded(event) {
     console.log('Route loaded:', event.detail)
@@ -239,8 +239,8 @@ function handleToggleUser() {
 
 <GlobalErrorHandler>
 <div class="app">
-    <!-- Global Loading Overlay -->
-    {#if isLoading}
+    <!-- Global Loading Overlay (only shown when route doesn't have custom loading component) -->
+    {#if showGlobalLoader}
     <div class="global-loading-overlay">
         <div class="loading-container">
             <div class="spinner"></div>

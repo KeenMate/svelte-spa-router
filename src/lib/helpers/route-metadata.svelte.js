@@ -18,6 +18,7 @@ let currentRouterouteContext = $state({})
  */
 let routeReadyResolvers = []
 let isRouteLoading = $state(false)
+let hasCustomLoadingComponent = $state(false)
 
 /**
  * Update route metadata (called by Router or user code)
@@ -195,9 +196,11 @@ export function waitForRouteReady() {
 /**
  * Start route loading (internal - used by Router)
  * Sets the loading state to true
+ * @param {boolean} hasCustomComponent - Whether the route has a custom loading component
  */
-export function startRouteLoading() {
+export function startRouteLoading(hasCustomComponent = false) {
     isRouteLoading = true
+    hasCustomLoadingComponent = hasCustomComponent
     routeReadyResolvers = []
 }
 
@@ -214,6 +217,22 @@ export function startRouteLoading() {
  */
 export function routeIsLoading() {
     return isRouteLoading
+}
+
+/**
+ * Check if route should use global loading indicator
+ * Returns true only if route is loading AND doesn't have a custom loading component
+ * @returns {boolean} True if global loading should be shown
+ *
+ * @example
+ * ```javascript
+ * import { shouldShowGlobalLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+ *
+ * const showGlobalLoader = $derived(shouldShowGlobalLoading())
+ * ```
+ */
+export function shouldShowGlobalLoading() {
+    return isRouteLoading && !hasCustomLoadingComponent
 }
 
 /**
@@ -254,4 +273,5 @@ export function routeIsLoading() {
  */
 export function showLoading() {
     isRouteLoading = true
+    hasCustomLoadingComponent = false // Reset flag so global loader shows
 }

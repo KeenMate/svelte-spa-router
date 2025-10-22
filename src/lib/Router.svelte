@@ -452,16 +452,8 @@ $effect(() => {
                 }
             }
 
-            // If shouldDisplayLoadingOnRouteLoad is true, set waiting state and wait for component to signal ready
-            // Note: This only applies to single-component routes, not zone routes
-            if (!routesList[i].isZoneMode && routesList[i].shouldDisplayLoadingOnRouteLoad && loadingComponent) {
-                isWaitingForData = true
-                startRouteLoading()
-                await waitForRouteReady()
-                isWaitingForData = false
-            }
-
-            // Set componentParams only if we have a match
+            // Set componentParams, props and routeContext BEFORE waiting
+            // This allows the component to mount with correct params
             if (match && typeof match == 'object' && Object.keys(match).length) {
                 componentParams = match
             }
@@ -472,6 +464,15 @@ $effect(() => {
             // Set static props and routeContext
             componentProps = routesList[i].props
             componentrouteContext = detail.routeContext || {}
+
+            // If shouldDisplayLoadingOnRouteLoad is true, set waiting state and wait for component to signal ready
+            // Note: This only applies to single-component routes, not zone routes
+            if (!routesList[i].isZoneMode && routesList[i].shouldDisplayLoadingOnRouteLoad && loadingComponent) {
+                isWaitingForData = true
+                startRouteLoading(true) // true indicates this route has a custom loading component
+                await waitForRouteReady()
+                isWaitingForData = false
+            }
 
             // Update route metadata
             updateRouteMetadata(detail.routeContext || {})
@@ -512,18 +513,20 @@ $effect(() => {
             <Comp {onrouteEvent} routeContext={zonerouteContext} {...zoneProps} />
         {/if}
     {/if}
-{:else if isWaitingForData && loadingComponent}
+{:else if component}
     <!-- Show loading component while waiting for data -->
-    {#if loadingParams}
-        {@const LoadingComp = loadingComponent}
-        <LoadingComp params={loadingParams} />
-    {:else}
-        {@const LoadingComp = loadingComponent}
-        <LoadingComp />
+    {#if isWaitingForData && loadingComponent}
+        {#if loadingParams}
+            {@const LoadingComp = loadingComponent}
+            <LoadingComp params={loadingParams} />
+        {:else}
+            {@const LoadingComp = loadingComponent}
+            <LoadingComp />
+        {/if}
     {/if}
 
-    <!-- Mount real component hidden (so it can fetch data) -->
-    <div style="display: none;">
+    <!-- Real component (hidden while loading, visible after hideLoading() called) -->
+    <div style:display={isWaitingForData ? 'none' : 'block'}>
         {#if componentParams}
             {@const Comp = component}
             <Comp params={componentParams} {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
@@ -532,13 +535,4 @@ $effect(() => {
             <Comp {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
         {/if}
     </div>
-{:else if component}
-    <!-- Normal rendering (no waiting for data) -->
-    {#if componentParams}
-        {@const Comp = component}
-        <Comp params={componentParams} {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
-    {:else}
-        {@const Comp = component}
-        <Comp {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
-    {/if}
 {/if}

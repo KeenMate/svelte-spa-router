@@ -20,7 +20,8 @@ let orders = $state([
 
 function viewOrder(order) {
     // Navigate with context - no URL parameters needed!
-    push('/context-demo', {
+    // push(route, routeParams, queryString, navigationContext)
+    push('/navigation-context-demo', {}, {}, {
         mode: 'view',
         order: order,
         timestamp: new Date().toISOString()
@@ -29,7 +30,8 @@ function viewOrder(order) {
 
 function editOrder(order) {
     // Navigate with context for editing
-    push('/context-demo', {
+    // push(route, routeParams, queryString, navigationContext)
+    push('/navigation-context-demo', {}, {}, {
         mode: 'edit',
         order: order,
         canDelete: true
@@ -37,7 +39,8 @@ function editOrder(order) {
 }
 
 function backToList() {
-    push('/context-demo')
+    // Navigate back to the list view (clears context)
+    push('/navigation-context-demo')
 }
 
 function saveOrder() {
@@ -120,9 +123,10 @@ function deleteOrder() {
                 <h3>How It Works</h3>
                 <pre><code>{`import { push, navigationContext } from '@keenmate/svelte-spa-router/utils'
 
-// Pass context when navigating
+// Pass context when navigating (4-parameter signature)
 function viewOrder(order) {
-    push('/context-demo', {
+    // push(route, routeParams, queryString, navigationContext)
+    push('/navigation-context-demo', &#123;&#125;, &#123;&#125;, {
         mode: 'view',
         order: order,
         timestamp: new Date().toISOString()
@@ -179,7 +183,7 @@ if (ctx) {
 
             <div class="note">
                 <strong>Note:</strong> The order data came from context, not from the URL.
-                Notice the URL is just <code>/context-demo</code> - no query parameters!
+                Notice the URL is just <code>/navigation-context-demo</code> - no query parameters!
             </div>
         </div>
     {:else if ctx.mode === 'edit'}
