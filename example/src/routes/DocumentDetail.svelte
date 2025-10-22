@@ -71,14 +71,12 @@
 
       // Wait for DOM to update with the new document content before hiding loading
       await tick();
-
-      // Signal that route is ready (this hides the loading component)
-      hideLoading();
     } catch (err) {
       error = err.message;
       await tick();
-      hideLoading();
-    }
+  } finally {
+    hideLoading()
+  }
   });
 </script>
 
