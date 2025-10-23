@@ -7,6 +7,7 @@ test/app/dist/*.js.map
 examples/*/dist/bundle*
 examples/*/dist/*.js
 examples/*/dist/*.js.map
+example/dist/
 
 # This is a module published on NPM, so we can ignore package-lock.json
 package-lock.json
