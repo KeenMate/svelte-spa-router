@@ -3,8 +3,28 @@
 # Default target
 .DEFAULT_GOAL := help
 
+# Detect OS
+ifeq ($(OS),Windows_NT)
+	DETECTED_OS := Windows
+else
+	DETECTED_OS := $(shell uname -s)
+endif
+
 # Package manager
 NPM := npm
+
+# OS-specific commands
+ifeq ($(DETECTED_OS),Windows)
+	RM_DIR := rmdir /s /q
+	RM_FILE := del /f /q
+	MKDIR := mkdir
+	NULL_REDIRECT := 2>nul
+else
+	RM_DIR := rm -rf
+	RM_FILE := rm -f
+	MKDIR := mkdir -p
+	NULL_REDIRECT := 2>/dev/null
+endif
 
 help: ## Show this help message
 	@echo "Available targets:"
@@ -190,14 +210,14 @@ docker-run-examples-hash: ## Run hash mode example Docker container on port 8081
 
 docker-stop-examples: ## Stop running example Docker containers
 	@echo "Stopping example containers..."
-	-docker stop svelte-spa-router-example-history 2>nul || echo "History container not running"
-	-docker stop svelte-spa-router-example-hash 2>nul || echo "Hash container not running"
-	-docker rm svelte-spa-router-example-history 2>nul || echo "History container already removed"
-	-docker rm svelte-spa-router-example-hash 2>nul || echo "Hash container already removed"
+	-docker stop svelte-spa-router-example-history $(NULL_REDIRECT) || echo "History container not running"
+	-docker stop svelte-spa-router-example-hash $(NULL_REDIRECT) || echo "Hash container not running"
+	-docker rm svelte-spa-router-example-history $(NULL_REDIRECT) || echo "History container already removed"
+	-docker rm svelte-spa-router-example-hash $(NULL_REDIRECT) || echo "Hash container already removed"
 	@echo "Example containers stopped and removed"
 
-package: clean ## Package for npm publication
-	@echo "Packaging @keenmate/svelte-spa-router v5.0.0-rc06..."
+package: build ## Package for npm publication
+	@echo "Packaging @keenmate/svelte-spa-router..."
 	@echo ""
 	@echo "Files to be published (as defined in package.json 'files' field):"
 	@echo "  - src/lib/**/*.js (all JavaScript files)"
@@ -207,28 +227,45 @@ package: clean ## Package for npm publication
 	@echo "  - LICENSE.md"
 	@echo "  - CHANGELOG.md"
 	@echo ""
-	@echo "Package ready for publication!"
+	$(NPM) pack
 	@echo ""
-	@echo "To verify what will be published, run:"
-	@echo "  npm pack --dry-run"
+	@echo "Package created successfully!"
 
 publish-dry: package ## Dry run of npm publish (test without publishing)
 	@echo "Running npm publish --dry-run..."
 	$(NPM) publish --dry-run
 
 publish: package ## Publish package to npm
-	@echo "Publishing to npm..."
 	@echo "WARNING: This will publish the package to npm registry!"
-	@echo "Run 'npm publish' manually to publish the package."
+ifeq ($(DETECTED_OS),Windows)
+	@echo Press Ctrl+C to cancel, or any key to continue...
+	@pause >nul
+else
+	@echo "Press Ctrl+C to cancel, or Enter to continue..."
+	@read -r dummy
+endif
+	@echo "Publishing to npm..."
+	$(NPM) publish
+	@echo ""
+	@echo "Package published successfully!"
 
 clean: ## Clean build artifacts and node_modules
 	@echo "Cleaning build artifacts..."
-	@if exist node_modules rmdir /s /q node_modules
-	@if exist example\node_modules rmdir /s /q example\node_modules
-	@if exist example\dist rmdir /s /q example\dist
-	@if exist example\dist-hash rmdir /s /q example\dist-hash
-	@if exist example\dist-history rmdir /s /q example\dist-history
-	@if exist result rmdir /s /q result
+ifeq ($(DETECTED_OS),Windows)
+	@if exist node_modules $(RM_DIR) node_modules
+	@if exist example\node_modules $(RM_DIR) example\node_modules
+	@if exist example\dist $(RM_DIR) example\dist
+	@if exist example\dist-hash $(RM_DIR) example\dist-hash
+	@if exist example\dist-history $(RM_DIR) example\dist-history
+	@if exist result $(RM_DIR) result
+else
+	@$(RM_DIR) node_modules $(NULL_REDIRECT) || true
+	@$(RM_DIR) example/node_modules $(NULL_REDIRECT) || true
+	@$(RM_DIR) example/dist $(NULL_REDIRECT) || true
+	@$(RM_DIR) example/dist-hash $(NULL_REDIRECT) || true
+	@$(RM_DIR) example/dist-history $(NULL_REDIRECT) || true
+	@$(RM_DIR) result $(NULL_REDIRECT) || true
+endif
 	@echo "Clean complete!"
 
 test: ## Run tests
