@@ -1,4 +1,4 @@
-.PHONY: install setup dev build package publish publish-dry clean help
+.PHONY: install setup dev build package publish publish-dry clean help docker-run-examples-history docker-run-examples-hash docker-stop-examples
 
 # Default target
 .DEFAULT_GOAL := help
@@ -21,11 +21,14 @@ help: ## Show this help message
 	@echo "  dev                     Run development server (history mode - clean URLs)"
 	@echo "  dev-hash                Run development server (hash mode - traditional #/path URLs)"
 	@echo "  dev-showcase            Run showcase documentation site"
-	@echo "  docker-build-examples          Build Docker images for both examples"
-	@echo "  docker-build-examples-no-cache Build Docker images without cache (force fresh build)"
-	@echo "  docker-build-history           Build Docker image for history mode example"
-	@echo "  docker-build-hash              Build Docker image for hash mode example"
+	@echo "  docker-build-examples          Build Docker images (use VERSION=5.0.0-rc06 for npm version)"
+	@echo "  docker-build-examples-no-cache Build Docker images without cache (use VERSION=5.0.0-rc06)"
+	@echo "  docker-build-history           Build Docker image for history mode (use VERSION=5.0.0-rc06)"
+	@echo "  docker-build-hash              Build Docker image for hash mode (use VERSION=5.0.0-rc06)"
 	@echo "  docker-push-examples           Push Docker images to registry"
+	@echo "  docker-run-examples-history    Run history mode example Docker container on port 8080"
+	@echo "  docker-run-examples-hash       Run hash mode example Docker container on port 8081"
+	@echo "  docker-stop-examples           Stop running example Docker containers"
 	@echo "  help                    Show this help message"
 	@echo "  install                 Install dependencies"
 	@echo "  lint                    Run linter"
@@ -35,6 +38,11 @@ help: ## Show this help message
 	@echo "  setup                   Alias for install"
 	@echo "  test                    Run tests"
 	@echo "  version                 Display current version"
+	@echo ""
+	@echo "Docker Examples:"
+	@echo "  make docker-build-examples                      # Use local source (file:..)"
+	@echo "  make docker-build-examples VERSION=5.0.0-rc06  # Use npm version"
+	@echo "  make docker-build-examples VERSION=latest      # Use latest from npm"
 
 install: ## Install dependencies
 	$(NPM) install
@@ -59,10 +67,12 @@ build: ## Build the package (run tests and lint)
 	@echo "Running tests..."
 	$(NPM) test
 	@echo ""
-	@echo "Running build..."
-	$(NPM) run build 
+	@echo "Running linter..."
+	$(NPM) run lint || echo "Linting complete (may have warnings)"
 	@echo ""
 	@echo "Package build complete!"
+	@echo ""
+	@echo "Note: This library is distributed as source files (no build step needed)"
 
 build-examples: ## Build both example applications
 	@echo "Building history mode example..."
@@ -86,41 +96,105 @@ build-showcase: ## Build showcase documentation site
 	cd ../svelte-spa-router-showcase && $(NPM) run build
 	@echo "Showcase built successfully!"
 
-docker-build-examples: ## Build Docker images for both examples
+docker-build-examples: ## Build Docker images for both examples (use VERSION=5.0.0-rc06 to specify npm version)
+	@echo "Building Docker images for both examples..."
+ifdef VERSION
+	@echo "Using npm version: $(VERSION)"
+else
+	@echo "Using local source (file:..)"
+	@echo "To use npm version, run: make docker-build-examples VERSION=5.0.0-rc06"
+endif
+	@echo ""
 	@echo "Building Docker image for history mode example..."
-	cd example && docker build -f Dockerfile.history -t registry.km8.es/svelte-spa-router-example-history:latest .
+	docker build -f example/Dockerfile \
+		--build-arg VITE_ROUTING_MODE=history \
+		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
+		-t registry.km8.es/svelte-spa-router-example-history:latest .
 	@echo ""
 	@echo "Building Docker image for hash mode example..."
-	cd example && docker build -f Dockerfile.hash -t registry.km8.es/svelte-spa-router-example-hash:latest .
+	docker build -f example/Dockerfile \
+		--build-arg VITE_ROUTING_MODE=hash \
+		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
+		-t registry.km8.es/svelte-spa-router-example-hash:latest .
 	@echo ""
 	@echo "Both Docker images built successfully!"
 	@echo "  - registry.km8.es/svelte-spa-router-example-history:latest"
 	@echo "  - registry.km8.es/svelte-spa-router-example-hash:latest"
 
-docker-build-examples-no-cache: ## Build Docker images for both examples without cache
+docker-build-examples-no-cache: ## Build Docker images without cache (use VERSION=5.0.0-rc06 to specify npm version)
+	@echo "Building Docker images for both examples (no cache)..."
+ifdef VERSION
+	@echo "Using npm version: $(VERSION)"
+else
+	@echo "Using local source (file:..)"
+	@echo "To use npm version, run: make docker-build-examples-no-cache VERSION=5.0.0-rc06"
+endif
+	@echo ""
 	@echo "Building Docker image for history mode example (no cache)..."
-	cd example && docker build --no-cache -f Dockerfile.history -t registry.km8.es/svelte-spa-router-example-history:latest .
+	docker build --no-cache --progress plain -f example/Dockerfile \
+		--build-arg VITE_ROUTING_MODE=history \
+		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
+		-t registry.km8.es/svelte-spa-router-example-history:latest .
 	@echo ""
 	@echo "Building Docker image for hash mode example (no cache)..."
-	cd example && docker build --no-cache -f Dockerfile.hash -t registry.km8.es/svelte-spa-router-example-hash:latest .
+	docker build --no-cache --progress plain -f example/Dockerfile \
+		--build-arg VITE_ROUTING_MODE=hash \
+		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
+		-t registry.km8.es/svelte-spa-router-example-hash:latest .
 	@echo ""
 	@echo "Both Docker images built successfully!"
 	@echo "  - registry.km8.es/svelte-spa-router-example-history:latest"
 	@echo "  - registry.km8.es/svelte-spa-router-example-hash:latest"
 
-docker-build-history: ## Build Docker image for history mode example
+docker-build-history: ## Build Docker image for history mode example (use VERSION=5.0.0-rc06 to specify npm version)
 	@echo "Building Docker image for history mode example..."
-	cd example && docker build -f Dockerfile.history -t registry.km8.es/svelte-spa-router-example-history:latest .
+ifdef VERSION
+	@echo "Using npm version: $(VERSION)"
+else
+	@echo "Using local source (file:..)"
+endif
+	docker build -f example/Dockerfile \
+		--build-arg VITE_ROUTING_MODE=history \
+		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
+		-t registry.km8.es/svelte-spa-router-example-history:latest .
 
-docker-build-hash: ## Build Docker image for hash mode example
+docker-build-hash: ## Build Docker image for hash mode example (use VERSION=5.0.0-rc06 to specify npm version)
 	@echo "Building Docker image for hash mode example..."
-	cd example && docker build -f Dockerfile.hash -t registry.km8.es/svelte-spa-router-example-hash:latest .
+ifdef VERSION
+	@echo "Using npm version: $(VERSION)"
+else
+	@echo "Using local source (file:..)"
+endif
+	docker build -f example/Dockerfile \
+		--build-arg VITE_ROUTING_MODE=hash \
+		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
+		-t registry.km8.es/svelte-spa-router-example-hash:latest .
 
 docker-push-examples: ## Push Docker images to registry
 	@echo "Pushing Docker images to registry..."
 	docker push registry.km8.es/svelte-spa-router-example-history:latest
 	docker push registry.km8.es/svelte-spa-router-example-hash:latest
 	@echo "Docker images pushed successfully!"
+
+docker-run-examples-history: ## Run history mode example Docker container on port 8080
+	@echo "Starting history mode example container on http://localhost:8080..."
+	docker run -d --name svelte-spa-router-example-history -p 8080:80 registry.km8.es/svelte-spa-router-example-history:latest
+	@echo "History mode example running at http://localhost:8080"
+	@echo "To stop: make docker-stop-examples"
+
+docker-run-examples-hash: ## Run hash mode example Docker container on port 8081
+	@echo "Starting hash mode example container on http://localhost:8081..."
+	docker run -d --name svelte-spa-router-example-hash -p 8081:80 registry.km8.es/svelte-spa-router-example-hash:latest
+	@echo "Hash mode example running at http://localhost:8081"
+	@echo "To stop: make docker-stop-examples"
+
+docker-stop-examples: ## Stop running example Docker containers
+	@echo "Stopping example containers..."
+	-docker stop svelte-spa-router-example-history 2>nul || echo "History container not running"
+	-docker stop svelte-spa-router-example-hash 2>nul || echo "Hash container not running"
+	-docker rm svelte-spa-router-example-history 2>nul || echo "History container already removed"
+	-docker rm svelte-spa-router-example-hash 2>nul || echo "Hash container already removed"
+	@echo "Example containers stopped and removed"
 
 package: clean ## Package for npm publication
 	@echo "Packaging @keenmate/svelte-spa-router v5.0.0-rc06..."

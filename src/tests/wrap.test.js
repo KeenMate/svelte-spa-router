@@ -41,16 +41,16 @@ describe('wrap function', () => {
     expect(wrapped.props).toEqual(props)
   })
 
-  it('should attach userData to wrapped component', () => {
+  it('should attach routeContext to wrapped component', () => {
     const component = () => import('../lib/Router.svelte')
-    const userData = { role: 'admin' }
+    const routeContext = { role: 'admin' }
 
     const wrapped = wrap({
       asyncComponent: component,
-      userData
+      routeContext
     })
 
-    expect(wrapped.userData).toEqual(userData)
+    expect(wrapped.routeContext).toEqual(routeContext)
   })
 
   it('should support loading component', () => {
@@ -75,21 +75,21 @@ describe('wrap function', () => {
     const component = () => import('../lib/Router.svelte')
     const condition = vi.fn(() => true)
     const props = { foo: 'bar' }
-    const userData = { role: 'admin' }
+    const routeContext = { role: 'admin' }
     const LoadingComponent = { name: 'Loading' }
 
     const wrapped = wrap({
       asyncComponent: component,
       conditions: [condition],
       props,
-      userData,
+      routeContext,
       loadingComponent: LoadingComponent
     })
 
     expect(wrapped._sveltesparouter).toBe(true)
     expect(wrapped.conditions).toHaveLength(1)
     expect(wrapped.props).toEqual(props)
-    expect(wrapped.userData).toEqual(userData)
+    expect(wrapped.routeContext).toEqual(routeContext)
     expect(wrapped.component.loading).toBe(LoadingComponent)
   })
 })

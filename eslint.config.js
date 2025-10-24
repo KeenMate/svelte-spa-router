@@ -3,29 +3,54 @@ export default [
     ignores: [
       'node_modules/**',
       'dist/**',
-      'example/node_modules/**',
-      'example/dist/**',
+      'example/**',           // Ignore entire example folder
       'result/**',
-      '*.min.js'
+      '*.min.js',
+      '**/*.svelte',          // Ignore Svelte files (need svelte-eslint-parser)
+      '**/*.html'             // Ignore HTML files
     ]
   },
   {
-    files: ['**/*.js', '**/*.svelte'],
+    files: ['**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
       globals: {
+        // Browser globals
         window: 'readonly',
         document: 'readonly',
         console: 'readonly',
         history: 'readonly',
+        navigator: 'readonly',
+        location: 'readonly',
+        sessionStorage: 'readonly',
+        localStorage: 'readonly',
+
+        // Standard JavaScript globals
         Promise: 'readonly',
         Map: 'readonly',
         Set: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         setInterval: 'readonly',
-        clearInterval: 'readonly'
+        clearInterval: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        structuredClone: 'readonly',
+        confirm: 'readonly',
+
+        // Events
+        Event: 'readonly',
+        CustomEvent: 'readonly',
+        HashChangeEvent: 'readonly',
+        PopStateEvent: 'readonly',
+
+        // Svelte 5 runes (compiled away, but used in source)
+        $state: 'readonly',
+        $derived: 'readonly',
+        $effect: 'readonly',
+        $props: 'readonly',
+        $inspect: 'readonly'
       }
     },
     rules: {

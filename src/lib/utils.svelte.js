@@ -270,7 +270,15 @@ function navigate(location, shouldReplace = false, context = null) {
         // Hash mode
         const dest = (location.charAt(0) == '#' ? '' : '#') + location
         if (shouldReplace) {
-            window.location.replace(dest)
+            // Use history.replaceState to replace without adding history entry
+            // This prevents history.length from increasing
+            history.replaceState(
+                history.state,
+                '',
+                window.location.pathname + window.location.search + dest
+            )
+            // Manually trigger hashchange event
+            window.dispatchEvent(new HashChangeEvent('hashchange'))
         } else {
             // Try to save context in history state for back/forward support
             let processedNavigationContext = context

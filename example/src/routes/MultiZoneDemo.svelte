@@ -1,6 +1,6 @@
 <script>
-import { link } from '../../../src/lib/utils.svelte.js'
-import active from '../../../src/lib/active.svelte.js'
+import { link } from '@keenmate/svelte-spa-router/utils'
+import active from '@keenmate/svelte-spa-router/active'
 </script>
 
 <div class="multi-zone-demo">

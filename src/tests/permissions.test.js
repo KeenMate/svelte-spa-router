@@ -114,7 +114,7 @@ describe('Permissions Helper', () => {
       expect(onUnauthorized).toHaveBeenCalledWith(
         expect.objectContaining({
           location: '/admin',
-          userData: expect.objectContaining({
+          routeContext: expect.objectContaining({
             deniedRoute: '/admin'
           })
         })
@@ -163,8 +163,8 @@ describe('Permissions Helper', () => {
 
       expect(route).toHaveProperty('component')
       expect(route).toHaveProperty('conditions')
-      expect(route).toHaveProperty('userData')
-      expect(route.userData.permissions).toEqual({ any: ['read'] })
+      expect(route).toHaveProperty('routeContext')
+      expect(route.routeContext.permissions).toEqual({ any: ['read'] })
       expect(route.conditions).toHaveLength(1)
     })
 
@@ -195,17 +195,17 @@ describe('Permissions Helper', () => {
       expect(route.props).toEqual(props)
     })
 
-    it('should support custom userData', () => {
+    it('should support custom routeContext', () => {
       const component = () => import('../lib/Router.svelte')
-      const userData = { role: 'admin' }
+      const routeContext = { role: 'admin' }
 
       const route = createProtectedRoute({
         component,
         permissions: { any: ['read'] },
-        userData
+        routeContext
       })
 
-      expect(route.userData).toMatchObject({
+      expect(route.routeContext).toMatchObject({
         role: 'admin',
         permissions: { any: ['read'] }
       })

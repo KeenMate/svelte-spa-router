@@ -1,25 +1,54 @@
 # Build stage
 FROM node:20-alpine AS builder
 
+# Set build argument for routing mode (hash or history)
+ARG VITE_ROUTING_MODE=hash
+# Set build argument for package version (defaults to 'file:..' for local dev)
+ARG ROUTER_VERSION=file:..
+
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files from example directory
+COPY example/package*.json ./
+
+# If using local source, copy the router source first
+RUN if [ "$ROUTER_VERSION" = "file:.." ]; then \
+        mkdir -p /router-src; \
+    fi
+
+# Copy router source if building with local version
+COPY src /router-src/src
+COPY package.json /router-src/package.json
 
 # Install dependencies
 RUN npm install
 
-# Copy source files
-COPY . .
+# If ROUTER_VERSION is not 'file:..', replace the local version with npm version
+RUN if [ "$ROUTER_VERSION" != "file:.." ]; then \
+        npm uninstall @keenmate/svelte-spa-router && \
+        npm install @keenmate/svelte-spa-router@$ROUTER_VERSION; \
+    else \
+        # For local version, link the copied source
+        rm -rf node_modules/@keenmate/svelte-spa-router && \
+        mkdir -p node_modules/@keenmate && \
+        cp -r /router-src node_modules/@keenmate/svelte-spa-router; \
+    fi
 
-# Build the application
-RUN npm run build
+# Verify installed packages
+RUN echo "=== Installed packages ===" && npm ls --depth=0
+
+# Copy example source files
+COPY example/. .
+
+# Build the application with the specified routing mode
+RUN npm run build:${VITE_ROUTING_MODE}
 
 # Production stage
 FROM nginx:alpine
 
-# Copy built files to nginx
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy built files to nginx (use build arg to determine output directory)
+ARG VITE_ROUTING_MODE=hash
+COPY --from=builder /app/dist-${VITE_ROUTING_MODE} /usr/share/nginx/html
 
 # Copy nginx configuration for SPA routing
 RUN echo 'server { \
