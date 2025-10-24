@@ -5,9 +5,6 @@ import { location, querystring, params, setParams, restoreScroll, getZoneCompone
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 import { updateRouteMetadata, startRouteLoading, waitForRouteReady, hideLoading } from './helpers/route-metadata.svelte.js'
 
-// Re-export utilities so they can be imported from Router
-export { link, push, pop, replace, location, querystring, params, loc, restoreScroll } from './utils.svelte.js'
-
 // Component props
 let {
     /**
