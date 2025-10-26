@@ -337,6 +337,8 @@ The package uses explicit exports in package.json:
 - `@keenmate/svelte-spa-router/helpers/querystring` - Query string helpers
 - `@keenmate/svelte-spa-router/constants` - Navigation event constants
 
+**Important:** The package.json includes `"sideEffects": ["**/*.svelte", "**/*.svelte.js"]` to prevent bundlers like Vite from incorrectly tree-shaking files containing Svelte 5 runes. The `.svelte.js` files have module-level reactive state (`$state`, `$derived`, `$effect`) which are side effects that must be preserved during production builds.
+
 ## Important Notes
 
 ### What NOT to Do

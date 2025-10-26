@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Set build argument for routing mode (hash or history)
 ARG VITE_ROUTING_MODE=hash

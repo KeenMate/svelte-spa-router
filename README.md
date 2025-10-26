@@ -30,6 +30,8 @@ This module is released under MIT license.
 npm install @keenmate/svelte-spa-router
 ```
 
+> **⚠️ Important:** This package requires **Node.js 22 or higher** for production builds. Node.js 20 has compatibility issues with Svelte 5 that may cause runtime errors like "link is not defined" in production builds. Make sure your build environment (CI/CD, Docker, etc.) uses Node 22+.
+
 ## Key Features
 
 This router leverages Svelte 5's runes and provides:
