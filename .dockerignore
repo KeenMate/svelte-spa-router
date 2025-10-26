@@ -1,0 +1,34 @@
+# Dependency directories
+node_modules
+example/node_modules
+
+# Build outputs
+dist
+example/dist
+example/dist-hash
+example/dist-history
+
+# IDE and OS files
+.vscode
+.idea
+.DS_Store
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.vite
+.svelte-kit
+
+# Documentation (not needed in build)
+*.md
+!README.md
+
+# Test files
+src/tests
+coverage

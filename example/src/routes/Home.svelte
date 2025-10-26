@@ -80,7 +80,7 @@ setBasePath(import.meta.env.BASE_URL || '/')</code></pre>
             <td>Returns raw query string (e.g., <code>foo=bar&amp;id=42</code>)</td>
         </tr>
         <tr>
-            <td><code>params()</code></td>
+            <td><code>routeParams()</code></td>
             <td>Function</td>
             <td>Returns route parameters (e.g., <code>{'{'}id: '42'{'}'}</code>)</td>
         </tr>

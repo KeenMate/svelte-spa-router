@@ -1,13 +1,13 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
 <div class="zone-main">
     <h2>Product Details</h2>
     <div class="product-info">
-        <p><strong>Product ID:</strong> {params.productId || 'N/A'}</p>
-        <p><strong>Name:</strong> Premium Widget {params.productId}</p>
-        <p><strong>Price:</strong> ${(parseInt(params.productId) || 0) * 10 + 99}.99</p>
+        <p><strong>Product ID:</strong> {routeParams.productId || 'N/A'}</p>
+        <p><strong>Name:</strong> Premium Widget {routeParams.productId}</p>
+        <p><strong>Price:</strong> ${(parseInt(routeParams.productId) || 0) * 10 + 99}.99</p>
     </div>
 
     <div class="description">

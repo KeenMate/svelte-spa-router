@@ -202,9 +202,9 @@ export function loc() {
 let paramsState = $state(undefined)
 
 /**
- * Get current params
+ * Get current route parameters
  */
-export function params() {
+export function routeParams() {
     return paramsState
 }
 

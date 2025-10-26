@@ -1,5 +1,5 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
 <div>About Page</div>

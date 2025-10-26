@@ -1,5 +1,5 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 
 const orders = [
     { id: 'ORD-1001', customer: 'John Doe', date: '2024-01-15', total: 299.99, status: 'Delivered', items: 3 },

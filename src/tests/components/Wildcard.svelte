@@ -1,5 +1,5 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
-<div>Wildcard: {params.wild || 'none'}</div>
+<div>Wildcard: {routeParams.wild || 'none'}</div>

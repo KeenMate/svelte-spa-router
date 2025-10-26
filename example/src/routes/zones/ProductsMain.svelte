@@ -1,5 +1,5 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 
 const products = [
     { id: 1, name: 'Wireless Headphones', category: 'Electronics', price: 79.99, stock: 45 },

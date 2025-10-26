@@ -1,10 +1,10 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 
 // Simulate some dynamic stats
-let views = $state((parseInt(params.productId) || 0) * 137 + 1234)
-let inStock = $state((parseInt(params.productId) || 0) % 3 !== 0)
-let rating = $state(4.5 - (parseInt(params.productId) || 0) % 2 * 0.3)
+let views = $state((parseInt(routeParams.productId) || 0) * 137 + 1234)
+let inStock = $state((parseInt(routeParams.productId) || 0) % 3 !== 0)
+let rating = $state(4.5 - (parseInt(routeParams.productId) || 0) % 2 * 0.3)
 </script>
 
 <div class="zone-panel">

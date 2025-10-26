@@ -1,33 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)",
-      "Bash(git mv:*)",
-      "Bash(mv:*)",
-      "Bash(rmdir:*)",
-      "Bash(npm run build)",
-      "Read(//c/Git/KM/dhl-rdm-organiogram/frontend/src/lib/features/organization-trees/**)",
-      "WebSearch",
-      "Bash(npm install:*)",
-      "Bash(npm test)",
-      "Bash(npm run dev)",
-      "Read(//c/Git/KM/dhl-rdm-organiogram/frontend/src/lib/helpers/**)",
-      "Read(//c/Git/KM/dhl-rdm-organiogram/frontend/**)",
-      "Bash(npm test:*)",
-      "Read(//c/Git/KM/svelte-docs/**)",
-      "Read(//c/Git/KM/svelte-treeview-showcase/**)",
-      "Read(//c/Git/KM/svelte-spa-router-showcase/**)",
-      "Bash(npx svelte-kit sync)",
-      "Bash(cat:*)",
-      "Read(//c/Git/KM/svelte-spa-router-test/**)",
-      "Read(//c/Git/KM/**)",
-      "Bash(npm create vite@latest . -- --template svelte)",
-      "Bash(powershell.exe -ExecutionPolicy Bypass -File rename-refactor.ps1)",
-      "Bash(make:*)"
+      "Bash(for file in \"features/route-configuration/+page.svelte\" \"features/metadata/+page.svelte\" \"features/programmatic-navigation/+page.svelte\" \"features/named-routes/+page.svelte\" \"features/querystring/+page.svelte\" \"features/guards/+page.svelte\" \"getting-started/+page.svelte\")",
+      "Bash(do echo \"Updating $file\")"
     ],
-    "deny": [
-      "Bash(make dev:*)"
-    ],
+    "deny": [],
     "ask": []
   }
 }

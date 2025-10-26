@@ -1,9 +1,9 @@
 <script>
-import { params, location, link } from '@keenmate/svelte-spa-router/utils'
+import { routeParams, location, link } from '@keenmate/svelte-spa-router/utils'
 import '../main.scss'
 
 // Reactive values from route params
-const currentParams = $derived(params())
+const currentParams = $derived(routeParams())
 const currentLocation = $derived(location())
 
 // Sample data for demo links
@@ -145,15 +145,15 @@ const logTypes = ['activity', 'errors', 'security', 'audit']
 
     <div class="usage-example">
         <h3>📖 Code Example</h3>
-        <pre><code>{`import { params } from '@keenmate/svelte-spa-router/utils'
+        <pre><code>{`import { routeParams } from '@keenmate/svelte-spa-router/utils'
 
 // Extract route parameters
-const userId = $derived(params()?.userId)
-const docId = $derived(params()?.docId)
-const taskId = $derived(params()?.taskId)
+const userId = $derived(routeParams()?.userId)
+const docId = $derived(routeParams()?.docId)
+const taskId = $derived(routeParams()?.taskId)
 
 // Or get all parameters at once
-const allParams = $derived(params())
+const allParams = $derived(routeParams())
 
 // React to parameter changes
 $effect(() => {
@@ -165,8 +165,8 @@ $effect(() => {
 
 // Use in API calls
 $effect(() => {
-  const projectId = params()?.projectId
-  const taskId = params()?.taskId
+  const projectId = routeParams()?.projectId
+  const taskId = routeParams()?.taskId
 
   if (projectId && taskId) {
     fetchTask(projectId, taskId)

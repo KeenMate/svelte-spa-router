@@ -1,10 +1,10 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
 <div class="zone-sidebar">
     <h3>Product Menu</h3>
-    <p class="product-id">Product: {params.productId || 'N/A'}</p>
+    <p class="product-id">Product: {routeParams.productId || 'N/A'}</p>
     <nav>
         <ul>
             <li>Overview</li>

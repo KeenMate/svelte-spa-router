@@ -1,5 +1,5 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 
 const users = [
     { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Administrator', status: 'Active' },

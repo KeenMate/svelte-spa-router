@@ -75,11 +75,11 @@ const routes = {
         <h3>3. Zone Components Receive Props</h3>
         <pre><code>{`<!-- ProductSidebar.svelte -->
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
 <div>
-    <h3>Product {params.productId}</h3>
+    <h3>Product {routeParams.productId}</h3>
     <!-- sidebar content -->
 </div>`}</code></pre>
     </div>

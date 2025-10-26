@@ -1,7 +1,7 @@
 ﻿<script>
 import {parse} from './parse-route.js'
 import { tick, untrack } from 'svelte'
-import { location, querystring, params, setParams, restoreScroll, getZoneComponent, setZoneComponents } from './utils.svelte.js'
+import { location, querystring, routeParams, setParams, restoreScroll, getZoneComponent, setZoneComponents } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 import { updateRouteMetadata, startRouteLoading, waitForRouteReady, hideLoading } from './helpers/route-metadata.svelte.js'
 
@@ -269,7 +269,7 @@ $effect(() => {
             const canLeave = await runBeforeLeaveGuards({
                 from: currentLocation,
                 to: newLoc.location,
-                params: untrack(() => params()),
+                params: untrack(() => routeParams()),
                 querystring: untrack(() => querystring())
             })
 
@@ -505,7 +505,7 @@ $effect(() => {
         {@const zoneProps = zoneComponentData.props}
         {@const zonerouteContext = zoneComponentData.routeContext}
         {#if zoneParams}
-            <Comp params={zoneParams} {onrouteEvent} routeContext={zonerouteContext} {...zoneProps} />
+            <Comp routeParams={zoneParams} {onrouteEvent} routeContext={zonerouteContext} {...zoneProps} />
         {:else}
             <Comp {onrouteEvent} routeContext={zonerouteContext} {...zoneProps} />
         {/if}
@@ -515,7 +515,7 @@ $effect(() => {
     {#if isWaitingForData && loadingComponent}
         {#if loadingParams}
             {@const LoadingComp = loadingComponent}
-            <LoadingComp params={loadingParams} />
+            <LoadingComp routeParams={loadingParams} />
         {:else}
             {@const LoadingComp = loadingComponent}
             <LoadingComp />
@@ -526,10 +526,10 @@ $effect(() => {
     <div style:display={isWaitingForData ? 'none' : 'block'}>
         {#if componentParams}
             {@const Comp = component}
-            <Comp params={componentParams} {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
+            <Comp routeParams={componentParams} {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
         {:else}
             {@const Comp = component}
-            <Comp {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
+            <Comp {onrouteEvent} routeContext={componentrouteContext} {...componentParams} />
         {/if}
     </div>
 {/if}

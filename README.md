@@ -11,7 +11,7 @@ Main features:
 
 - **Dual-mode routing**: Supports both hash-based (`#/path`) and history API (`/path`) routing
 - Built with **Svelte 5 runes** for better reactivity and performance
-- **TypeScript-first**: Full generic support for `params()`, `query()`, and `filters()` with intellisense
+- **TypeScript-first**: Full generic support for `routeParams()`, `query()`, and `filters()` with intellisense
 - **Flexible Navigation**: Multi-parameter signatures, named routes, navigation context (WinForms-like data passing)
 - **Strict Parameter Replacement**: Configurable placeholder for missing route parameters (no silent failures)
 - **Global Error Handler**: Production-ready error handling with loop prevention and recovery strategies
@@ -43,11 +43,11 @@ In Svelte 5 version, location stores are accessed as functions instead of Svelte
 **Example:**
 ```svelte
 <script>
-import {location, querystring, params} from '@keenmate/svelte-spa-router'
+import { routeParams} from '@keenmate/svelte-spa-router'
 </script>
 <p>Current location: {location()}</p>
 <p>Querystring: {querystring()}</p>
-<p>Params: {JSON.stringify(params())}</p>
+<p>Params: {JSON.stringify(routeParams())}</p>
 ```
 
 ### 2. Event handlers use props instead of `on:` directives
@@ -347,22 +347,22 @@ In your route components:
 
 ```svelte
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
-<p>Book ID: {params.id}</p>
+<p>Book ID: {routeParams.id}</p>
 ```
 
 ### Accessing location and querystring
 
 ```svelte
 <script>
-import {location, querystring, params} from '@keenmate/svelte-spa-router'
+import { routeParams} from '@keenmate/svelte-spa-router'
 
 // Access current location and querystring
 const currentPath = $derived(location())
 const query = $derived(querystring())
-const routeParams = $derived(params())
+const routeParams = $derived(routeParams())
 </script>
 
 <p>Current page: {currentPath}</p>
@@ -388,7 +388,7 @@ interface UserQuery {
 }
 
 // Use with type parameters for full intellisense
-const p = $derived(params<UserParams>())
+const p = $derived(routeParams<UserParams>())
 const q = $derived(query<UserQuery>())
 
 if (p) {
@@ -471,7 +471,7 @@ Title and breadcrumbs are stored in `userData` and accessible in route events:
 
 ```svelte
 <script>
-let { params = {}, userData = {} } = $props()
+let { routeParams = {}, userData = {} } = $props()
 
 // Access metadata
 const title = userData.title
@@ -528,18 +528,18 @@ In your component, signal when data is loaded:
 import { onMount } from 'svelte'
 import { hideLoading, updateTitle, updateBreadcrumb } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 
-let { params } = $props()
+let { routeParams } = $props()
 let document = $state(null)
 
 onMount(async () => {
     // Fetch data
-    document = await fetchDocument(params.id)
+    document = await fetchDocument(routeParams.id)
 
     // Update metadata with loaded data
     updateTitle(document.name)
     updateBreadcrumb('documentDetail', {
         label: document.name,
-        path: `/document/${params.id}`
+        path: `/document/${routeParams.id}`
     })
 
     // Signal that loading is complete
@@ -570,12 +570,12 @@ const routes = {
 
 ```svelte
 <script>
-let { params } = $props()
+let { routeParams } = $props()
 let product = $state(null)
 let loading = $state(true)
 
 onMount(async () => {
-    product = await fetchProduct(params.id)
+    product = await fetchProduct(routeParams.id)
     loading = false
 })
 </script>
@@ -639,13 +639,13 @@ Then manually control loading in your components:
 <script>
 import { showLoading, hideLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 
-let { params } = $props()
+let { routeParams } = $props()
 let data = $state(null)
 
 async function loadData() {
     showLoading()  // Show global overlay
     try {
-        data = await fetchData(params.id)
+        data = await fetchData(routeParams.id)
     } finally {
         hideLoading()  // Hide global overlay
     }
@@ -856,7 +856,7 @@ const routes = {
     permissions: { any: ['read'] },
     // Resource-based: User must have access to THIS specific document
     authorizationCallback: async (detail) => {
-      const documentId = detail.params.id
+      const documentId = detail.routeParams.id
       const hasAccess = await checkDocumentAccess(documentId)
 
       if (!hasAccess) {
@@ -1359,7 +1359,7 @@ const routes = {
 import Router from '@keenmate/svelte-spa-router'
 
 // Navigation utilities
-import { link, push, pop, replace, location, querystring, params, navigationContext } from '@keenmate/svelte-spa-router'
+import { routeParams, navigationContext } from '@keenmate/svelte-spa-router'
 
 // Named routes (for use with push/replace/link)
 import { registerRoutes, buildUrl } from '@keenmate/svelte-spa-router/routes'
@@ -1432,7 +1432,7 @@ import {
 
 ```svelte
 <script>
-import { link, location, params } from '@keenmate/svelte-spa-router'
+import { routeParams } from '@keenmate/svelte-spa-router'
 import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
 import { filters } from '@keenmate/svelte-spa-router/helpers/filters'
 import active from '@keenmate/svelte-spa-router/active'
@@ -1448,7 +1448,7 @@ interface QueryParams {
 }
 
 // Get route data reactively
-const routeParams = $derived(params<RouteParams>())
+const routeParams = $derived(routeParams<RouteParams>())
 const queryParams = $derived(query<QueryParams>())
 const currentFilters = $derived(filters())
 
