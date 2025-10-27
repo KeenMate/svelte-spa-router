@@ -1,5 +1,5 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
 <div>404 Not Found</div>

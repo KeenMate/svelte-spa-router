@@ -5,7 +5,7 @@ import { updateBreadcrumb, updateTitle } from '@keenmate/svelte-spa-router/helpe
 import PageWrapper from '../components/PageWrapper.svelte'
 import Breadcrumbs from '../components/Breadcrumbs.svelte'
 
-let { params } = $props()
+let { routeParams } = $props()
 
 let document = $state(null)
 let logs = $state([])
@@ -36,7 +36,7 @@ async function fetchData(id) {
 }
 
 onMount(async () => {
-  const data = await fetchData(params.id)
+  const data = await fetchData(routeParams.id)
 
   if (data) {
     document = data.document
@@ -46,11 +46,11 @@ onMount(async () => {
     updateTitle(`${data.document.filename} - Logs`)
     updateBreadcrumb('documentDetail', {
       label: data.document.filename,
-      path: `/document/${params.id}`
+      path: `/document/${routeParams.id}`
     })
     updateBreadcrumb('documentLogs', {
       label: 'Logs',
-      path: `/document/${params.id}/logs`
+      path: `/document/${routeParams.id}/logs`
     })
   }
 
@@ -102,7 +102,7 @@ onMount(async () => {
         </div>
 
         <div class="actions">
-          <a href={`/document/${params.id}`} use:link class="btn">
+          <a href={`/document/${routeParams.id}`} use:link class="btn">
             ← Back to Document
           </a>
           <a href="/metadata-demo" use:link class="btn btn-secondary">

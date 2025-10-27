@@ -137,11 +137,11 @@ export function loc(): Location;
  *
  * @example
  * ```typescript
- * import { params } from '@keenmate/svelte-spa-router/utils'
+ * import { routeParams } from '@keenmate/svelte-spa-router/utils'
  *
  * // Without type parameter (basic usage)
  * // For route '/user/:id'
- * console.log(params()) // { id: '123' }
+ * console.log(routeParams()) // { id: '123' }
  *
  * // With type parameter (full intellisense)
  * interface UserParams {
@@ -150,7 +150,7 @@ export function loc(): Location;
  * }
  *
  * // For route '/user/:userId/:tab?'
- * const p = $derived(params<UserParams>())
+ * const p = $derived(routeParams<UserParams>())
  * if (p) {
  *   const userId = p.userId  // ✅ TypeScript knows this exists
  *   const tab = p.tab        // ✅ TypeScript knows this is optional
@@ -163,13 +163,13 @@ export function loc(): Location;
  * }
  *
  * // For route '/book/:bookId/:section?'
- * const bookParams = $derived(params<BookParams>())
+ * const bookParams = $derived(routeParams<BookParams>())
  * if (bookParams) {
  *   fetchBook(bookParams.bookId)  // ✅ Type-safe
  * }
  * ```
  */
-export function params<T = Record<string, string>>(): T | undefined;
+export function routeParams<T = Record<string, string>>(): T | undefined;
 
 /**
  * Get route navigation context data

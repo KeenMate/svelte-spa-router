@@ -1,8 +1,8 @@
 <script>
 import {link} from '@keenmate/svelte-spa-router/utils'
 
-// Get params using $props
-let { params: routeParams = {} } = $props()
+// Get route params using $props
+let { routeParams = {} } = $props()
 </script>
 
 <h1>User Profile</h1>

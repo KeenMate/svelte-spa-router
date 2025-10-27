@@ -9,7 +9,7 @@
   import PageWrapper from "../components/PageWrapper.svelte";
   import Breadcrumbs from "../components/Breadcrumbs.svelte";
 
-  let { params = {} } = $props();
+  let { routeParams = {} } = $props();
 
   let document = $state(null);
   let error = $state(null);
@@ -53,7 +53,7 @@
       error = null;
 
       // Fetch the document data
-      const data = await fetchDocument(params.id);
+      const data = await fetchDocument(routeParams.id);
 
       if (!data) {
         throw new Error("Document not found");
@@ -66,7 +66,7 @@
       updateTitle(data.filename);
       updateBreadcrumb("documentDetail", {
         label: data.filename,
-        path: `/document/${params.id}`,
+        path: `/document/${routeParams.id}`,
       });
 
       // Wait for DOM to update with the new document content before hiding loading
@@ -130,7 +130,7 @@
         </div>
 
         <div class="actions">
-          <a href={`/document/${params.id}/logs`} use:link class="btn">
+          <a href={`/document/${routeParams.id}/logs`} use:link class="btn">
             View Activity Logs →
           </a>
         </div>

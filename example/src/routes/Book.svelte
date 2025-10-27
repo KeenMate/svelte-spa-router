@@ -1,12 +1,12 @@
 <script>
 import {link} from '@keenmate/svelte-spa-router/utils'
 
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
 <h1>Book Details</h1>
 
-<p>Book path: <code>{params.wild || '(empty)'}</code></p>
+<p>Book path: <code>{routeParams.wild || '(empty)'}</code></p>
 
 <p>This route uses a wildcard (*) pattern to match any path after /book/</p>
 

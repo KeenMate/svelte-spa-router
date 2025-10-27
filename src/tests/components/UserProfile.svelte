@@ -1,5 +1,5 @@
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
-<div>User: {params.name || 'Guest'} {params.surname || ''}</div>
+<div>User: {routeParams.name || 'Guest'} {routeParams.surname || ''}</div>

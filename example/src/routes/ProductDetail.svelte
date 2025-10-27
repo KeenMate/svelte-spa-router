@@ -4,7 +4,7 @@ import { updateRouteMetadata } from '@keenmate/svelte-spa-router/helpers/route-m
 import PageWrapper from '../components/PageWrapper.svelte'
 import Breadcrumbs from '../components/Breadcrumbs.svelte'
 
-let { params } = $props()
+let { routeParams } = $props()
 
 let product = $state(null)
 let loading = $state(true)
@@ -52,7 +52,7 @@ onMount(async () => {
     error = null
 
     // Fetch the product data
-    const data = await fetchProduct(params.id)
+    const data = await fetchProduct(routeParams.id)
 
     if (!data) {
       throw new Error('Product not found')

@@ -54,7 +54,7 @@ The router is organized into several key modules:
 - Dual-mode routing: hash-based (default) or history API
 - Configuration: `setHashRoutingEnabled()`, `setBasePath()`, `setParamReplacementPlaceholder()`
 - Navigation functions: `push()`, `pop()`, `replace()` with multi-parameter signatures
-- State accessors: `location()`, `querystring()`, `params()`, `navigationContext()`, `loc()`
+- State accessors: `location()`, `querystring()`, `routeParams()`, `navigationContext()`, `loc()`
 - `link` action for SPA navigation with modifier key support and 4-element array format
 
 **wrap.js** - Route wrapping utility
@@ -279,7 +279,7 @@ const routes = {
         permissions: { any: ['read'] },
         // Resource-based: Check user can access THIS document (slow API call)
         authorizationCallback: async (detail) => {
-            const documentId = detail.params.id
+            const documentId = detail.routeParams.id
             const hasAccess = await checkDocumentAccess(documentId)
 
             if (!hasAccess) {
@@ -307,10 +307,10 @@ const routes = {
 Route components receive params via props:
 ```svelte
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
-<p>User ID: {params.id}</p>
+<p>User ID: {routeParams.id}</p>
 ```
 
 ### Events via Callback Props
@@ -336,6 +336,8 @@ The package uses explicit exports in package.json:
 - `@keenmate/svelte-spa-router/helpers/url-helpers` - URL utilities
 - `@keenmate/svelte-spa-router/helpers/querystring` - Query string helpers
 - `@keenmate/svelte-spa-router/constants` - Navigation event constants
+
+**Important:** The package.json includes `"sideEffects": ["**/*.svelte", "**/*.svelte.js"]` to prevent bundlers like Vite from incorrectly tree-shaking files containing Svelte 5 runes. The `.svelte.js` files have module-level reactive state (`$state`, `$derived`, `$effect`) which are side effects that must be preserved during production builds.
 
 ## Important Notes
 

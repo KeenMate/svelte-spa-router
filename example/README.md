@@ -2,6 +2,20 @@
 
 This example demonstrates the features of `@keenmate/svelte-spa-router` with support for both **hash-based** and **history-based** routing.
 
+## Requirements
+
+**Node.js 22+ Required for Building**
+
+This project requires Node.js version 22 or higher when building for production. The build process uses features and optimizations that depend on Node 22+.
+
+- **Development**: Node.js 18+ works fine for `npm run dev`
+- **Production builds**: Node.js 22+ required for `npm run build`
+
+If you encounter build errors, verify your Node version:
+```bash
+node --version  # Should show v22.x.x or higher
+```
+
 ## Routing Modes
 
 The example supports two routing modes controlled by the `VITE_ROUTING_MODE` environment variable:

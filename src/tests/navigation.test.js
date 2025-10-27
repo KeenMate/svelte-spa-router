@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { push, pop, replace, location, querystring, params } from '../lib/utils.svelte.js'
+import { push, pop, replace, location, querystring, routeParams } from '../lib/utils.svelte.js'
 
 describe('Navigation Functions', () => {
   beforeEach(() => {
@@ -103,11 +103,11 @@ describe('Navigation Functions', () => {
     })
   })
 
-  describe('params', () => {
+  describe('routeParams', () => {
     it('should be reactive to route changes', async () => {
       // This test requires Router to be mounted for params to work
       // For now, we'll just check it exists and is callable
-      expect(typeof params).toBe('function')
+      expect(typeof routeParams).toBe('function')
     })
   })
 })

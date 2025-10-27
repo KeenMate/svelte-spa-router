@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-rc08] - 2025-10-26
+
+### Breaking Changes
+- **BREAKING: Renamed `params` to `routeParams`** for clarity
+  - Component prop: `let { params } = $props()` → `let { routeParams } = $props()`
+  - Function call: `params()` → `routeParams()`
+  - This makes it immediately clear these are route parameters from URL patterns
+  - Update all route components to use `routeParams` instead of `params`
+  - TypeScript: `params<T>()` → `routeParams<T>()`
+
+## [5.0.0-rc07] - 2025-10-26
+
+### Fixed
+- **Critical: Tree-shaking issue in production builds** - Added `sideEffects` field to package.json to prevent Vite from incorrectly tree-shaking `.svelte` and `.svelte.js` files during production builds
+  - Fixes "link is not defined" and similar errors in production builds with npm package
+  - `.svelte.js` files contain Svelte 5 runes (`$state`, `$derived`, `$effect`) at module level which have side effects and must not be tree-shaken
+  - Issue only affected production builds, not development mode
+
+## [5.0.0-rc06] - 2025-10-26
+
 ### Added
 
 #### Multi-Parameter Navigation & Strict Parameter Replacement
