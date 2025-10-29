@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Tree/Nested Route Structure (Alternative API)
+- **`createHierarchy()` helper** - Define routes in a tree structure as an alternative to flat definitions
+  - Child paths automatically concatenated to parent paths (relative paths)
+  - Routes automatically inherit breadcrumbs, permissions, conditions, and authorization from parents
+  - Optional route names - only add when needed for programmatic navigation
+  - Coexists seamlessly with flat route definitions
+  - Example:
+    ```javascript
+    import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
+    const routes = createHierarchy({
+        '/admin': {
+            name: 'admin',
+            component: AdminLayout,
+            breadcrumbs: [{ label: 'Admin' }],
+            permissions: { any: ['admin'] },
+            children: {
+                'users': {
+                    name: 'adminUsers',
+                    component: AdminUsers,
+                    breadcrumbs: [{ label: 'Users' }],
+                    children: {
+                        ':id': {
+                            name: 'adminUserDetail',
+                            component: AdminUserDetail
+                        }
+                    }
+                }
+            }
+        }
+    })
+    // Results in: /admin, /admin/users, /admin/users/:id
+    ```
+  - Requires hierarchical mode enabled: `setHierarchicalRoutesEnabled(true)`
+  - Package export: `@keenmate/svelte-spa-router/helpers/hierarchy`
+
+#### Named Routes Enhancement
+- **`getRouteByName()` function** - Get route pattern by name
+  - Returns the path pattern for a registered route name
+  - Useful for testing and debugging
+  - Example: `getRouteByName('documentDetail')` returns `'/documents/:documentId'`
+
+### Documentation
+- **Added comprehensive documentation showcase** - New SvelteKit-based documentation site
+  - Built with @keenmate/svelte-docs for consistent styling and components
+  - Complete API reference with all functions, parameters, and return types
+  - Feature guides: Routing Modes, Route Configuration, Parameters, Guards, Named Routes, Programmatic Navigation, Querystring, Filters, Permissions, Hierarchical Routes, Nested Routes
+  - Interactive code examples with syntax highlighting
+  - Live demo apps for both hash and history modes
+  - Deployed at https://svelte-spa-router.keenmate.dev
+  - Demo apps: https://history.svelte-spa-router.keenmate.dev and https://hash.svelte-spa-router.keenmate.dev
+- **Updated CLAUDE.md** - Added comprehensive section on tree/nested route structure
+- **Added examples** - Tree structure examples in main example app
+
 ## [5.0.0-rc08] - 2025-10-26
 
 ### Breaking Changes

@@ -4,6 +4,7 @@ import {link, location, querystring, push} from '@keenmate/svelte-spa-router/uti
 import active from '@keenmate/svelte-spa-router/active'
 import wrap from '@keenmate/svelte-spa-router/wrap'
 import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
 import { configurePermissions, createPermissionCondition, createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
 import { shouldShowGlobalLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
@@ -62,7 +63,48 @@ configurePermissions({
     }
 })
 
-// Define routes with permissions
+// NESTED ROUTES EXAMPLE (Tree Structure)
+// This demonstrates using createHierarchy() to define routes in a tree structure
+// Child paths are automatically concatenated to parent paths
+// Routes automatically inherit breadcrumbs, permissions, and authorization from parents
+const adminRoutes = createHierarchy({
+    '/admin-tree': {
+        name: 'adminTree',
+        component: AdminPanel,
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Admin (Tree Example)' }
+        ],
+        permissions: { any: ['admin'] },
+        children: {
+            'users': {
+                name: 'adminTreeUsers',
+                component: Settings,
+                breadcrumbs: [{ label: 'Users' }],
+                // Inherits 'admin' permission from parent
+                // Effective breadcrumbs: [Home, Admin (Tree Example), Users]
+                children: {
+                    ':id': {
+                        name: 'adminTreeUserDetail',
+                        component: Settings,
+                        breadcrumbs: [{ label: 'User Detail' }]
+                        // Inherits 'admin' permission from ancestors
+                        // Effective path: /admin-tree/users/:id
+                        // Effective breadcrumbs: [Home, Admin (Tree Example), Users, User Detail]
+                    }
+                }
+            },
+            'settings': {
+                component: Settings,
+                breadcrumbs: [{ label: 'Settings' }],
+                permissions: { any: ['settings:manage'] }
+                // Requires BOTH 'admin' (from parent) AND 'settings:manage'
+            }
+        }
+    }
+})
+
+// Define routes with permissions (Flat Structure)
 const routes = {
     '/': Home,
     '/about': About,
@@ -87,6 +129,11 @@ const routes = {
     '/not-found-demo': NotFoundDemo,
     '/navigation-context-demo': NavigationContextDemo,
     '/authorization-demo': AuthorizationDemo,
+
+    // HIERARCHICAL ROUTES EXAMPLE
+    // With hierarchical mode enabled (see main.js), these routes demonstrate automatic inheritance
+    // The /document/:id/logs route inherits breadcrumbs and permissions from /document/:id
+
     '/document/:id': createProtectedRoute({
         component: () => import('./routes/DocumentDetail.svelte'),
         permissions: { any: ['read'] },
@@ -122,15 +169,21 @@ const routes = {
             { id: 'documentDetail', label: 'Loading...', path: '/document/:id' }
         ]
     }),
+
+    // This child route automatically inherits:
+    // - Parent breadcrumbs: [Home, Documents, Document Detail]
+    // - Parent permissions: { any: ['read'] }
+    // - Parent authorization callback
+    // The final breadcrumbs will be: [Home, Documents, Document Detail, Loading...]
+    // User must pass BOTH parent 'read' permission AND parent authorization check
     '/document/:id/logs': wrap({
         component: DocumentLogs,
         title: 'Document Logs',
         breadcrumbs: [
-            { label: 'Home', path: '/' },
-            { label: 'Documents', path: '/metadata-demo' },
-            { id: 'documentDetail', label: 'Loading...', path: '/document/:id' },
             { id: 'documentLogs', label: 'Loading...', path: '/document/:id/logs' }
         ]
+        // Note: In hierarchical mode, parent breadcrumbs are automatically prepended
+        // If you want to start fresh, use: inheritBreadcrumbs: false
     }),
     '/product/:id': wrap({
         component: ProductDetail,
@@ -206,6 +259,12 @@ const routes = {
     '*': NotFound
 }
 
+// Combine tree-structured routes with flat routes
+const allRoutes = {
+    ...adminRoutes,  // Tree-structured routes
+    ...routes        // Flat routes
+}
+
 // Check if current location is a zone route
 const isZoneRoute = $derived(
     location().startsWith('/product-zones/') ||
@@ -266,6 +325,7 @@ function handleToggleUser() {
             <a href="/authorization-demo" use:link use:active>Authorization</a>
             <a href="/multi-zone-demo" use:link use:active>Zones</a>
             <a href="/admin" use:link use:active>Admin</a>
+            <a href="/admin-tree" use:link use:active>Admin (Tree)</a>
             <a href="/settings" use:link use:active>Settings</a>
         </nav>
         <div class="user-controls">
@@ -281,21 +341,21 @@ function handleToggleUser() {
         <div class="zone-layout">
             <aside class="zone-sidebar">
                 <div class="zone-header">Zone: "sidebar"</div>
-                <Router {routes} zone="sidebar" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="sidebar" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </aside>
             <main class="zone-main">
                 <div class="zone-header">Zone: "main"</div>
-                <Router {routes} zone="main" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="main" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </main>
             <aside class="zone-panel">
                 <div class="zone-header">Zone: "panel"</div>
-                <Router {routes} zone="panel" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="panel" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </aside>
         </div>
     {:else}
         <!-- Single component layout -->
         <main>
-            <Router {routes} onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+            <Router routes={allRoutes} onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
         </main>
     {/if}
 

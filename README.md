@@ -13,6 +13,8 @@ Main features:
 - Built with **Svelte 5 runes** for better reactivity and performance
 - **TypeScript-first**: Full generic support for `routeParams()`, `query()`, and `filters()` with intellisense
 - **Flexible Navigation**: Multi-parameter signatures, named routes, navigation context (WinForms-like data passing)
+- **Tree/Nested Routes**: Optional hierarchical route structure with automatic path concatenation and inheritance
+- **Hierarchical Routes**: Automatic parent-to-child inheritance of breadcrumbs, permissions, and guards
 - **Strict Parameter Replacement**: Configurable placeholder for missing route parameters (no silent failures)
 - **Global Error Handler**: Production-ready error handling with loop prevention and recovery strategies
 - **404 Tracking**: Built-in `onNotFound` callback for analytics and monitoring
@@ -1350,6 +1352,82 @@ const routes = {
 />
 ```
 
+### Tree/Nested Route Structure
+
+Define routes in a hierarchical tree structure as an alternative to flat definitions. Child paths are automatically concatenated to parent paths, and routes inherit metadata from parents.
+
+**Enable hierarchical mode first:**
+```javascript
+// main.js - before mounting app
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
+
+setHierarchicalRoutesEnabled(true)
+```
+
+**Define routes using tree structure:**
+```javascript
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
+const routes = createHierarchy({
+    '/admin': {
+        name: 'admin',
+        component: AdminLayout,
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Admin' }
+        ],
+        permissions: { any: ['admin'] },
+        children: {
+            'users': {
+                name: 'adminUsers',
+                component: AdminUsers,
+                breadcrumbs: [{ label: 'Users' }],
+                // Inherits 'admin' permission from parent
+                // Effective path: /admin/users
+                // Effective breadcrumbs: [Home, Admin, Users]
+                children: {
+                    ':id': {
+                        name: 'adminUserDetail',
+                        component: AdminUserDetail,
+                        breadcrumbs: [{ label: 'User Detail' }]
+                        // Inherits 'admin' permission from ancestors
+                        // Effective path: /admin/users/:id
+                        // Effective breadcrumbs: [Home, Admin, Users, User Detail]
+                    }
+                }
+            },
+            'settings': {
+                component: AdminSettings,
+                breadcrumbs: [{ label: 'Settings' }],
+                permissions: { any: ['settings:manage'] }
+                // Requires BOTH 'admin' AND 'settings:manage'
+            }
+        }
+    }
+})
+
+// Navigate using names
+await push('adminUserDetail', { id: 123 })
+// Results in: /admin/users/123
+```
+
+**Key features:**
+- **Relative child paths** - No need to repeat parent segments
+- **Automatic inheritance** - Breadcrumbs, permissions, conditions, authorization
+- **Optional names** - Only add when needed for `push(name, params)`
+- **Coexists with flat routes** - Mix and match both APIs
+
+**Combine with flat routes:**
+```javascript
+const hierarchicalRoutes = createHierarchy({ /* ... */ })
+const flatRoutes = { '/': Home, '/about': About }
+
+const routes = {
+    ...hierarchicalRoutes,
+    ...flatRoutes
+}
+```
+
 ## Quick Reference
 
 ### All Available Imports
@@ -1370,11 +1448,14 @@ import { createRoute, createRouteDefinition } from '@keenmate/svelte-spa-router/
 // Route wrapping (advanced - for manual wrapping)
 import { wrap } from '@keenmate/svelte-spa-router/wrap'
 
+// Tree/nested route structure (alternative to flat routes)
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
 // Active link highlighting
 import active from '@keenmate/svelte-spa-router/active'
 
 // Configuration
-import { setHashRoutingEnabled, setBasePath, setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router/utils'
+import { setHashRoutingEnabled, setBasePath, setParamReplacementPlaceholder, setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
 
 // Querystring helpers (shared reactive state)
 import { configureQuerystring, query } from '@keenmate/svelte-spa-router/helpers/querystring'

@@ -1,7 +1,7 @@
 ﻿<script>
 import {parse} from './parse-route.js'
 import { tick, untrack } from 'svelte'
-import { location, querystring, routeParams, setParams, restoreScroll, getZoneComponent, setZoneComponents } from './utils.svelte.js'
+import { location, querystring, routeParams, setParams, restoreScroll, getZoneComponent, setZoneComponents, getHierarchicalRoutesEnabled } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 import { updateRouteMetadata, startRouteLoading, waitForRouteReady, hideLoading } from './helpers/route-metadata.svelte.js'
 
@@ -76,6 +76,11 @@ class RouteItem {
             this.routeContext = component.routeContext
             this.props = component.props || {}
             this.shouldDisplayLoadingOnRouteLoad = component.shouldDisplayLoadingOnRouteLoad || false
+            // Store inheritance flags
+            this.inheritBreadcrumbs = component.inheritBreadcrumbs !== undefined ? component.inheritBreadcrumbs : true
+            this.inheritPermissions = component.inheritPermissions !== undefined ? component.inheritPermissions : true
+            this.inheritConditions = component.inheritConditions !== undefined ? component.inheritConditions : true
+            this.inheritAuthorization = component.inheritAuthorization !== undefined ? component.inheritAuthorization : true
         }
         else {
             // Convert the component to a function that returns a Promise, to normalize it
@@ -85,6 +90,10 @@ class RouteItem {
             this.conditions = []
             this.props = {}
             this.shouldDisplayLoadingOnRouteLoad = false
+            this.inheritBreadcrumbs = true
+            this.inheritPermissions = true
+            this.inheritConditions = true
+            this.inheritAuthorization = true
         }
 
         this._pattern = pattern
@@ -178,6 +187,135 @@ else {
     Object.keys(routes).forEach((path) => {
         routesList.push(new RouteItem(path, routes[path]))
     })
+}
+
+/**
+ * Find parent route for hierarchical inheritance
+ * Matches by path pattern - finds longest matching parent path
+ *
+ * @param {string} childPath - Path of the child route (e.g., '/documents/:id/logs')
+ * @returns {RouteItem|null} Parent RouteItem or null if no parent found
+ */
+function findParentRoute(childPath) {
+    if (!getHierarchicalRoutesEnabled()) {
+        return null
+    }
+
+    // Don't look for parent of catch-all route
+    if (childPath === '*') {
+        return null
+    }
+
+    // Find potential parent paths by removing segments
+    // /documents/:id/logs → try /documents/:id, then /documents
+    const segments = childPath.split('/').filter(s => s.length > 0)
+
+    // Try progressively shorter paths (longest match first)
+    for (let i = segments.length - 1; i > 0; i--) {
+        const parentPath = '/' + segments.slice(0, i).join('/')
+
+        // Find route with this path
+        const parentRoute = routesList.find(r => r.path === parentPath)
+        if (parentRoute) {
+            return parentRoute
+        }
+    }
+
+    return null
+}
+
+/**
+ * Build complete hierarchy chain from root to current route
+ *
+ * @param {RouteItem} route - The route to get hierarchy for
+ * @returns {RouteItem[]} Array of routes from root to current [parent, child, grandchild]
+ */
+function getRouteHierarchy(route) {
+    if (!getHierarchicalRoutesEnabled()) {
+        return [route]
+    }
+
+    const hierarchy = []
+    let current = route
+    let visited = new Set() // Prevent circular references
+
+    // Build hierarchy bottom-up
+    while (current) {
+        // Check for circular reference
+        if (visited.has(current.path)) {
+            console.warn('Circular route hierarchy detected for path:', current.path)
+            break
+        }
+        visited.add(current.path)
+
+        hierarchy.unshift(current) // Add to front
+        current = findParentRoute(current.path)
+    }
+
+    return hierarchy
+}
+
+/**
+ * Compose breadcrumbs from route hierarchy
+ * Concatenates parent breadcrumbs with child breadcrumbs
+ *
+ * @param {RouteItem} route - The current route
+ * @returns {Array} Composed breadcrumbs array
+ */
+function composeBreadcrumbs(route) {
+    if (!getHierarchicalRoutesEnabled() || !route.inheritBreadcrumbs) {
+        // Return only this route's breadcrumbs
+        return route.routeContext?.breadcrumbs || []
+    }
+
+    const hierarchy = getRouteHierarchy(route)
+    const breadcrumbs = []
+
+    for (const r of hierarchy) {
+        // Skip if this route opts out of inheriting breadcrumbs
+        if (r === route && !route.inheritBreadcrumbs) {
+            // Only use this route's breadcrumbs
+            return r.routeContext?.breadcrumbs || []
+        }
+
+        // Add breadcrumbs from this level
+        if (r.routeContext?.breadcrumbs) {
+            breadcrumbs.push(...r.routeContext.breadcrumbs)
+        }
+    }
+
+    return breadcrumbs
+}
+
+/**
+ * Get composed conditions from route hierarchy
+ * Returns array of all conditions from parent to child
+ *
+ * @param {RouteItem} route - The current route
+ * @returns {Array} Array of condition functions to execute in order
+ */
+function composeConditions(route) {
+    if (!getHierarchicalRoutesEnabled() || !route.inheritConditions) {
+        // Return only this route's conditions
+        return route.conditions || []
+    }
+
+    const hierarchy = getRouteHierarchy(route)
+    const conditions = []
+
+    for (const r of hierarchy) {
+        // Skip if this specific route opts out
+        if (r === route && !route.inheritConditions) {
+            return route.conditions || []
+        }
+
+        // Add conditions from this level
+        if (r.conditions && r.conditions.length > 0) {
+            conditions.push(...r.conditions)
+        }
+    }
+
+    return conditions
 }
 
 // Component state
@@ -323,8 +461,18 @@ $effect(() => {
                 })
             }
 
-            // Check if the route can be loaded - if all conditions succeed
-            if (!(await routesList[i].checkConditions(detail))) {
+            // Check if the route can be loaded - check composed conditions (includes parent conditions)
+            const composedConditions = composeConditions(routesList[i])
+            let allConditionsPassed = true
+
+            for (let condIdx = 0; condIdx < composedConditions.length; condIdx++) {
+                if (!(await composedConditions[condIdx](detail))) {
+                    allConditionsPassed = false
+                    break
+                }
+            }
+
+            if (!allConditionsPassed) {
                 // Don't display anything
                 component = null
                 componentObj = null
@@ -378,8 +526,13 @@ $effect(() => {
                 componentProps = routesList[i].props
                 componentrouteContext = detail.routeContext || {}
 
-                // Update route metadata
-                updateRouteMetadata(detail.routeContext || {})
+                // Update route metadata with composed breadcrumbs
+                const composedBreadcrumbs = composeBreadcrumbs(routesList[i])
+                const metadata = {
+                    ...(detail.routeContext || {}),
+                    breadcrumbs: composedBreadcrumbs.length > 0 ? composedBreadcrumbs : (detail.routeContext?.breadcrumbs || [])
+                }
+                updateRouteMetadata(metadata)
 
                 // Set params in shared state
                 setParams(componentParams)
@@ -471,8 +624,13 @@ $effect(() => {
                 isWaitingForData = false
             }
 
-            // Update route metadata
-            updateRouteMetadata(detail.routeContext || {})
+            // Update route metadata with composed breadcrumbs
+            const composedBreadcrumbs = composeBreadcrumbs(routesList[i])
+            const metadata = {
+                ...(detail.routeContext || {}),
+                breadcrumbs: composedBreadcrumbs.length > 0 ? composedBreadcrumbs : (detail.routeContext?.breadcrumbs || [])
+            }
+            updateRouteMetadata(metadata)
 
             // Dispatch the routeLoaded event then exit
             dispatchNextTick('routeLoaded', Object.assign({}, detail, {

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(for file in \"features/route-configuration/+page.svelte\" \"features/metadata/+page.svelte\" \"features/programmatic-navigation/+page.svelte\" \"features/named-routes/+page.svelte\" \"features/querystring/+page.svelte\" \"features/guards/+page.svelte\" \"getting-started/+page.svelte\")",
-      "Bash(do echo \"Updating $file\")"
+      "Bash(do echo \"Updating $file\")",
+      "Read(//c/Git/KM/svelte-spa-router-showcase/**)",
+      "Bash(npm test:*)"
     ],
     "deny": [],
     "ask": []

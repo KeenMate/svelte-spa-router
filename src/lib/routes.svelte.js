@@ -116,3 +116,17 @@ export function buildUrl(name, params = {}, query = {}) {
 export function hasRoute(name) {
     return name in routeRegistry
 }
+
+/**
+ * Get the pattern for a registered route by name
+ *
+ * @param {string} name - Route name
+ * @returns {string|undefined} Route pattern or undefined if not registered
+ *
+ * @example
+ * getRouteByName('documentDetail')
+ * // Returns: '/documents/:documentId'
+ */
+export function getRouteByName(name) {
+    return routeRegistry[name]
+}

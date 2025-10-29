@@ -269,9 +269,42 @@ const routes = {
 
 ---
 
-**Status:** Design Document (Not Implemented)
+**Status:** ✅ Implemented
 **Created:** 2025-01-26
-**Assignee:** TBD
+**Completed:** 2025-01-28
+**Assignee:** Claude
 **Priority:** Medium-High
-**Estimated Effort:** 2-3 weeks
+**Implementation Time:** 3 days
 **Risk:** Medium (affects core routing)
+
+## Implementation Summary
+
+Hierarchical routes have been successfully implemented with the following features:
+
+### ✅ Implemented Features
+
+1. **Global Configuration** - `setHierarchicalRoutesEnabled(true)` to enable mode
+2. **Parent Route Discovery** - Automatic path pattern matching
+3. **Breadcrumb Inheritance** - Concatenates parent → child breadcrumbs
+4. **Permission Inheritance** - Sequential execution (parent AND child must pass)
+5. **Condition Inheritance** - Parent conditions run before child conditions
+6. **Authorization Chaining** - Parent callbacks execute before child callbacks
+7. **Opt-Out Flags** - `inheritBreadcrumbs`, `inheritPermissions`, `inheritConditions`, `inheritAuthorization`
+8. **Circular Reference Protection** - Prevents infinite loops
+9. **Deep Hierarchy Support** - Works with 3+ levels of nesting
+
+### Design Decisions Made
+
+**Permission Merging:** Implemented sequential execution (AND behavior) rather than object merging. This matches filesystem security models where access to nested resources requires passing all parent checks.
+
+**Default Behavior:** Inheritance is enabled by default when hierarchical mode is active. Routes must explicitly opt-out with `inheritX: false` flags.
+
+**Backwards Compatibility:** Hierarchical mode is opt-in via global flag, preserving flat mode as default. Existing apps continue to work without changes.
+
+### Files Modified
+
+- `src/lib/utils.svelte.js` - Added global config flag
+- `src/lib/wrap.js` - Added inheritance flags to WrapOptions
+- `src/lib/Router.svelte` - Parent discovery and composition logic
+- `src/lib/helpers/permissions.svelte.js` - Inheritance support
+- `src/tests/hierarchical-routes.test.js` - Comprehensive test suite (NEW)

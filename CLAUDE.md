@@ -99,6 +99,12 @@ The router is organized into several key modules:
 **helpers/url-helpers.svelte.js** - URL utilities
 - `joinPaths()` - Intelligent path joining with slash normalization
 
+**helpers/hierarchy.svelte.js** - Tree/nested route structure
+- `createHierarchy()` - Transforms hierarchical route definitions into flat routes
+- Automatic path concatenation for child routes
+- Optional route names for programmatic navigation
+- Coexists with flat route definitions
+
 ### State Management with Runes
 
 **Critical:** This project uses Svelte 5 runes, NOT Svelte stores. Never use `writable()`, `readable()`, `derived()`, or `$subscribe()`.
@@ -333,11 +339,282 @@ The package uses explicit exports in package.json:
 - `@keenmate/svelte-spa-router/utils` - Configuration functions
 - `@keenmate/svelte-spa-router/routes` - Named routes system
 - `@keenmate/svelte-spa-router/helpers/permissions` - Permission system
+- `@keenmate/svelte-spa-router/helpers/hierarchy` - Tree/nested route structure helper
 - `@keenmate/svelte-spa-router/helpers/url-helpers` - URL utilities
 - `@keenmate/svelte-spa-router/helpers/querystring` - Query string helpers
 - `@keenmate/svelte-spa-router/constants` - Navigation event constants
 
 **Important:** The package.json includes `"sideEffects": ["**/*.svelte", "**/*.svelte.js"]` to prevent bundlers like Vite from incorrectly tree-shaking files containing Svelte 5 runes. The `.svelte.js` files have module-level reactive state (`$state`, `$derived`, `$effect`) which are side effects that must be preserved during production builds.
+
+## Hierarchical Routes (Optional)
+
+The router supports hierarchical route inheritance for apps with deep route structures. This feature is **opt-in** and disabled by default.
+
+### Enabling Hierarchical Mode
+
+```javascript
+// main.js - before app mount
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
+
+setHierarchicalRoutesEnabled(true)
+```
+
+### How It Works
+
+In hierarchical mode, child routes automatically inherit from parent routes:
+
+- **Breadcrumbs** - Concatenated (parent breadcrumbs + child breadcrumbs)
+- **Permissions** - Sequential execution (parent check AND child check must pass)
+- **Conditions** - Parent conditions run before child conditions
+- **Authorization** - Parent callbacks execute before child callbacks
+
+### Example
+
+```javascript
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+const routes = {
+    // Parent route
+    '/documents': createRoute({
+        component: Documents,
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Documents' }
+        ],
+        permissions: { any: ['read'] }
+    }),
+
+    // Child route - automatically inherits parent breadcrumbs and permissions
+    '/documents/:id': createRoute({
+        component: DocumentDetail,
+        breadcrumbs: [
+            { label: 'Document Detail' }
+        ],
+        permissions: { any: ['documents.view'] }
+        // Effective breadcrumbs: [Home, Documents, Document Detail]
+        // Effective permissions: Must have 'read' AND 'documents.view'
+    }),
+
+    // Grandchild route - inherits from entire chain
+    '/documents/:id/logs': createRoute({
+        component: DocumentLogs,
+        breadcrumbs: [
+            { label: 'Access Logs' }
+        ],
+        permissions: { any: ['logs.view'] }
+        // Inherits all ancestor breadcrumbs and permissions
+    })
+}
+```
+
+### Opting Out of Inheritance
+
+Use `inheritX: false` flags to break the inheritance chain:
+
+```javascript
+'/documents/public/:id': createRoute({
+    component: PublicDocument,
+    breadcrumbs: [{ label: 'Public Document' }],
+    permissions: { any: ['guest'] },
+    inheritBreadcrumbs: false,  // Start fresh breadcrumbs
+    inheritPermissions: false,  // Independent permission check
+    inheritConditions: false    // Skip parent conditions
+})
+```
+
+### Permission Inheritance Behavior
+
+Permissions work like filesystem security - all ancestor checks must pass:
+
+```javascript
+// Parent requires 'read'
+// Child requires 'documents.view'
+// Grandchild requires 'logs.view'
+
+// To access /documents/123/logs:
+// 1. Check 'read' (parent) → must pass
+// 2. Check 'documents.view' (child) → must pass
+// 3. Check 'logs.view' (grandchild) → must pass
+//
+// If ANY check fails, access is denied (fail-fast)
+```
+
+This matches Linux/Windows filesystem permissions where you need access to all parent directories to reach a nested file.
+
+### When to Use Hierarchical Mode
+
+**Use hierarchical mode when:**
+- You have deep route structures with shared metadata
+- Routes naturally form parent-child relationships
+- You want DRY breadcrumb and permission definitions
+- Your security model has nested restrictions
+
+**Use flat mode (default) when:**
+- Routes are independent with no hierarchy
+- You prefer explicit, visible definitions
+- Route relationships are not strictly hierarchical
+
+See `HIERARCHICAL_ROUTES_DESIGN.md` for detailed design decisions and implementation details.
+
+## Tree/Nested Route Structure (Alternative API)
+
+The router provides a `createHierarchy()` helper as an alternative to flat route definitions. This is especially useful for deeply nested route structures.
+
+### Basic Usage
+
+```javascript
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
+const routes = createHierarchy({
+    '/documents': {
+        component: DocumentsLayout,
+        breadcrumbs: [{ label: 'Documents' }],
+        children: {
+            ':id': {
+                name: 'documentDetail',
+                component: DocumentDetail,
+                breadcrumbs: [{ label: 'Detail' }],
+                children: {
+                    'logs': {
+                        component: DocumentLogs,
+                        breadcrumbs: [{ label: 'Logs' }]
+                    }
+                }
+            }
+        }
+    }
+})
+
+// Transforms to flat routes:
+// {
+//     '/documents': (wrapped component),
+//     '/documents/:id': (wrapped component),
+//     '/documents/:id/logs': (wrapped component)
+// }
+```
+
+### Key Features
+
+**1. Relative Child Paths**
+- Child paths are automatically concatenated to parent paths
+- No need to repeat parent segments
+- Leading slashes in child paths are stripped
+
+**2. Automatic Inheritance**
+- In tree mode, routes ALWAYS inherit from parents
+- No `inheritX: false` flags available (simplified API)
+- Breadcrumbs, permissions, conditions, and authorization all inherit
+
+**3. Optional Route Names**
+- Add `name` property only when you need programmatic navigation
+- Routes without names are still created, just can't be navigated to via `push(name, params)`
+
+**4. Coexists with Flat Routes**
+- Tree and flat route definitions can be combined seamlessly
+
+### Complete Example
+
+```javascript
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+import { push } from '@keenmate/svelte-spa-router'
+
+// Tree structure
+const hierarchicalRoutes = createHierarchy({
+    '/admin': {
+        name: 'admin',
+        component: AdminLayout,
+        breadcrumbs: [{ label: 'Admin' }],
+        permissions: { any: ['admin'] },
+        children: {
+            'users': {
+                name: 'adminUsers',
+                component: AdminUsers,
+                breadcrumbs: [{ label: 'Users' }],
+                children: {
+                    ':id': {
+                        name: 'adminUserDetail',
+                        component: AdminUserDetail,
+                        breadcrumbs: [{ label: 'User Detail' }],
+                        authorizationCallback: async (detail) => {
+                            return await checkUserAccess(detail.routeParams.id)
+                        },
+                        children: {
+                            'permissions': {
+                                // No name - accessed via tabs/UI only
+                                component: UserPermissions,
+                                breadcrumbs: [{ label: 'Permissions' }]
+                            },
+                            'activity': {
+                                component: UserActivity,
+                                breadcrumbs: [{ label: 'Activity' }]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+})
+
+// Flat routes
+const flatRoutes = {
+    '/': Home,
+    '/about': About
+}
+
+// Combine both
+const routes = {
+    ...hierarchicalRoutes,
+    ...flatRoutes
+}
+
+// Navigate using names
+await push('adminUserDetail', { id: 123 })
+// Results in: /admin/users/123
+```
+
+### Path Concatenation Rules
+
+```javascript
+// Parent: '/users'
+// Child: ':id' → '/users/:id'
+// Child: '/settings' → '/users/settings' (leading slash stripped)
+// Child: '*' → '/users/*' (catch-all)
+
+// Multi-level nesting
+'/documents'           // /documents
+  ':id'                // /documents/:id
+    'logs'             // /documents/:id/logs
+    'permissions'      // /documents/:id/permissions
+```
+
+### When to Use Tree Structure
+
+**Use `createHierarchy()` when:**
+- You have deeply nested routes (3+ levels)
+- Child routes always inherit from parents
+- You want concise, readable route definitions
+- Route structure mirrors UI hierarchy
+
+**Use flat route definitions when:**
+- Routes are mostly shallow (1-2 levels)
+- You need fine-grained control over inheritance (opt-out flags)
+- Route structure doesn't match visual hierarchy
+- You prefer explicit path definitions
+
+### Enabling Hierarchical Inheritance
+
+```javascript
+// main.js - enable hierarchical mode for inheritance to work
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
+
+setHierarchicalRoutesEnabled(true)
+
+// createHierarchy() automatically sets inheritance flags to true
+```
+
+**Note:** You can use `createHierarchy()` without enabling hierarchical mode globally, but routes won't inherit metadata from parents.
 
 ## Important Notes
 
@@ -356,10 +633,14 @@ The package uses explicit exports in package.json:
 
 ## Examples
 
-Three example applications demonstrate usage:
+Example applications and documentation showcase:
 
 - `example/` - Hash mode (traditional #/path)
 - `example-history/` - History mode (clean URLs)
-- `example-permissions/` - Permission system demo (if created)
+- `svelte-spa-router-showcase/` - Comprehensive documentation site with interactive examples
+  - Built with SvelteKit + @keenmate/svelte-docs
+  - Features detailed guides for all router capabilities
+  - Live at: https://svelte-spa-router.keenmate.dev
+  - Demo apps: https://history.svelte-spa-router.keenmate.dev and https://hash.svelte-spa-router.keenmate.dev
 
 When testing features, always test in both routing modes to ensure compatibility.

@@ -1,5 +1,5 @@
 import { mount } from 'svelte'
-import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router/utils'
+import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
 import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
 import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
 import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
@@ -10,6 +10,10 @@ import App from './App.svelte'
 const routingMode = import.meta.env.VITE_ROUTING_MODE || 'history'
 setHashRoutingEnabled(routingMode === 'hash')
 setBasePath(import.meta.env.BASE_URL || '/')
+
+// Enable hierarchical routes (optional feature)
+// When enabled, child routes inherit breadcrumbs, permissions, and conditions from parent routes
+setHierarchicalRoutesEnabled(true)
 
 // Configure querystring parsing for the whole app
 // Use 'auto' to automatically detect format, or specify 'comma' or 'repeat'

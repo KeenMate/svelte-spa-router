@@ -31,6 +31,10 @@
  * @property {string} [title] - Page title for this route
  * @property {Array<{label: string, path?: string}>} [breadcrumbs] - Breadcrumb trail for this route
  * @property {boolean} [shouldDisplayLoadingOnRouteLoad] - If true, keeps loading component visible until component calls hideLoading()
+ * @property {boolean} [inheritBreadcrumbs] - If true (default in hierarchical mode), inherit parent route breadcrumbs
+ * @property {boolean} [inheritPermissions] - If true (default in hierarchical mode), inherit parent route permissions
+ * @property {boolean} [inheritConditions] - If true (default in hierarchical mode), inherit parent route conditions
+ * @property {boolean} [inheritAuthorization] - If true (default in hierarchical mode), inherit parent authorization callbacks
  */
 
 /**
@@ -104,6 +108,10 @@ export function wrap(args) {
             conditions: (args.conditions && args.conditions.length) ? args.conditions : undefined,
             props: (args.props && Object.keys(args.props).length) ? args.props : {},
             shouldDisplayLoadingOnRouteLoad: args.shouldDisplayLoadingOnRouteLoad || false,
+            inheritBreadcrumbs: args.inheritBreadcrumbs !== undefined ? args.inheritBreadcrumbs : true,
+            inheritPermissions: args.inheritPermissions !== undefined ? args.inheritPermissions : true,
+            inheritConditions: args.inheritConditions !== undefined ? args.inheritConditions : true,
+            inheritAuthorization: args.inheritAuthorization !== undefined ? args.inheritAuthorization : true,
             _sveltesparouter: true,
             _isZoneMode: true
         }
@@ -151,6 +159,10 @@ export function wrap(args) {
         conditions: (args.conditions && args.conditions.length) ? args.conditions : undefined,
         props: (args.props && Object.keys(args.props).length) ? args.props : {},
         shouldDisplayLoadingOnRouteLoad: args.shouldDisplayLoadingOnRouteLoad || false,
+        inheritBreadcrumbs: args.inheritBreadcrumbs !== undefined ? args.inheritBreadcrumbs : true,
+        inheritPermissions: args.inheritPermissions !== undefined ? args.inheritPermissions : true,
+        inheritConditions: args.inheritConditions !== undefined ? args.inheritConditions : true,
+        inheritAuthorization: args.inheritAuthorization !== undefined ? args.inheritAuthorization : true,
         _sveltesparouter: true
     }
 

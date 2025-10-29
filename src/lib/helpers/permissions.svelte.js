@@ -132,6 +132,10 @@ export function createPermissionCondition(requirements) {
  * Helper to create a protected route definition (without wrap)
  * This returns just the route configuration object for use with wrap()
  *
+ * NOTE: In hierarchical mode, permissions and authorization callbacks are automatically
+ * inherited from parent routes. Set inheritPermissions: false or inheritAuthorization: false
+ * to opt out of inheritance for specific routes.
+ *
  * @param {Object} options - Route options
  * @param {Function} options.component - Async component import function or synchronous component
  * @param {Object} [options.permissions] - Permission requirements (role-based)
@@ -141,6 +145,10 @@ export function createPermissionCondition(requirements) {
  * @param {any} [options.loadingComponent] - Loading component to show
  * @param {Object} [options.props] - Additional props to pass to component
  * @param {any} [options.routeContext] - Additional route context to attach
+ * @param {boolean} [options.inheritPermissions] - Inherit parent permissions (default: true in hierarchical mode)
+ * @param {boolean} [options.inheritAuthorization] - Inherit parent authorization (default: true in hierarchical mode)
+ * @param {boolean} [options.inheritConditions] - Inherit parent conditions (default: true in hierarchical mode)
+ * @param {boolean} [options.inheritBreadcrumbs] - Inherit parent breadcrumbs (default: true in hierarchical mode)
  * @returns {Object} Route configuration object (needs to be passed to wrap())
  *
  * @example
@@ -176,6 +184,20 @@ export function createPermissionCondition(requirements) {
  *     authorizationCallback: checkDocumentAccess
  *   }))
  * }
+ *
+ * // With hierarchical mode, child inherits parent permissions automatically:
+ * const routes = {
+ *   '/documents': createProtectedRoute({
+ *     component: Documents,
+ *     permissions: { any: ['read'] }
+ *   }),
+ *   '/documents/:id': createProtectedRoute({
+ *     component: DocumentDetail,
+ *     permissions: { any: ['documents.view'] }
+ *     // Automatically inherits 'read' permission from parent
+ *     // User must have BOTH 'read' AND 'documents.view'
+ *   })
+ * }
  * ```
  */
 export function createProtectedRouteDefinition(options) {
@@ -186,6 +208,10 @@ export function createProtectedRouteDefinition(options) {
         loadingComponent,
         props,
         routeContext,
+        inheritPermissions,
+        inheritAuthorization,
+        inheritConditions,
+        inheritBreadcrumbs,
         ...restOptions
     } = options
 
@@ -208,15 +234,31 @@ export function createProtectedRouteDefinition(options) {
         permissions: permissions || {}
     }
 
+    // Pass through inheritance flags
+    if (inheritPermissions !== undefined) {
+        wrapOptions.inheritPermissions = inheritPermissions
+    }
+    if (inheritAuthorization !== undefined) {
+        wrapOptions.inheritAuthorization = inheritAuthorization
+    }
+    if (inheritConditions !== undefined) {
+        wrapOptions.inheritConditions = inheritConditions
+    }
+    if (inheritBreadcrumbs !== undefined) {
+        wrapOptions.inheritBreadcrumbs = inheritBreadcrumbs
+    }
+
     // Add conditions in order: permissions first, then authorization callback
     wrapOptions.conditions = wrapOptions.conditions || []
 
     // Add permission condition if permissions specified (role-based)
+    // Note: In hierarchical mode, parent permission conditions will execute first automatically
     if (permissions) {
         wrapOptions.conditions.push(createPermissionCondition(permissions))
     }
 
     // Add authorization callback if specified (resource-based)
+    // Note: In hierarchical mode, parent authorization callbacks will execute first automatically
     if (authorizationCallback) {
         wrapOptions.conditions.push(authorizationCallback)
     }

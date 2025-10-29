@@ -12,6 +12,7 @@ import { buildUrl, hasRoute } from './routes.svelte.js'
 let hashRoutingEnabled = $state(true)
 let basePath = $state('/')
 let paramReplacementPlaceholder = $state('N-A')
+let hierarchicalRoutesEnabled = $state(false)
 
 /**
  * Enable or disable hash-based routing
@@ -83,6 +84,28 @@ export function setParamReplacementPlaceholder(value) {
  */
 export function getParamReplacementPlaceholder() {
     return paramReplacementPlaceholder
+}
+
+/**
+ * Enable or disable hierarchical route inheritance
+ * Must be called before app initialization
+ *
+ * When enabled, child routes automatically inherit breadcrumbs, permissions,
+ * conditions, and authorization callbacks from parent routes.
+ *
+ * @param {boolean} value - true to enable hierarchical mode, false for flat mode (default)
+ */
+export function setHierarchicalRoutesEnabled(value) {
+    hierarchicalRoutesEnabled = value
+}
+
+/**
+ * Get current hierarchical routes mode
+ *
+ * @returns {boolean} true if hierarchical mode is enabled
+ */
+export function getHierarchicalRoutesEnabled() {
+    return hierarchicalRoutesEnabled
 }
 
 /**

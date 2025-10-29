@@ -74,6 +74,10 @@
     "./helpers/GlobalErrorHandler": {
       "svelte": "./src/lib/helpers/GlobalErrorHandler.svelte"
     },
+    "./helpers/hierarchy": {
+      "types": "./src/lib/helpers/hierarchy.d.ts",
+      "import": "./src/lib/helpers/hierarchy.svelte.js"
+    },
     "./constants": {
       "types": "./src/lib/constants.d.ts",
       "import": "./src/lib/constants.js"
