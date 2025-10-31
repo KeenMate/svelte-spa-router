@@ -23,6 +23,9 @@
       "svelte": "./src/lib/Router.svelte",
       "import": "./src/lib/index.js"
     },
+    "./Router2": {
+      "svelte": "./src/lib/Router2.svelte"
+    },
     "./active": {
       "types": "./src/lib/active.d.ts",
       "import": "./src/lib/active.svelte.js"

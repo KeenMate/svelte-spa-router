@@ -1,5 +1,6 @@
 ﻿<script>
 import Router from '@keenmate/svelte-spa-router'
+import Router2 from '@keenmate/svelte-spa-router/Router2'
 import {link, location, querystring, push, navigationContext} from '@keenmate/svelte-spa-router/utils'
 import active from '@keenmate/svelte-spa-router/active'
 import wrap from '@keenmate/svelte-spa-router/wrap'
@@ -45,6 +46,7 @@ import NotFoundDemo from './routes/NotFoundDemo.svelte'
 import NavigationContextDemo from './routes/NavigationContextDemo.svelte'
 import AuthorizationDemo from './routes/AuthorizationDemo.svelte'
 import ReferrerDemo from './routes/ReferrerDemo.svelte'
+import RouterComparisonDemo from './routes/RouterComparisonDemo.svelte'
 import Loading from './components/Loading.svelte'
 
 // Configure permissions system
@@ -141,6 +143,7 @@ const routes = {
     '/navigation-context-demo': NavigationContextDemo,
     '/authorization-demo': AuthorizationDemo,
     '/referrer-demo': ReferrerDemo,
+    '/router-comparison': RouterComparisonDemo,
 
     // HIERARCHICAL ROUTES EXAMPLE
     // With hierarchical mode enabled (see main.js), these routes demonstrate automatic inheritance
@@ -290,12 +293,38 @@ const showGlobalLoader = $derived(shouldShowGlobalLoading())
 const navContext = $derived(navigationContext())
 const referrer = $derived(navContext?.referrer)
 
+// Router selection state - load from localStorage
+let useRouter2 = $state(false)
+
+// Load router preference from localStorage on mount
+if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('svelte-spa-router:use-router2')
+    if (saved !== null) {
+        useRouter2 = saved === 'true'
+    }
+}
+
+// Save router preference to localStorage whenever it changes
+$effect(() => {
+    if (typeof window !== 'undefined') {
+        localStorage.setItem('svelte-spa-router:use-router2', String(useRouter2))
+    }
+})
+
+// Log which router is active on mount and when it changes
+$effect(() => {
+    console.log(`%c🚀 Active Router: ${useRouter2 ? 'Router2 (Simplified)' : 'Router (Original)'}`,
+        'background: #10b981; color: white; padding: 4px 8px; border-radius: 3px; font-weight: bold;')
+})
+
+const ActiveRouter = $derived(useRouter2 ? Router2 : Router)
+
 function handleRouteLoaded(event) {
-    console.log('Route loaded:', event.detail)
+    console.log(`[${useRouter2 ? 'Router2' : 'Router'}] Route loaded:`, event.detail)
 }
 
 function handleNotFound(event) {
-    console.log('404 Not Found:', event.detail)
+    console.log(`[${useRouter2 ? 'Router2' : 'Router'}] 404 Not Found:`, event.detail)
     // Example: Send to Sentry or other monitoring service
     // Sentry.captureMessage('404 Not Found', {
     //     extra: {
@@ -307,6 +336,11 @@ function handleNotFound(event) {
 
 function handleToggleUser() {
     toggleUser()
+}
+
+function handleToggleRouter() {
+    useRouter2 = !useRouter2
+    console.log(`Switched to ${useRouter2 ? 'Router2' : 'Router'}`)
 }
 </script>
 
@@ -326,6 +360,7 @@ function handleToggleUser() {
         <h1>@keenmate/svelte-spa-router Example</h1>
         <nav>
             <a href="/" use:link use:active>Home</a>
+            <a href="/router-comparison" use:link use:active>Router Comparison</a>
             <a href="/links-demo" use:link use:active>Links</a>
             <a href="/querystring-demo" use:link use:active>Querystring</a>
             <a href="/filters-demo" use:link use:active>Filters</a>
@@ -344,6 +379,10 @@ function handleToggleUser() {
             <a href="/settings" use:link use:active>Settings</a>
         </nav>
         <div class="user-controls">
+            <button onclick={handleToggleRouter} class="toggle-btn router-toggle" title="Switch between Router and Router2">
+                <span class="router-label">{useRouter2 ? 'Router2' : 'Router'}</span>
+                <span class="router-icon">🔄</span>
+            </button>
             <button onclick={handleToggleUser} class="toggle-btn" title="Switch user">
                 Toggle <span class="user-icon">👤</span>
             </button>
@@ -370,7 +409,7 @@ function handleToggleUser() {
     {:else}
         <!-- Single component layout -->
         <main>
-            <Router routes={allRoutes} onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+            <ActiveRouter routes={allRoutes} onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
         </main>
     {/if}
 
@@ -463,6 +502,25 @@ function handleToggleUser() {
 
     .user-icon {
         font-size: 1.2rem;
+    }
+
+    .router-toggle {
+        background: rgba(16, 185, 129, 0.3);
+        border-color: rgba(16, 185, 129, 0.5);
+    }
+
+    .router-toggle:hover {
+        background: rgba(16, 185, 129, 0.4);
+        border-color: rgba(16, 185, 129, 0.7);
+    }
+
+    .router-label {
+        font-weight: 600;
+        font-family: 'Courier New', monospace;
+    }
+
+    .router-icon {
+        font-size: 1rem;
     }
 
     .user-name {
