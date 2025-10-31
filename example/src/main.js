@@ -1,5 +1,5 @@
 import { mount } from 'svelte'
-import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
+import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled, setIncludeReferrer } from '@keenmate/svelte-spa-router/utils'
 import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
 import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
 import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
@@ -14,6 +14,11 @@ setBasePath(import.meta.env.BASE_URL || '/')
 // Enable hierarchical routes (optional feature)
 // When enabled, child routes inherit breadcrumbs, permissions, and conditions from parent routes
 setHierarchicalRoutesEnabled(true)
+
+// Enable referrer tracking for all routes
+// This automatically injects previous route info (location, querystring, params, routeName) into navigationContext
+// Options: 'never' (default), 'notfound' (only for 404), 'always' (all routes)
+setIncludeReferrer('always')
 
 // Configure querystring parsing for the whole app
 // Use 'auto' to automatically detect format, or specify 'comma' or 'repeat'

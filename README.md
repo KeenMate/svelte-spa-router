@@ -13,6 +13,7 @@ Main features:
 - Built with **Svelte 5 runes** for better reactivity and performance
 - **TypeScript-first**: Full generic support for `routeParams()`, `query()`, and `filters()` with intellisense
 - **Flexible Navigation**: Multi-parameter signatures, named routes, navigation context (WinForms-like data passing)
+- **Referrer Tracking**: Automatic previous route tracking with configurable modes ('never', 'notfound', 'always')
 - **Tree/Nested Routes**: Optional hierarchical route structure with automatic path concatenation and inheritance
 - **Hierarchical Routes**: Automatic parent-to-child inheritance of breadcrumbs, permissions, and guards
 - **Strict Parameter Replacement**: Configurable placeholder for missing route parameters (no silent failures)
@@ -313,6 +314,53 @@ Navigation context:
 - Perfect for passing sensitive data or large objects
 - Accessible via `navigationContext()` in the target route
 - Cleared when user manually navigates (types URL, refreshes, etc.)
+
+### Referrer Tracking
+
+Automatically track and access information about the previous route:
+
+```javascript
+// main.js - Enable referrer tracking
+import { setIncludeReferrer } from '@keenmate/svelte-spa-router/utils'
+
+setIncludeReferrer('always')  // Track referrer for all routes
+// Options: 'never' (default), 'notfound' (404 only), 'always'
+```
+
+```svelte
+<!-- In any route component -->
+<script>
+import { push, navigationContext } from '@keenmate/svelte-spa-router/utils'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+
+function goBack() {
+    if (referrer?.location) {
+        const url = referrer.querystring
+            ? `${referrer.location}?${referrer.querystring}`
+            : referrer.location
+        push(url)
+    }
+}
+</script>
+
+{#if referrer}
+    <button onclick={goBack}>← Go Back to {referrer.location}</button>
+{/if}
+```
+
+Referrer object contains:
+- `location` - Previous route path (e.g., '/documents/123')
+- `querystring` - Previous query string
+- `params` - Previous route parameters
+- `routeName` - Previous route name (if using named routes)
+
+**Benefits over `history.back()`:**
+- Works correctly with `replace()` navigation
+- Allows conditional logic before navigating back
+- Access to full previous route context
+- Custom fallback destinations
 
 ### Strict Parameter Replacement
 

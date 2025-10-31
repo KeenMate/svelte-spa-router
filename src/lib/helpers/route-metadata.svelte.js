@@ -6,12 +6,15 @@
  * It also provides loading control for routes that need to fetch data.
  */
 
+import { untrack } from 'svelte'
+
 /**
  * Current route metadata state
+ * Single source of truth - other values derive from this
  */
-let currentRouteTitle = $state('')
-let currentRouteBreadcrumbs = $state([])
 let currentRouterouteContext = $state({})
+let currentRouteTitle = $derived(currentRouterouteContext.title || '')
+let currentRouteBreadcrumbs = $derived(currentRouterouteContext.breadcrumbs || [])
 
 /**
  * Loading control state
@@ -21,13 +24,48 @@ let isRouteLoading = $state(false)
 let hasCustomLoadingComponent = $state(false)
 
 /**
+ * Track the current route to detect route changes
+ */
+let currentRouteKey = null
+let currentBasePath = null // Track base path to clear cache on major route changes
+
+/**
+ * Cache for manually updated breadcrumbs
+ * Maps breadcrumb ID to updated breadcrumb data
+ */
+let updatedBreadcrumbsCache = new Map()
+
+/**
  * Update route metadata (called by Router or user code)
  * @param {Object} routeContext - route context from the route
+ * @param {string} location - current location
+ * @param {string} querystring - current querystring
+ * @param {Object} params - route params
  */
-export function updateRouteMetadata(routeContext = {}) {
-    currentRouteTitle = routeContext.title || ''
-    currentRouteBreadcrumbs = routeContext.breadcrumbs || []
-    currentRouterouteContext = routeContext
+export function updateRouteMetadata(routeContext = {}, location = '', querystring = '', params = {}) {
+    // Create a unique key for this route (location + querystring + params)
+    const routeKey = `${location}|${querystring}|${JSON.stringify(params)}`
+
+    // Extract base path (e.g., /documents/1 → /documents, /documents/1/logs → /documents/1)
+    // This is a simple heuristic: get path up to the last segment
+    const pathSegments = location.split('/').filter(Boolean)
+    const basePath = pathSegments.length > 1 ? '/' + pathSegments.slice(0, -1).join('/') : location
+
+    // Clear cache if navigating to a different base path (e.g., /documents/1 → /documents/2)
+    if (currentBasePath && currentBasePath !== basePath && !location.startsWith(currentBasePath + '/')) {
+        console.log('[updateRouteMetadata] Base path changed from', currentBasePath, 'to', basePath, '- clearing cache')
+        clearBreadcrumbCache()
+    }
+
+    // Only update if route actually changed
+    if (currentRouteKey !== routeKey) {
+        currentRouterouteContext = routeContext
+        currentRouteKey = routeKey
+        currentBasePath = basePath
+        console.log('[updateRouteMetadata] Route changed to:', routeKey)
+    } else {
+        console.log('[updateRouteMetadata] Same route, ignoring update')
+    }
 }
 
 /**
@@ -103,22 +141,49 @@ export function routerouteContext() {
  * ```
  */
 export function updateBreadcrumb(id, updates) {
-    const breadcrumbs = [...currentRouteBreadcrumbs]
+    // Store the update in cache
+    updatedBreadcrumbsCache.set(id, updates)
+    console.log('[updateBreadcrumb] Cached update for id:', id, 'updates:', updates)
+
+    // Get snapshot to work with plain values (not proxies)
+    const currentContext = $state.snapshot(currentRouterouteContext)
+    const breadcrumbs = [...(currentContext.breadcrumbs || [])]
     const index = breadcrumbs.findIndex(crumb => crumb.id === id)
+    console.log('[updateBreadcrumb] Found at index:', index)
 
     if (index !== -1) {
         breadcrumbs[index] = {
             ...breadcrumbs[index],
             ...updates
         }
-        currentRouteBreadcrumbs = breadcrumbs
-
-        // Also update routeContext to keep it in sync
+        console.log('[updateBreadcrumb] Updated breadcrumb to:', breadcrumbs[index])
         currentRouterouteContext = {
-            ...currentRouterouteContext,
+            ...currentContext,
             breadcrumbs
         }
+    } else {
+        console.log('[updateBreadcrumb] Breadcrumb with id not found!')
     }
+}
+
+/**
+ * Get a cached breadcrumb update by ID
+ * Used by Router to apply manual updates when composing breadcrumbs
+ *
+ * @param {string} id - The breadcrumb ID
+ * @returns {Object|null} The cached update or null if not found
+ */
+export function getUpdatedBreadcrumb(id) {
+    return updatedBreadcrumbsCache.get(id) || null
+}
+
+/**
+ * Clear the breadcrumb cache
+ * Called when navigating to a different route (not child routes)
+ */
+export function clearBreadcrumbCache() {
+    console.log('[clearBreadcrumbCache] Clearing cache')
+    updatedBreadcrumbsCache.clear()
 }
 
 /**
@@ -135,13 +200,11 @@ export function updateBreadcrumb(id, updates) {
  * ```
  */
 export function updateTitle(title) {
-    currentRouteTitle = title
-
-    // Also update routeContext to keep it in sync
     currentRouterouteContext = {
         ...currentRouterouteContext,
         title
     }
+    // Title updates don't affect breadcrumbs flag
 }
 
 /**

@@ -108,6 +108,32 @@ export function getHierarchicalRoutesEnabled() {
     return hierarchicalRoutesEnabled
 }
 
+// Referrer tracking configuration
+let includeReferrerState = $state('never')
+
+/**
+ * Configure automatic referrer tracking in navigationContext
+ * Must be called before app initialization
+ *
+ * @param {string} value - 'never' (default), 'notfound' (404 only), or 'always' (all routes)
+ */
+export function setIncludeReferrer(value) {
+    if (!['never', 'notfound', 'always'].includes(value)) {
+        console.warn(`Invalid setIncludeReferrer value: "${value}". Use 'never', 'notfound', or 'always'.`)
+        return
+    }
+    includeReferrerState = value
+}
+
+/**
+ * Get current referrer tracking mode
+ *
+ * @returns {string} Current mode: 'never', 'notfound', or 'always'
+ */
+export function getIncludeReferrer() {
+    return includeReferrerState
+}
+
 /**
  * Returns the current location from the hash or pathname.
  *
@@ -250,10 +276,12 @@ export function navigationContext() {
 }
 
 /**
- * Internal function to set context (used by push/replace)
- * @private
+ * Sets the navigation context to a new value
+ *
+ * @param newContext - The new navigation context value
+ * @returns {void}
  */
-function setNavigationContext(newContext) {
+export function setNavigationContext(newContext) {
     navigationContextState = newContext
 }
 
@@ -274,7 +302,33 @@ export function getZoneComponent(zoneName) {
  * @param {Object} zoneComponents - Dictionary of zone names to component data
  */
 export function setZoneComponents(zoneComponents) {
-    zoneComponentsState = zoneComponents || {}
+    const newValue = zoneComponents || {}
+    const currentKeys = Object.keys(zoneComponentsState)
+    const newKeys = Object.keys(newValue)
+
+    // If both are empty objects, don't update
+    if (currentKeys.length === 0 && newKeys.length === 0) {
+        return
+    }
+
+    // If different number of keys, definitely different
+    if (currentKeys.length !== newKeys.length) {
+        zoneComponentsState = newValue
+        return
+    }
+
+    // Check if keys or values are different
+    const isDifferent = newKeys.some(key => {
+        // Key doesn't exist in current state
+        if (!currentKeys.includes(key)) return true
+        // Component reference is different
+        if (zoneComponentsState[key] !== newValue[key]) return true
+        return false
+    })
+
+    if (isDifferent) {
+        zoneComponentsState = newValue
+    }
 }
 
 /**
@@ -435,7 +489,17 @@ export async function push(location, param2, param3, param4) {
         }
     } else {
         // Legacy signatures: push(location) or push(location, navigationContext)
-        opts = typeof location === 'string' ? { href: location } : linkOpts(location)
+        if (typeof location === 'string') {
+            // Check if it's a path (starts with /) or a named route
+            if (location.startsWith('/') || location.startsWith('#/')) {
+                opts = { href: location }
+            } else {
+                // Treat as named route
+                opts = { route: location, params: {}, query: {} }
+            }
+        } else {
+            opts = linkOpts(location)
+        }
 
         // param2 is navigation context in legacy mode
         context = param2 !== undefined ? param2 : (opts.navigationContext || null)
@@ -448,6 +512,14 @@ export async function push(location, param2, param3, param4) {
 
     if (!href || href.length < 1 || (href.charAt(0) != '/' && href.indexOf('#/') !== 0)) {
         throw Error('Invalid parameter location')
+    }
+
+    // Inject the route identifier into navigationContext
+    // Use route name if available (named route), otherwise use the href (URL path)
+    // This allows the referrer tracking system to know which route the user came from
+    context = {
+        ...(context || {}),
+        _routeName: opts.route || href
     }
 
     // Execute this code when the current call stack is complete
@@ -502,7 +574,17 @@ export async function replace(location, param2, param3, param4) {
         }
     } else {
         // Legacy signatures: replace(location) or replace(location, navigationContext)
-        opts = typeof location === 'string' ? { href: location } : linkOpts(location)
+        if (typeof location === 'string') {
+            // Check if it's a path (starts with /) or a named route
+            if (location.startsWith('/') || location.startsWith('#/')) {
+                opts = { href: location }
+            } else {
+                // Treat as named route
+                opts = { route: location, params: {}, query: {} }
+            }
+        } else {
+            opts = linkOpts(location)
+        }
 
         // param2 is navigation context in legacy mode
         context = param2 !== undefined ? param2 : (opts.navigationContext || null)
@@ -515,6 +597,14 @@ export async function replace(location, param2, param3, param4) {
 
     if (!href || href.length < 1 || (href.charAt(0) != '/' && href.indexOf('#/') !== 0)) {
         throw Error('Invalid parameter location')
+    }
+
+    // Inject the route identifier into navigationContext
+    // Use route name if available (named route), otherwise use the href (URL path)
+    // This allows the referrer tracking system to know which route the user came from
+    context = {
+        ...(context || {}),
+        _routeName: opts.route || href
     }
 
     // Execute this code when the current call stack is complete

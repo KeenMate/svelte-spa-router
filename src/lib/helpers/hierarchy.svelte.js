@@ -90,11 +90,25 @@ export function createHierarchy(tree, options = {}) {
         visited.add(absolutePath)
 
         // Extract route definition and children
-        const { children, name, ...routeDefinition } = node
+        const { children, name, breadcrumbs, title, routeContext, ...routeDefinition } = node
+
+        // Merge breadcrumbs and title into routeContext (same pattern as createRoute)
+        const mergedRouteContext = {
+            ...(routeContext || {})
+        }
+
+        if (title) {
+            mergedRouteContext.title = title
+        }
+
+        if (breadcrumbs) {
+            mergedRouteContext.breadcrumbs = breadcrumbs
+        }
 
         // Wrap the route with inheritance enabled
         const wrappedRoute = wrap({
             ...routeDefinition,
+            routeContext: Object.keys(mergedRouteContext).length > 0 ? mergedRouteContext : undefined,
             // Force inheritance flags to true in tree mode
             inheritBreadcrumbs: enableHierarchical,
             inheritPermissions: enableHierarchical,

@@ -162,11 +162,14 @@ The router supports two distinct modes configured before app mount:
 - `src/tests/link-action.test.js` - Link action behavior
 - `src/tests/active-action.test.js` - Active link highlighting
 - `src/tests/navigation.test.js` - Navigation functions
+- `src/tests/named-routes.test.js` - Named route navigation (push/replace with route names)
 - `src/tests/routing-modes.test.js` - Hash vs history mode
 - `src/tests/permissions.test.js` - Permission system
 - `src/tests/wrap.test.js` - Route wrapping
 - `src/tests/url-helpers.test.js` - URL utilities
 - `src/tests/querystring-helpers.test.js` - Query string parsing
+- `src/tests/hierarchy.test.js` - Tree/nested route structure
+- `src/tests/hierarchical-routes.test.js` - Hierarchical route inheritance
 
 **Test Patterns:**
 ```javascript
@@ -200,6 +203,10 @@ const routes = {
 ```javascript
 import { push, replace } from '@keenmate/svelte-spa-router'
 
+// Single-argument named route (no params)
+await push('about')          // Navigates to registered 'about' route
+await replace('home')        // Replaces with registered 'home' route
+
 // Multi-parameter signature: push(route, routeParams, queryString, navigationContext)
 await push('userProfile', { userId: 123 }, { tab: 'settings' })
 // Route resolution: starts with / = exact path, otherwise = named route lookup
@@ -217,10 +224,44 @@ await push({
 })
 ```
 
+**Named Route Registration:**
+```javascript
+import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
+
+// Register named routes for programmatic navigation
+registerRoutes({
+    'home': '/',
+    'about': '/about',
+    'userProfile': '/user/:userId',
+    'documentDetail': '/documents/:docId'
+})
+
+// Now you can use: push('userProfile', { userId: 123 })
+```
+
 **Navigation Context:**
 - Pass data during navigation without showing it in URL (WinForms-like)
 - Access via `navigationContext()` in target component
 - Cleared when user manually navigates (types URL, refreshes)
+
+**Referrer Tracking:**
+```javascript
+import { setIncludeReferrer } from '@keenmate/svelte-spa-router/utils'
+
+// Configure referrer tracking mode
+setIncludeReferrer('always')  // Options: 'never', 'notfound', 'always'
+
+// Access referrer in component
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+// referrer: { location, querystring, params, routeName }
+```
+
+**Benefits:**
+- Automatic previous route tracking
+- Safe "Go Back" implementation (works with replace())
+- Access to full previous route context
+- Route name tracking for named routes
 
 **Strict Parameter Replacement:**
 ```javascript

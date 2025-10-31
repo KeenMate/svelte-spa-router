@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-rc09] - 2025-01-30
+
 ### Added
 
 #### Tree/Nested Route Structure (Alternative API)
@@ -51,15 +53,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Useful for testing and debugging
   - Example: `getRouteByName('documentDetail')` returns `'/documents/:documentId'`
 
+#### Automatic Referrer Tracking System
+- **Configurable referrer tracking** - Router automatically tracks previous route information and injects it into navigationContext
+  - **`setIncludeReferrer()` configuration** - Control when referrer info is injected
+    - `'never'` - Disable referrer tracking (default)
+    - `'notfound'` - Only inject referrer for 404/NotFound routes
+    - `'always'` - Inject referrer for all route navigations
+  - **Referrer object structure** - Complete information about the previous route:
+    - `location` - Previous route path (e.g., '/documents/123')
+    - `querystring` - Previous route query string (e.g., 'tab=info&view=grid')
+    - `params` - Previous route parameters object (e.g., { id: '123' })
+    - `routeName` - Previous route name if it was registered (e.g., 'documentDetail'), or URL path as fallback
+  - **NotFound integration** - When catch-all route (`'*'`) matches, router automatically injects:
+    - `attemptedRoute` - The URL that was not found
+    - `attemptedQuerystring` - Query string from the attempted route
+    - `referrer` - Complete previous route information (see structure above)
+  - **Zero programmer effort** - Works automatically once configured
+  - **Safe "Go Back" implementation** - Using `push()` with explicit URL instead of `history.back()`
+    - Safer than `history.back()` which breaks with `replace()` navigation
+    - Allows conditional logic (e.g., don't go back to unauthorized routes)
+    - Supports custom fallback destinations
+  - **Works correctly with both `push()` and `replace()` navigation**
+  - **Timing behavior** - On first navigation after referrer is updated, component $effects may run twice:
+    - First run: location changes but referrer not yet injected (sees undefined)
+    - Second run: navigationContext updates with referrer (sees correct value)
+    - This is expected Svelte 5 behavior and doesn't affect functionality
+    - Subsequent navigations are smooth with single $effect run
+    - UI always renders correctly on the second run
+  - **Example usage in NotFound component**:
+    ```javascript
+    const navContext = $derived(navigationContext())
+    const referrer = $derived(navContext?.referrer)
+    const canGoBack = $derived(referrer?.location && referrer.location !== '/')
+
+    function goBack() {
+        const returnPath = referrer?.location || '/'
+        const returnQuery = referrer?.querystring
+        const returnUrl = returnQuery ? `${returnPath}?${returnQuery}` : returnPath
+        push(returnUrl)
+    }
+    ```
+  - **Example usage in protected routes** (avoid going back to authorization failures):
+    ```javascript
+    const navContext = $derived(navigationContext())
+    const referrer = $derived(navContext?.referrer)
+    const returnPath = $derived(referrer?.location || navContext?.returnTo || '/')
+    const returnQuery = $derived(referrer?.querystring || navContext?.returnQuery)
+
+    // Referrer tracks last SUCCESSFULLY loaded route, not attempted routes that failed auth
+    ```
+  - Example implementations:
+    - `example/src/routes/NotFound.svelte` - 404 page with "Go Back"
+    - `example/src/routes/Unauthorized.svelte` - Authorization failure with safe "Go Back"
+    - `example/src/routes/User.svelte` - Regular page with referrer-based navigation
+    - `example/src/routes/ReferrerDemo.svelte` - Comprehensive demo with console logging
+
+- **`setNavigationContext()` function** - Exported for advanced use cases
+  - Allows manual setting of navigation context
+  - Used internally by router for referrer auto-injection
+  - Example: `setNavigationContext({ customData: 123 })`
+
+### Fixed
+
+#### Named Routes Navigation
+- **Fixed `push()` and `replace()` with single-argument named routes** - Resolved "Invalid parameter location" error
+  - Issue: Calling `push('routeName')` with a single named route argument threw error
+  - Root cause: Legacy signature detection treated non-slash strings as href paths instead of named routes
+  - Solution: Added check in legacy signature branch - strings without leading `/` or `#/` are treated as named routes
+  - Now works: `push('about')`, `push('userProfile')`, `replace('home')`
+  - Multi-param signature still required for routes with params: `push('userProfile', {id: 123})`
+
+#### Hierarchical Routes & Breadcrumb System
+- **Fixed infinite loop in route metadata updates** - Resolved state comparison issues causing Router to re-render continuously
+  - Issue: Router's `$effect()` was triggering on every update due to `routeContext` object reference changes
+  - Root cause: `updateRouteMetadata()` created new objects every call, even when values didn't change
+  - Solution 1: Added `lastAssignedContext` reference tracking to only update when context reference actually changes
+  - Solution 2: Implemented route key tracking (`${location}|${querystring}|${JSON.stringify(params)}`) to detect real route changes vs metadata updates
+  - Fixed `$state` proxy comparison warnings by using `$state.snapshot()` for value comparisons
+
+- **Breadcrumb cache system for preserving manual updates** - Child route navigation no longer resets dynamic breadcrumbs to "Loading..."
+  - Issue: Navigating from `/documents/1` to `/documents/1/logs` reset "Document 1" breadcrumb back to "Loading..."
+  - Root cause: Router composed fresh breadcrumbs on every route change, losing manual `updateBreadcrumb()` calls
+  - Solution: Implemented breadcrumb cache (`updatedBreadcrumbsCache` Map) to preserve manual updates across child route navigation
+  - Cache intelligently clears only when navigating to different base routes (not child routes)
+  - `updateBreadcrumb(id, updates)` stores updates in cache, Router applies them during breadcrumb composition
+
+- **Child component breadcrumb initialization pattern** - Direct child route reloads now show correct parent breadcrumbs
+  - Issue: Reloading `/documents/1/logs` directly showed "Loading..." for parent breadcrumb because parent component never mounted
+  - Pattern: Child components call `updateBreadcrumb()` in `onMount()` to update their parent's dynamic breadcrumbs
+  - Example: DocumentLogs component updates 'documentDetail' breadcrumb with actual document name on mount
+  - Works with breadcrumb cache to ensure updates persist across subsequent child navigation
+  - Applied to all child components in test apps: DocumentLogs, DocumentPermissions, DocumentHistory, AdminUserPermissions, AdminUserActivity
+
 ### Documentation
 - **Added comprehensive documentation showcase** - New SvelteKit-based documentation site
   - Built with @keenmate/svelte-docs for consistent styling and components
   - Complete API reference with all functions, parameters, and return types
-  - Feature guides: Routing Modes, Route Configuration, Parameters, Guards, Named Routes, Programmatic Navigation, Querystring, Filters, Permissions, Hierarchical Routes, Nested Routes
+  - Feature guides: Routing Modes, Route Configuration, Parameters, Guards, Named Routes, Programmatic Navigation, Querystring, Filters, Permissions, Multi-Zone Routing, Hierarchical Routes, Nested Routes
   - Interactive code examples with syntax highlighting
   - Live demo apps for both hash and history modes
   - Deployed at https://svelte-spa-router.keenmate.dev
   - Demo apps: https://history.svelte-spa-router.keenmate.dev and https://hash.svelte-spa-router.keenmate.dev
+- **Added Multi-Zone Routing documentation** - Comprehensive guide for multi-zone layouts
+  - New showcase page at `/features/multi-zone`
+  - Visual diagram showing zone layout structure
+  - Complete examples: route configuration, layout setup, zone components
+  - Covers async loading, route parameters, guards, permissions, and metadata in zones
+  - Use cases: admin dashboards, email clients, music players, document editors
+  - Best practices and responsive layout patterns
 - **Updated CLAUDE.md** - Added comprehensive section on tree/nested route structure
 - **Added examples** - Tree structure examples in main example app
 

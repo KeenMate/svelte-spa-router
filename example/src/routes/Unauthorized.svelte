@@ -6,14 +6,19 @@ const currentUser = $derived(user())
 const navContext = $derived(navigationContext())
 
 // Build return URL from navigation context
-const returnPath = $derived(navContext?.returnTo || '/')
-const returnQuery = $derived(navContext?.returnQuery)
+// Prefer referrer over manually-set returnTo (referrer is the actual last valid route)
+const referrer = $derived(navContext?.referrer)
+const returnPath = $derived(referrer?.location || navContext?.returnTo || '/')
+const returnQuery = $derived(referrer?.querystring || navContext?.returnQuery)
 const returnUrl = $derived(
     returnQuery ? `${returnPath}?${returnQuery}` : returnPath
 )
 
 // Check if we have a specific return path (vs default home)
-const hasReturnPath = $derived(navContext?.returnTo && navContext.returnTo !== '/')
+const hasReturnPath = $derived(
+    (referrer?.location && referrer.location !== '/') ||
+    (navContext?.returnTo && navContext.returnTo !== '/')
+)
 
 function goBack() {
     push(returnUrl)

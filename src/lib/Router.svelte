@@ -1,9 +1,9 @@
 ﻿<script>
 import {parse} from './parse-route.js'
 import { tick, untrack } from 'svelte'
-import { location, querystring, routeParams, setParams, restoreScroll, getZoneComponent, setZoneComponents, getHierarchicalRoutesEnabled } from './utils.svelte.js'
+import { location, querystring, routeParams, setParams, restoreScroll, getZoneComponent, setZoneComponents, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
-import { updateRouteMetadata, startRouteLoading, waitForRouteReady, hideLoading } from './helpers/route-metadata.svelte.js'
+import { updateRouteMetadata, startRouteLoading, waitForRouteReady, hideLoading, getUpdatedBreadcrumb, clearBreadcrumbCache } from './helpers/route-metadata.svelte.js'
 
 // Component props
 let {
@@ -258,6 +258,7 @@ function getRouteHierarchy(route) {
 /**
  * Compose breadcrumbs from route hierarchy
  * Concatenates parent breadcrumbs with child breadcrumbs
+ * Applies any manual updates from the cache
  *
  * @param {RouteItem} route - The current route
  * @returns {Array} Composed breadcrumbs array
@@ -284,7 +285,17 @@ function composeBreadcrumbs(route) {
         }
     }
 
-    return breadcrumbs
+    // Apply any cached manual updates to breadcrumbs with IDs
+    return breadcrumbs.map(crumb => {
+        if (crumb.id) {
+            const cachedUpdate = getUpdatedBreadcrumb(crumb.id)
+            if (cachedUpdate) {
+                console.log('[composeBreadcrumbs] Applying cached update for', crumb.id, ':', cachedUpdate)
+                return { ...crumb, ...cachedUpdate }
+            }
+        }
+        return crumb
+    })
 }
 
 /**
@@ -318,6 +329,9 @@ function composeConditions(route) {
     return conditions
 }
 
+// Version logging
+console.log('[svelte-spa-router] Version: 6.0.0-dev | Last changed: 2025-10-29 20:30 - Added breadcrumb cache for child routes')
+
 // Component state
 let component = $state(null)
 let componentParams = $state(null)
@@ -327,6 +341,10 @@ let componentObj = $state(null)
 let loadingComponent = $state(null)
 let loadingParams = $state(null)
 let isWaitingForData = $state(false)
+
+// Track last assigned values (non-reactive) to avoid comparing $state proxies
+let lastAssignedProps = {}
+let lastAssignedRouteContext = {}
 
 // For zone-based routing: get component from zone state if zone prop is set
 let zoneComponentData = $derived(zone ? getZoneComponent(zone) : null)
@@ -339,6 +357,17 @@ let lastLoc = null
 let currentLocation = $state(null)
 let currentQuerystring = $state('')
 let lastNotFoundLocation = null
+
+// Track current route info for referrer tracking
+let currentRouteInfo = $state({
+    location: '/',
+    querystring: '',
+    params: {},
+    routeName: null
+})
+
+// Track the last referrer we injected to avoid redundant updates
+let lastInjectedReferrer = null
 
 // Dispatch events using callbacks
 function dispatchEvent(name, detail) {
@@ -360,6 +389,9 @@ async function dispatchNextTick(name, detail) {
     await tick()
     dispatchEvent(name, detail)
 }
+
+// Note: We inject navigationContext synchronously wrapped in untrack() instead of
+// using nextTick, because we need components to see referrer immediately on mount
 
 // Effect to handle scroll restoration
 $effect(() => {
@@ -398,6 +430,63 @@ $effect(() => {
     const newLoc = {
         location: location(),
         querystring: querystring()
+    }
+
+    // Early return if location hasn't actually changed
+    // This prevents unnecessary effect re-runs
+    if (lastLoc && lastLoc.location === newLoc.location && lastLoc.querystring === newLoc.querystring) {
+        return
+    }
+
+    // Read navigationContext at the very beginning, before any writes
+    // This must happen BEFORE we call setNavigationContext() anywhere
+    const incomingContext = untrack(() => navigationContext() || {})
+    const incomingRouteName = incomingContext._routeName || null
+
+    // Inject referrer SYNCHRONOUSLY before async routing logic
+    // This ensures components see referrer as soon as possible
+    //
+    // TIMING NOTE: On the first navigation after a referrer is updated, component $effects
+    // may run twice: once when location changes (referrer not yet injected), and once when
+    // navigationContext changes (referrer now injected). This is expected behavior and doesn't
+    // affect functionality - the UI will render correctly on the second run. Subsequent
+    // navigations will be smooth with single $effect runs since referrer already exists.
+    //
+    // This happens because:
+    // 1. location() changes → triggers all dependent $effects (including component $effects)
+    // 2. This $effect runs and injects referrer into navigationContext
+    // 3. navigationContext change → triggers component $effects again
+    //
+    // We inject here (in Router's $effect) rather than in navigate() because we need access
+    // to currentRouteInfo which is only maintained in Router.svelte. Moving this to navigate()
+    // would require exposing internal routing state globally.
+    const includeReferrer = getIncludeReferrer()
+    if (includeReferrer === 'always' && currentRouteInfo.location) {
+        // Only update if referrer actually changed (compare with last injected)
+        const needsUpdate = !lastInjectedReferrer ||
+            lastInjectedReferrer.location !== currentRouteInfo.location ||
+            lastInjectedReferrer.querystring !== currentRouteInfo.querystring ||
+            JSON.stringify(lastInjectedReferrer.params) !== JSON.stringify(currentRouteInfo.params) ||
+            lastInjectedReferrer.routeName !== currentRouteInfo.routeName
+
+        if (needsUpdate) {
+            // Create referrer object from CURRENT route (the one we're leaving)
+            const newReferrer = {
+                location: currentRouteInfo.location,
+                querystring: currentRouteInfo.querystring,
+                params: currentRouteInfo.params,
+                routeName: currentRouteInfo.routeName
+            }
+
+            // Track what we're injecting
+            lastInjectedReferrer = newReferrer
+
+            // Inject synchronously wrapped in untrack() to avoid creating reactive dependencies
+            untrack(() => setNavigationContext({
+                ...incomingContext,  // Preserve all existing context
+                referrer: newReferrer
+            }))
+        }
     }
 
     // Run routing logic
@@ -455,6 +544,40 @@ $effect(() => {
             // Fire onNotFound if this is the catch-all route (only once per location)
             if (routesList[i].path === '*' && onNotFound && lastNotFoundLocation !== newLoc.location) {
                 lastNotFoundLocation = newLoc.location
+
+                // Auto-inject navigationContext with referrer info for "Go Back" functionality
+                // Only update if referrer actually changed (compare with last injected)
+                const needsUpdate = !lastInjectedReferrer ||
+                    lastInjectedReferrer.location !== currentRouteInfo.location ||
+                    lastInjectedReferrer.querystring !== currentRouteInfo.querystring ||
+                    JSON.stringify(lastInjectedReferrer.params) !== JSON.stringify(currentRouteInfo.params) ||
+                    lastInjectedReferrer.routeName !== currentRouteInfo.routeName
+
+                if (needsUpdate) {
+                    // Create referrer object
+                    const newReferrer = {
+                        location: currentRouteInfo.location,
+                        querystring: currentRouteInfo.querystring,
+                        params: currentRouteInfo.params,
+                        routeName: currentRouteInfo.routeName
+                    }
+
+                    // Track what we're injecting
+                    lastInjectedReferrer = newReferrer
+
+                    // Inject synchronously so component sees it immediately
+                    // Safe to do here because:
+                    // 1. We read incomingContext at top of effect with untrack()
+                    // 2. We have change detection (needsUpdate) to prevent unnecessary updates
+                    // 3. We have early return if location unchanged
+                    untrack(() => setNavigationContext({
+                        ...incomingContext,  // Preserve all existing context
+                        attemptedRoute: newLoc.location,
+                        attemptedQuerystring: newLoc.querystring,
+                        referrer: newReferrer
+                    }))
+                }
+
                 dispatchNextTick('notFound', {
                     location: newLoc.location,
                     querystring: newLoc.querystring
@@ -476,12 +599,28 @@ $effect(() => {
                 // Don't display anything
                 component = null
                 componentObj = null
-                componentrouteContext = {}
+                // Only clear if not already empty (use untrack to avoid dependencies)
+                if (untrack(() => Object.keys(componentrouteContext).length > 0)) {
+                    componentrouteContext = {}
+                    lastAssignedRouteContext = {}
+                }
                 isWaitingForData = false
                 updateRouteMetadata({})
                 // Trigger an event to notify the user, then exit
                 dispatchNextTick('conditionsFailed', detail)
                 return
+            }
+
+            // Update current route info for next navigation (for use as referrer on next nav)
+            // Use the routeName we captured at the beginning of the effect
+            // Note: Referrer injection happens BEFORE async block (synchronously)
+            if (routesList[i].path !== '*') {
+                currentRouteInfo = {
+                    location: newLoc.location,
+                    querystring: newLoc.querystring,
+                    params: detail.params || {},
+                    routeName: incomingRouteName
+                }
             }
 
             // Trigger an event to alert that we're loading the route
@@ -513,26 +652,58 @@ $effect(() => {
                 }
 
                 // Update zone components in shared state (all Router instances will see this)
-                setZoneComponents(zoneComponents)
+                // Use untrack to prevent this update from triggering the $effect again
+                untrack(() => setZoneComponents(zoneComponents))
 
                 // Set params from match
+                // Only update if params actually changed (avoid triggering reactivity with same values)
+                // Use untrack to prevent reading state from creating dependencies
                 if (match && typeof match == 'object' && Object.keys(match).length) {
-                    componentParams = match
-                } else {
+                    const paramsChanged = untrack(() => {
+                        const currentKeys = componentParams ? Object.keys(componentParams) : []
+                        const newKeys = Object.keys(match)
+
+                        // Check if params actually changed
+                        if (currentKeys.length !== newKeys.length) return true
+
+                        for (const key of newKeys) {
+                            if (componentParams[key] !== match[key]) {
+                                return true
+                            }
+                        }
+                        return false
+                    })
+
+                    if (paramsChanged) {
+                        componentParams = match
+                    }
+                } else if (untrack(() => componentParams !== null)) {
                     componentParams = null
                 }
 
                 // Set static props and routeContext
-                componentProps = routesList[i].props
-                componentrouteContext = detail.routeContext || {}
+                // Only update if props reference changed (compare with last assigned value)
+                const newProps = routesList[i].props
+                if (lastAssignedProps !== newProps) {
+                    componentProps = newProps
+                    lastAssignedProps = newProps
+                }
+                // Only update routeContext if it's different (compare with last assigned value)
+                const newRouteContext = detail.routeContext || {}
+                if (lastAssignedRouteContext !== newRouteContext) {
+                    componentrouteContext = newRouteContext
+                    lastAssignedRouteContext = newRouteContext
+                }
 
                 // Update route metadata with composed breadcrumbs
                 const composedBreadcrumbs = composeBreadcrumbs(routesList[i])
+                console.log('[Router] Zone route - composedBreadcrumbs:', composedBreadcrumbs)
                 const metadata = {
                     ...(detail.routeContext || {}),
                     breadcrumbs: composedBreadcrumbs.length > 0 ? composedBreadcrumbs : (detail.routeContext?.breadcrumbs || [])
                 }
-                updateRouteMetadata(metadata)
+                console.log('[Router] Zone route - metadata:', metadata)
+                updateRouteMetadata(metadata, newLoc.location, newLoc.querystring, match)
 
                 // Set params in shared state
                 setParams(componentParams)
@@ -604,16 +775,45 @@ $effect(() => {
 
             // Set componentParams, props and routeContext BEFORE waiting
             // This allows the component to mount with correct params
+            // Only update if params actually changed (avoid triggering reactivity with same values)
+            // Use untrack to prevent reading state from creating dependencies
             if (match && typeof match == 'object' && Object.keys(match).length) {
-                componentParams = match
+                const paramsChanged = untrack(() => {
+                    const currentKeys = componentParams ? Object.keys(componentParams) : []
+                    const newKeys = Object.keys(match)
+
+                    // Check if params actually changed
+                    if (currentKeys.length !== newKeys.length) return true
+
+                    for (const key of newKeys) {
+                        if (componentParams[key] !== match[key]) {
+                            return true
+                        }
+                    }
+                    return false
+                })
+
+                if (paramsChanged) {
+                    componentParams = match
+                }
             }
-            else {
+            else if (untrack(() => componentParams !== null)) {
                 componentParams = null
             }
 
             // Set static props and routeContext
-            componentProps = routesList[i].props
-            componentrouteContext = detail.routeContext || {}
+            // Only update if props reference changed (compare with last assigned value)
+            const newProps = routesList[i].props
+            if (lastAssignedProps !== newProps) {
+                componentProps = newProps
+                lastAssignedProps = newProps
+            }
+            // Only update routeContext if it's different (compare with last assigned value)
+            const newRouteContext = detail.routeContext || {}
+            if (lastAssignedRouteContext !== newRouteContext) {
+                componentrouteContext = newRouteContext
+                lastAssignedRouteContext = newRouteContext
+            }
 
             // If shouldDisplayLoadingOnRouteLoad is true, set waiting state and wait for component to signal ready
             // Note: This only applies to single-component routes, not zone routes
@@ -626,11 +826,13 @@ $effect(() => {
 
             // Update route metadata with composed breadcrumbs
             const composedBreadcrumbs = composeBreadcrumbs(routesList[i])
+            console.log('[Router] Regular route - composedBreadcrumbs:', composedBreadcrumbs)
             const metadata = {
                 ...(detail.routeContext || {}),
                 breadcrumbs: composedBreadcrumbs.length > 0 ? composedBreadcrumbs : (detail.routeContext?.breadcrumbs || [])
             }
-            updateRouteMetadata(metadata)
+            console.log('[Router] Regular route - metadata:', metadata)
+            updateRouteMetadata(metadata, newLoc.location, newLoc.querystring, match)
 
             // Dispatch the routeLoaded event then exit
             dispatchNextTick('routeLoaded', Object.assign({}, detail, {
@@ -647,10 +849,14 @@ $effect(() => {
         // Note: onNotFound is already fired if catch-all route ('*') matched
         component = null
         componentObj = null
-        componentrouteContext = {}
+        // Only clear if not already empty (use untrack to avoid dependencies)
+        if (untrack(() => Object.keys(componentrouteContext).length > 0)) {
+            componentrouteContext = {}
+            lastAssignedRouteContext = {}
+        }
         isWaitingForData = false
         setParams(undefined)
-        updateRouteMetadata({})
+        // untrack(() => updateRouteMetadata({}))
     })()
 })
 </script>

@@ -1,11 +1,12 @@
 ﻿<script>
 import Router from '@keenmate/svelte-spa-router'
-import {link, location, querystring, push} from '@keenmate/svelte-spa-router/utils'
+import {link, location, querystring, push, navigationContext} from '@keenmate/svelte-spa-router/utils'
 import active from '@keenmate/svelte-spa-router/active'
 import wrap from '@keenmate/svelte-spa-router/wrap'
 import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
 import { configurePermissions, createPermissionCondition, createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
 import { shouldShowGlobalLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
 import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
 import { user, toggleUser, getCurrentUser, checkPermissions, hasDocumentAccess } from './stores/userStore.svelte.js'
 
@@ -43,6 +44,7 @@ import ErrorHandlingDemo from './routes/ErrorHandlingDemo.svelte'
 import NotFoundDemo from './routes/NotFoundDemo.svelte'
 import NavigationContextDemo from './routes/NavigationContextDemo.svelte'
 import AuthorizationDemo from './routes/AuthorizationDemo.svelte'
+import ReferrerDemo from './routes/ReferrerDemo.svelte'
 import Loading from './components/Loading.svelte'
 
 // Configure permissions system
@@ -59,6 +61,17 @@ configurePermissions({
             returnQuery
         })
     }
+})
+
+// Register named routes for referrer tracking demo
+registerRoutes({
+    'home': '/',
+    'about': '/about',
+    'userProfile': '/user/:first/:last',
+    'referrerDemo': '/referrer-demo',
+    'linksDemo': '/links-demo',
+    'metadataDemo': '/metadata-demo',
+    'navigationContextDemo': '/navigation-context-demo'
 })
 
 // NESTED ROUTES EXAMPLE (Tree Structure)
@@ -127,6 +140,7 @@ const routes = {
     '/not-found-demo': NotFoundDemo,
     '/navigation-context-demo': NavigationContextDemo,
     '/authorization-demo': AuthorizationDemo,
+    '/referrer-demo': ReferrerDemo,
 
     // HIERARCHICAL ROUTES EXAMPLE
     // With hierarchical mode enabled (see main.js), these routes demonstrate automatic inheritance
@@ -273,6 +287,8 @@ const isZoneRoute = $derived(
 
 const currentUser = $derived(user())
 const showGlobalLoader = $derived(shouldShowGlobalLoading())
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
 
 function handleRouteLoaded(event) {
     console.log('Route loaded:', event.detail)
@@ -320,6 +336,7 @@ function handleToggleUser() {
             <a href="/error-handling-demo" use:link use:active>Errors</a>
             <a href="/not-found-demo" use:link use:active>404 Demo</a>
             <a href="/navigation-context-demo" use:link use:active>Nav Context</a>
+            <a href="/referrer-demo" use:link use:active>Referrer</a>
             <a href="/authorization-demo" use:link use:active>Authorization</a>
             <a href="/multi-zone-demo" use:link use:active>Zones</a>
             <a href="/admin" use:link use:active>Admin</a>
@@ -358,7 +375,25 @@ function handleToggleUser() {
     {/if}
 
     <footer>
-        <p>Current route: <code>{location()}</code></p>
+        <div class="footer-content">
+            <div class="footer-section">
+                <strong>Current route:</strong> <code>{location()}</code>
+            </div>
+            <div class="footer-section">
+                <strong>Referrer:</strong>
+                {#if referrer}
+                    <code>{referrer.routeName || referrer.location}</code>
+                    {#if referrer.querystring}
+                        <span class="footer-qs">?{referrer.querystring}</span>
+                    {/if}
+                    {#if referrer.params && Object.keys(referrer.params).length > 0}
+                        <span class="footer-params">(params: {JSON.stringify(referrer.params)})</span>
+                    {/if}
+                {:else}
+                    <span class="footer-none">(none)</span>
+                {/if}
+            </div>
+        </div>
     </footer>
 </div>
 </GlobalErrorHandler>
@@ -466,8 +501,22 @@ function handleToggleUser() {
     footer {
         background: #f5f5f5;
         padding: 1rem 2rem;
-        text-align: center;
         border-top: 1px solid #ddd;
+    }
+
+    .footer-content {
+        display: flex;
+        gap: 2rem;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        font-size: 0.9rem;
+    }
+
+    .footer-section {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
 
     footer code {
@@ -475,6 +524,25 @@ function handleToggleUser() {
         padding: 0.2rem 0.5rem;
         border-radius: 3px;
         font-family: monospace;
+        color: #2563eb;
+        font-weight: 600;
+    }
+
+    .footer-qs {
+        color: #059669;
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+
+    .footer-params {
+        color: #7c3aed;
+        font-family: monospace;
+        font-size: 0.8rem;
+    }
+
+    .footer-none {
+        color: #999;
+        font-style: italic;
     }
 
     /* Multi-zone layout styles */
