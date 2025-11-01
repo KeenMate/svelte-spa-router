@@ -52,8 +52,9 @@ The router is organized into several key modules:
 **utils.svelte.js** - Core routing utilities and state management
 - Contains all reactive state using `$state()` (locationState, paramsState, navigationContextState)
 - Dual-mode routing: hash-based (default) or history API
-- Configuration: `setHashRoutingEnabled()`, `setBasePath()`, `setParamReplacementPlaceholder()`
-- Navigation functions: `push()`, `pop()`, `replace()` with multi-parameter signatures
+- Configuration: `setHashRoutingEnabled()`, `setBasePath()`, `setParamReplacementPlaceholder()`, `setDebugLoggingEnabled()`
+- Navigation functions: `push()`, `pop()`, `replace()`, `goBack()` with multi-parameter signatures
+- `goBack()` - Navigate to referrer with automatic scroll position restoration (requires referrer tracking)
 - State accessors: `location()`, `querystring()`, `routeParams()`, `navigationContext()`, `loc()`
 - `link` action for SPA navigation with modifier key support and 4-element array format
 
@@ -287,7 +288,7 @@ registerRoutes({
 
 **Referrer Tracking:**
 ```javascript
-import { setIncludeReferrer } from '@keenmate/svelte-spa-router/utils'
+import { setIncludeReferrer, goBack } from '@keenmate/svelte-spa-router/utils'
 
 // Configure referrer tracking mode
 setIncludeReferrer('always')  // Options: 'never', 'notfound', 'always'
@@ -296,13 +297,21 @@ setIncludeReferrer('always')  // Options: 'never', 'notfound', 'always'
 const navContext = $derived(navigationContext())
 const referrer = $derived(navContext?.referrer)
 // referrer: { location, querystring, params, routeName }
+
+// Use goBack() helper for automatic scroll restoration
+function handleGoBack() {
+    goBack()  // Navigates to referrer with scroll position restoration
+}
 ```
 
 **Benefits:**
 - Automatic previous route tracking
+- **Automatic scroll position restoration** via `goBack()` helper
 - Safe "Go Back" implementation (works with replace())
 - Access to full previous route context
 - Route name tracking for named routes
+
+**Important:** Use `goBack()` instead of manual `push(referrer.location)` to get automatic scroll restoration. Manual `push()` does NOT restore scroll position.
 
 **Strict Parameter Replacement:**
 ```javascript
@@ -706,10 +715,11 @@ setHierarchicalRoutesEnabled(true)
 - ❌ Don't use `export let` for props (use `let { prop } = $props()`)
 - ❌ Don't use `.subscribe()` or `$store` syntax
 - ❌ Don't add a build step for the library (it's distributed as source)
+- ❌ Don't use manual `push(referrer.location)` for "Go Back" (use `goBack()` helper for scroll restoration)
 
 ### Critical Implementation Details
 - **Race Conditions:** Router.svelte tracks `lastLoc` to prevent race conditions when async routes resolve out of order
-- **Scroll Restoration:** Uses `history.scrollRestoration = 'manual'` and stores scroll positions in history state
+- **Scroll Restoration:** Uses `history.scrollRestoration = 'manual'` and stores scroll positions in history state. The `goBack()` helper automatically restores scroll position when navigating to referrer. Manual `push()` does NOT restore scroll.
 - **Route Matching:** Uses regexparam which creates RegExp patterns with parameter extraction
 - **Nested Routers:** Support via `prefix` prop - parent router must have wildcard route for child paths
 
