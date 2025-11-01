@@ -105,6 +105,47 @@ The router is organized into several key modules:
 - Optional route names for programmatic navigation
 - Coexists with flat route definitions
 
+**internal/logging.js** - Debug logging system (internal only, not exported)
+- Generic category-based logging utility
+- `createLogger(category, prefix, color)` - Factory function for creating logger instances
+- `enableLoggingCategory(category)` / `disableLoggingCategory(category)` - Toggle logging per category
+- Color-coded console output with CSS styling
+- Multiple log levels: debug, info, warn, error
+- Used by Router.svelte and utils.svelte.js for debug output
+- Public API exposed via utils.svelte.js: `setDebugLoggingEnabled()`, `getDebugLoggingEnabled()`
+
+### Debug Logging System
+
+The router includes a category-based debug logging system to help troubleshoot routing issues.
+
+**Architecture:**
+- **Two-layer design**: Generic internal utility + simple public API
+- **Category-based filtering**: Separate categories for 'router' and 'router-utils'
+- **Color-coded output**: `[Router]` in orange (#ff3e00), `[Router:Utils]` in green (#10b981)
+- **Zero overhead when disabled**: If checks can be eliminated by bundlers in production
+
+**Usage:**
+```javascript
+// main.js - Enable debug logging
+import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+
+if (import.meta.env.DEV) {
+  setDebugLoggingEnabled(true)
+}
+```
+
+**Implementation Details:**
+- Internal utility in `src/lib/internal/logging.js` (not exposed to users)
+- Logger instances created in utils.svelte.js: `routerLogger`, `utilsLogger`
+- Router.svelte imports `routerLogger` and uses it for all debug output
+- utils.svelte.js uses `utilsLogger` for navigation and scroll restoration logs
+- Console.warn statements for configuration errors remain always visible
+
+**When NOT to use debug logging:**
+- Configuration warnings/errors should always show (use console.warn/console.error directly)
+- Critical errors that need immediate attention
+- Production-only telemetry (use proper logging service instead)
+
 ### State Management with Runes
 
 **Critical:** This project uses Svelte 5 runes, NOT Svelte stores. Never use `writable()`, `readable()`, `derived()`, or `$subscribe()`.

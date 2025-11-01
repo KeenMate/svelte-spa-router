@@ -97,6 +97,45 @@ export function setParamReplacementPlaceholder(value: string): void;
 export function getParamReplacementPlaceholder(): string;
 
 /**
+ * Enable or disable debug logging for the router
+ * When enabled, displays color-coded console logs for:
+ * - Route matching and pipeline execution
+ * - Navigation (push, pop, replace, goBack)
+ * - Scroll restoration
+ *
+ * Logs are disabled by default for clean production consoles.
+ *
+ * @param value - true to enable debug logs, false to disable
+ *
+ * @example
+ * ```typescript
+ * import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+ *
+ * // Enable debug logs in development
+ * if (import.meta.env.DEV) {
+ *   setDebugLoggingEnabled(true)
+ * }
+ * ```
+ */
+export function setDebugLoggingEnabled(value: boolean): void;
+
+/**
+ * Check if debug logging is currently enabled
+ *
+ * @returns true if debug logging is enabled
+ *
+ * @example
+ * ```typescript
+ * import { getDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+ *
+ * if (getDebugLoggingEnabled()) {
+ *   console.log('Debug mode is active')
+ * }
+ * ```
+ */
+export function getDebugLoggingEnabled(): boolean;
+
+/**
  * Get the current location path
  *
  * @returns Current location (e.g., '/about')
@@ -200,6 +239,19 @@ export function routeParams<T = Record<string, string>>(): T | undefined;
 export function navigationContext<T = any>(): T | null;
 
 /**
+ * Scroll behavior options for navigation
+ */
+export interface ScrollOptions {
+    /**
+     * Controls scroll behavior on navigation
+     * - undefined (default): scroll to top
+     * - 'restore': restore scroll from history state
+     * - 'none': don't scroll
+     */
+    scrollBehavior?: 'restore' | 'none';
+}
+
+/**
  * Navigate to a new page programmatically
  *
  * Supports multiple formats:
@@ -219,6 +271,7 @@ export function navigationContext<T = any>(): T | null;
  * @param param2 - Route params (multi-param mode) or navigation context (string mode)
  * @param param3 - Query string (multi-param mode only)
  * @param param4 - Navigation context (multi-param mode only)
+ * @param param5 - Scroll options (multi-param mode only)
  * @returns Promise that resolves after navigation completes
  *
  * @example
@@ -239,6 +292,10 @@ export function navigationContext<T = any>(): T | null;
  * await push('userProfile', { userId: 123 }, { tab: 'settings' })
  * await push('userProfile', { userId: 123 }, { tab: 'x' }, { role: 'admin' })
  *
+ * // With scroll control
+ * await push('/previous-page', {}, {}, null, { scrollBehavior: 'restore' })
+ * await push('/tab-2', {}, {}, null, { scrollBehavior: 'none' })
+ *
  * // Array format (3 elements)
  * await push(['userProfile', { userId: 123 }, { tab: 'settings' }])
  *
@@ -258,7 +315,8 @@ export function push(
     location: string | [string, Record<string, any>?, Record<string, any>?, any?] | LinkActionOptions,
     param2?: any,
     param3?: Record<string, any>,
-    param4?: any
+    param4?: any,
+    param5?: ScrollOptions
 ): Promise<void>;
 
 /**
@@ -273,6 +331,30 @@ export function push(
  * ```
  */
 export function pop(): Promise<void>;
+
+/**
+ * Navigate back to the referrer with scroll restoration
+ *
+ * This is a convenience function that:
+ * 1. Checks if a referrer exists in navigationContext
+ * 2. Navigates to the referrer location with scroll restoration
+ * 3. Falls back to browser back if no referrer available
+ *
+ * Requires `setIncludeReferrer('always')` or `setIncludeReferrer('notfound')` to be set
+ *
+ * @returns Promise that resolves after navigation completes
+ *
+ * @example
+ * ```typescript
+ * import { goBack } from '@keenmate/svelte-spa-router/utils'
+ *
+ * // In a 404 or unauthorized page
+ * function handleGoBack() {
+ *   await goBack()  // Navigates to referrer with scroll restored
+ * }
+ * ```
+ */
+export function goBack(): Promise<void>;
 
 /**
  * Replace current page without modifying history stack
@@ -294,6 +376,7 @@ export function pop(): Promise<void>;
  * @param param2 - Route params (multi-param mode) or navigation context (string mode)
  * @param param3 - Query string (multi-param mode only)
  * @param param4 - Navigation context (multi-param mode only)
+ * @param param5 - Scroll options (multi-param mode only)
  * @returns Promise that resolves after navigation completes
  *
  * @example
@@ -314,6 +397,10 @@ export function pop(): Promise<void>;
  * await replace('userProfile', { userId: 123 }, { tab: 'settings' })
  * await replace('userProfile', { userId: 123 }, { tab: 'x' }, { role: 'admin' })
  *
+ * // With scroll control
+ * await replace('/previous-page', {}, {}, null, { scrollBehavior: 'restore' })
+ * await replace('/tab-2', {}, {}, null, { scrollBehavior: 'none' })
+ *
  * // Array format (3 elements)
  * await replace(['userProfile', { userId: 123 }, { tab: 'settings' }])
  *
@@ -333,7 +420,8 @@ export function replace(
     location: string | [string, Record<string, any>?, Record<string, any>?, any?] | LinkActionOptions,
     param2?: any,
     param3?: Record<string, any>,
-    param4?: any
+    param4?: any,
+    param5?: ScrollOptions
 ): Promise<void>;
 
 /**

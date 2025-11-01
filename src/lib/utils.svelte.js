@@ -1,6 +1,7 @@
 ﻿import { tick } from 'svelte'
 import { joinPaths } from './helpers/url-helpers.svelte.js'
 import { buildUrl, hasRoute } from './routes.svelte.js'
+import { createLogger, enableLoggingCategory, disableLoggingCategory } from './internal/logging.js'
 
 /**
  * @typedef {Object} Location
@@ -13,6 +14,7 @@ let hashRoutingEnabled = $state(true)
 let basePath = $state('/')
 let paramReplacementPlaceholder = $state('N-A')
 let hierarchicalRoutesEnabled = $state(false)
+let debugLoggingEnabled = $state(false)
 
 /**
  * Enable or disable hash-based routing
@@ -108,6 +110,42 @@ export function getHierarchicalRoutesEnabled() {
     return hierarchicalRoutesEnabled
 }
 
+/**
+ * Enable or disable debug logging for the router
+ * When enabled, displays color-coded console logs for:
+ * - Route matching and pipeline execution
+ * - Navigation (push, pop, replace, goBack)
+ * - Scroll restoration
+ *
+ * @param {boolean} value - true to enable debug logs, false to disable
+ *
+ * @example
+ * import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+ *
+ * // Enable debug logs in development
+ * setDebugLoggingEnabled(true)
+ */
+export function setDebugLoggingEnabled(value) {
+    debugLoggingEnabled = value
+
+    if (value) {
+        enableLoggingCategory('router')
+        enableLoggingCategory('router-utils')
+    } else {
+        disableLoggingCategory('router')
+        disableLoggingCategory('router-utils')
+    }
+}
+
+/**
+ * Check if debug logging is currently enabled
+ *
+ * @returns {boolean} true if debug logging is enabled
+ */
+export function getDebugLoggingEnabled() {
+    return debugLoggingEnabled
+}
+
 // Referrer tracking configuration
 let includeReferrerState = $state('never')
 
@@ -133,6 +171,11 @@ export function setIncludeReferrer(value) {
 export function getIncludeReferrer() {
     return includeReferrerState
 }
+
+// Create logger instances for router components
+// These are used internally to provide color-coded debug logging
+export const routerLogger = createLogger('router', '[Router]', '#ff3e00')
+export const utilsLogger = createLogger('router-utils', '[Router:Utils]', '#10b981')
 
 /**
  * Returns the current location from the hash or pathname.
@@ -462,24 +505,28 @@ function navigate(location, shouldReplace = false, context = null) {
  * - push(location) - string, array, or object
  * - push(location, navigationContext) - with context data (legacy)
  * - push(route, routeParams, queryString, navigationContext) - multi-parameter
+ * - push(route, routeParams, queryString, navigationContext, scrollOptions) - with scroll control
  *
  * @param {string|Array|LinkActionOpts} location - Path/route to navigate to
  * @param {any} [param2] - Route params (multi-param) or navigation context (legacy)
  * @param {any} [param3] - Query string (multi-param only)
  * @param {any} [param4] - Navigation context (multi-param only)
+ * @param {Object} [param5] - Scroll options: { scrollBehavior: 'restore' | 'none' }
  * @return {Promise<void>} Promise that resolves after the page navigation has completed
  */
-export async function push(location, param2, param3, param4) {
+export async function push(location, param2, param3, param4, param5) {
     let opts
     let context = null
+    let scrollOptions = {}
 
     // Detect signature based on arguments
     if (typeof location === 'string' && (param2 !== undefined && (typeof param2 === 'object' && !Array.isArray(param2)) || param3 !== undefined || param4 !== undefined)) {
-        // Multi-parameter signature: push(route, routeParams, queryString, navigationContext)
+        // Multi-parameter signature: push(route, routeParams, queryString, navigationContext, scrollOptions)
         const route = location
         const routeParams = param2 || {}
         const queryString = param3 || {}
         context = param4 || null
+        scrollOptions = param5 || {}
 
         // Determine if route is a path (starts with /) or a named route
         if (route.startsWith('/')) {
@@ -522,6 +569,14 @@ export async function push(location, param2, param3, param4) {
         _routeName: opts.route || href
     }
 
+    // Inject scroll behavior into context if specified
+    if (scrollOptions.scrollBehavior) {
+        utilsLogger.debug('Injecting scroll behavior into context:', scrollOptions.scrollBehavior)
+        context.__scrollBehavior = scrollOptions.scrollBehavior
+    }
+
+    utilsLogger.debug('Navigating to:', href, 'with context:', context)
+
     // Execute this code when the current call stack is complete
     await tick()
 
@@ -541,30 +596,69 @@ export async function pop() {
 }
 
 /**
+ * Navigates back to the referrer with scroll restoration.
+ *
+ * This is a convenience function that:
+ * 1. Checks if a referrer exists in navigationContext
+ * 2. Navigates to the referrer location with scroll restoration
+ * 3. Falls back to browser back if no referrer available
+ *
+ * @return {Promise<void>} Promise that resolves after navigation completes
+ */
+export async function goBack() {
+    const navContext = navigationContext()
+
+    utilsLogger.debug('Called - navigationContext:', navContext)
+
+    if (!navContext?.referrer) {
+        utilsLogger.warn('No referrer available for goBack(), using browser back')
+        return pop()
+    }
+
+    const ref = navContext.referrer
+    const targetUrl = ref.location + (ref.querystring ? '?' + ref.querystring : '')
+
+    utilsLogger.debug('Navigating to referrer:', targetUrl, 'with scroll position:', { scrollX: ref.scrollX, scrollY: ref.scrollY })
+
+    // Pass scroll position in the navigation context so it can be restored
+    const contextWithScroll = {
+        __scrollBehavior: 'restore',
+        __targetScrollX: ref.scrollX,
+        __targetScrollY: ref.scrollY
+    }
+
+    await push(targetUrl, {}, {}, contextWithScroll, { scrollBehavior: 'restore' })
+}
+
+/**
  * Replaces the current page but without modifying the history stack.
  *
  * Supports multiple signatures:
  * - replace(location) - string, array, or object
  * - replace(location, navigationContext) - with context data (legacy)
  * - replace(route, routeParams, queryString, navigationContext) - multi-parameter
+ * - replace(route, routeParams, queryString, navigationContext, scrollOptions) - with scroll control
  *
  * @param {string|Array|LinkActionOpts} location - Path/route to navigate to
  * @param {any} [param2] - Route params (multi-param) or navigation context (legacy)
  * @param {any} [param3] - Query string (multi-param only)
  * @param {any} [param4] - Navigation context (multi-param only)
+ * @param {Object} [param5] - Scroll options: { scrollBehavior: 'restore' | 'none' }
  * @return {Promise<void>} Promise that resolves after the page navigation has completed
  */
-export async function replace(location, param2, param3, param4) {
+export async function replace(location, param2, param3, param4, param5) {
     let opts
     let context = null
+    let scrollOptions = {}
 
     // Detect signature based on arguments
     if (typeof location === 'string' && (param2 !== undefined && (typeof param2 === 'object' && !Array.isArray(param2)) || param3 !== undefined || param4 !== undefined)) {
-        // Multi-parameter signature: replace(route, routeParams, queryString, navigationContext)
+        // Multi-parameter signature: replace(route, routeParams, queryString, navigationContext, scrollOptions)
         const route = location
         const routeParams = param2 || {}
         const queryString = param3 || {}
         context = param4 || null
+        scrollOptions = param5 || {}
 
         // Determine if route is a path (starts with /) or a named route
         if (route.startsWith('/')) {
@@ -606,6 +700,14 @@ export async function replace(location, param2, param3, param4) {
         ...(context || {}),
         _routeName: opts.route || href
     }
+
+    // Inject scroll behavior into context if specified
+    if (scrollOptions.scrollBehavior) {
+        utilsLogger.debug('Injecting scroll behavior into context:', scrollOptions.scrollBehavior)
+        context.__scrollBehavior = scrollOptions.scrollBehavior
+    }
+
+    utilsLogger.debug('Navigating to:', href, 'with context:', context)
 
     // Execute this code when the current call stack is complete
     await tick()
@@ -675,9 +777,13 @@ export function link(node, opts) {
 export function restoreScroll(state) {
     // If this exists, then this is a back navigation: restore the scroll position
     if (state) {
-        window.scrollTo(state.__svelte_spa_router_scrollX, state.__svelte_spa_router_scrollY)
+        const scrollX = state.__svelte_spa_router_scrollX
+        const scrollY = state.__svelte_spa_router_scrollY
+        utilsLogger.debug('Restoring scroll to:', { scrollX, scrollY })
+        window.scrollTo(scrollX, scrollY)
     }
     else {
+        utilsLogger.debug('No state provided, scrolling to top')
         // Otherwise this is a forward navigation: scroll to top
         window.scrollTo(0, 0)
     }

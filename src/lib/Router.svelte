@@ -1,9 +1,34 @@
-﻿<script>
-import {parse} from './parse-route.js'
+<script>
+/**
+ * Router2.svelte - Simplified router with clean pipeline architecture
+ *
+ * Philosophy:
+ * - Router uses WATERFALL/PIPELINE approach for navigation
+ * - Effect READS reactive inputs only (location, querystring)
+ * - Pipeline processes everything using plain JavaScript objects
+ * - Single commitToReactiveState() writes ALL reactive state at the end
+ * - Minimal untrack() usage (only at commit boundary)
+ * - Clear separation: read → transform → commit
+ * - One effect per concern (routing, scroll restoration)
+ *
+ * Pipeline Flow:
+ *   location change → createPipelineContext()
+ *                  → pipelineMatchRoute()
+ *                  → pipelineCheckGuards()
+ *                  → pipelineCheckConditions()
+ *                  → pipelineLoadComponent() / pipelineLoadZoneComponents()
+ *                  → pipelineComposeBreadcrumbs()
+ *                  → pipelineComputeMetadata()
+ *                  → pipelineCalculateReferrer()
+ *                  → commitToReactiveState()
+ *                  → dispatch events
+ */
+
+import { parse } from './parse-route.js'
 import { tick, untrack } from 'svelte'
-import { location, querystring, routeParams, setParams, restoreScroll, getZoneComponent, setZoneComponents, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer } from './utils.svelte.js'
+import { location, querystring, routeParams, setParams, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer, restoreScroll, getZoneComponent, setZoneComponents, routerLogger } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
-import { updateRouteMetadata, startRouteLoading, waitForRouteReady, hideLoading, getUpdatedBreadcrumb, clearBreadcrumbCache } from './helpers/route-metadata.svelte.js'
+import { updateRouteMetadata, getUpdatedBreadcrumb, startRouteLoading, waitForRouteReady } from './helpers/route-metadata.svelte.js'
 
 // Component props
 let {
@@ -12,7 +37,7 @@ let {
      */
     routes = {},
     /**
-     * Optional prefix for the routes in this router. This is useful for example in the case of nested routers.
+     * Optional prefix for the routes in this router.
      */
     prefix = '',
     /**
@@ -27,7 +52,6 @@ let {
     /**
      * Event handlers
      */
-    onrouteEvent,
     onrouteLoading,
     onrouteLoaded,
     onconditionsFailed,
@@ -35,33 +59,25 @@ let {
 } = $props()
 
 /**
- * Container for a route: path, component
+ * Simple route item for matching
  */
 class RouteItem {
-    /**
-     * Initializes the object and creates a regular expression from the path, using regexparam.
-     *
-     * @param {string} path - Path to the route (must start with '/' or '*')
-     * @param {SvelteComponent|WrappedComponent} component - Svelte component for the route, optionally wrapped
-     */
     constructor(path, component) {
         if (!component || (typeof component != 'function' && (typeof component != 'object' || component._sveltesparouter !== true))) {
             throw Error('Invalid component object')
         }
 
-        // Path must be a regular or expression, or a string starting with '/' or '*'
-        if (!path ||
-            (typeof path == 'string' && (path.length < 1 || (path.charAt(0) != '/' && path.charAt(0) != '*'))) ||
-            (typeof path == 'object' && !(path instanceof RegExp))
-        ) {
+        if (!path || (typeof path == 'string' && (path.length < 1 || (path.charAt(0) != '/' && path.charAt(0) != '*')))) {
             throw Error('Invalid value for "path" argument - strings must start with / or *')
         }
 
-        const {pattern, keys} = parse(path)
+        const { pattern, keys } = parse(path)
 
         this.path = path
+        this._pattern = pattern
+        this._keys = keys
 
-        // Check if the component is wrapped and we have conditions
+        // Handle wrapped components
         if (typeof component == 'object' && component._sveltesparouter === true) {
             // Check if this is a zone-based route
             if (component._isZoneMode) {
@@ -73,83 +89,62 @@ class RouteItem {
                 this.isZoneMode = false
             }
             this.conditions = component.conditions || []
-            this.routeContext = component.routeContext
             this.props = component.props || {}
+            this.routeContext = component.routeContext
             this.shouldDisplayLoadingOnRouteLoad = component.shouldDisplayLoadingOnRouteLoad || false
             // Store inheritance flags
             this.inheritBreadcrumbs = component.inheritBreadcrumbs !== undefined ? component.inheritBreadcrumbs : true
             this.inheritPermissions = component.inheritPermissions !== undefined ? component.inheritPermissions : true
             this.inheritConditions = component.inheritConditions !== undefined ? component.inheritConditions : true
             this.inheritAuthorization = component.inheritAuthorization !== undefined ? component.inheritAuthorization : true
-        }
-        else {
-            // Convert the component to a function that returns a Promise, to normalize it
+        } else {
+            // Normalize to async function
             this.component = () => Promise.resolve(component)
             this.zones = null
             this.isZoneMode = false
             this.conditions = []
             this.props = {}
+            this.routeContext = undefined
             this.shouldDisplayLoadingOnRouteLoad = false
             this.inheritBreadcrumbs = true
             this.inheritPermissions = true
             this.inheritConditions = true
             this.inheritAuthorization = true
         }
-
-        this._pattern = pattern
-        this._keys = keys
     }
 
     /**
-     * Checks if `path` matches the current route.
-     * If there's a match, will return the list of parameters from the URL (if any).
-     * In case of no match, the method will return `null`.
-     *
-     * @param {string} path - Path to test
-     * @returns {null|Object.<string, string>} List of paramters from the URL if there's a match, or `null` otherwise.
+     * Check if path matches this route
+     * Returns params object or null
      */
     match(path) {
-        // If there's a prefix, check if it matches the start of the path.
-        // If not, bail early, else remove it before we run the matching.
+        // Handle prefix
         if (prefix) {
             if (typeof prefix == 'string') {
                 if (path.startsWith(prefix)) {
                     path = path.substr(prefix.length) || '/'
-                }
-                else {
-                    return null
-                }
-            }
-            else if (prefix instanceof RegExp) {
-                const match = path.match(prefix)
-                if (match && match[0]) {
-                    path = path.substr(match[0].length) || '/'
-                }
-                else {
+                } else {
                     return null
                 }
             }
         }
 
-        // Check if the pattern matches
         const matches = this._pattern.exec(path)
         if (matches === null) {
             return null
         }
 
-        // If the input was a regular expression, this._keys would be false, so return matches as is
         if (this._keys === false) {
             return matches
         }
 
+        // Extract params
         const out = {}
         let i = 0
         while (i < this._keys.length) {
-            // In the match parameters, URL-decode all values
             try {
                 out[this._keys[i]] = decodeURIComponent(matches[i + 1] || '') || null
-            }
-            catch (e) {
+            } catch (e) {
                 out[this._keys[i]] = null
             }
             i++
@@ -158,10 +153,7 @@ class RouteItem {
     }
 
     /**
-     * Executes all conditions (if any) to control whether the route can be shown. Conditions are executed in the order they are defined, and if a condition fails, the following ones aren't executed.
-     *
-     * @param {RouteDetail} detail - Route detail
-     * @returns {boolean} Returns true if all the conditions succeeded
+     * Check all conditions for this route
      */
     async checkConditions(detail) {
         for (let i = 0; i < this.conditions.length; i++) {
@@ -169,32 +161,27 @@ class RouteItem {
                 return false
             }
         }
-
         return true
     }
 }
 
-// Set up all routes
+// Parse routes into RouteItem objects
 const routesList = []
 if (routes instanceof Map) {
-    // If it's a map, iterate on it right away
     routes.forEach((route, path) => {
         routesList.push(new RouteItem(path, route))
     })
-}
-else {
-    // We have an object, so iterate on its own properties
+} else {
     Object.keys(routes).forEach((path) => {
         routesList.push(new RouteItem(path, routes[path]))
     })
 }
 
+routerLogger.debug(' Initialized with', routesList.length, 'routes')
+
 /**
  * Find parent route for hierarchical inheritance
  * Matches by path pattern - finds longest matching parent path
- *
- * @param {string} childPath - Path of the child route (e.g., '/documents/:id/logs')
- * @returns {RouteItem|null} Parent RouteItem or null if no parent found
  */
 function findParentRoute(childPath) {
     if (!getHierarchicalRoutesEnabled()) {
@@ -207,7 +194,6 @@ function findParentRoute(childPath) {
     }
 
     // Find potential parent paths by removing segments
-    // /documents/:id/logs → try /documents/:id, then /documents
     const segments = childPath.split('/').filter(s => s.length > 0)
 
     // Try progressively shorter paths (longest match first)
@@ -226,9 +212,6 @@ function findParentRoute(childPath) {
 
 /**
  * Build complete hierarchy chain from root to current route
- *
- * @param {RouteItem} route - The route to get hierarchy for
- * @returns {RouteItem[]} Array of routes from root to current [parent, child, grandchild]
  */
 function getRouteHierarchy(route) {
     if (!getHierarchicalRoutesEnabled()) {
@@ -237,13 +220,13 @@ function getRouteHierarchy(route) {
 
     const hierarchy = []
     let current = route
-    let visited = new Set() // Prevent circular references
+    let visited = new Set()
 
     // Build hierarchy bottom-up
     while (current) {
         // Check for circular reference
         if (visited.has(current.path)) {
-            console.warn('Circular route hierarchy detected for path:', current.path)
+            routerLogger.warn(' Circular route hierarchy detected for path:', current.path)
             break
         }
         visited.add(current.path)
@@ -257,11 +240,6 @@ function getRouteHierarchy(route) {
 
 /**
  * Compose breadcrumbs from route hierarchy
- * Concatenates parent breadcrumbs with child breadcrumbs
- * Applies any manual updates from the cache
- *
- * @param {RouteItem} route - The current route
- * @returns {Array} Composed breadcrumbs array
  */
 function composeBreadcrumbs(route) {
     if (!getHierarchicalRoutesEnabled() || !route.inheritBreadcrumbs) {
@@ -290,7 +268,6 @@ function composeBreadcrumbs(route) {
         if (crumb.id) {
             const cachedUpdate = getUpdatedBreadcrumb(crumb.id)
             if (cachedUpdate) {
-                console.log('[composeBreadcrumbs] Applying cached update for', crumb.id, ':', cachedUpdate)
                 return { ...crumb, ...cachedUpdate }
             }
         }
@@ -298,82 +275,36 @@ function composeBreadcrumbs(route) {
     })
 }
 
-/**
- * Get composed conditions from route hierarchy
- * Returns array of all conditions from parent to child
- *
- * @param {RouteItem} route - The current route
- * @returns {Array} Array of condition functions to execute in order
- */
-function composeConditions(route) {
-    if (!getHierarchicalRoutesEnabled() || !route.inheritConditions) {
-        // Return only this route's conditions
-        return route.conditions || []
-    }
-
-    const hierarchy = getRouteHierarchy(route)
-    const conditions = []
-
-    for (const r of hierarchy) {
-        // Skip if this specific route opts out
-        if (r === route && !route.inheritConditions) {
-            return route.conditions || []
-        }
-
-        // Add conditions from this level
-        if (r.conditions && r.conditions.length > 0) {
-            conditions.push(...r.conditions)
-        }
-    }
-
-    return conditions
-}
-
-// Version logging
-console.log('[svelte-spa-router] Version: 6.0.0-dev | Last changed: 2025-10-29 20:30 - Added breadcrumb cache for child routes')
-
 // Component state
 let component = $state(null)
 let componentParams = $state(null)
 let componentProps = $state({})
-let componentrouteContext = $state({})
-let componentObj = $state(null)
+let currentRouteItem = $state(null)
+
+// Loading state
 let loadingComponent = $state(null)
 let loadingParams = $state(null)
 let isWaitingForData = $state(false)
 
-// Track last assigned values (non-reactive) to avoid comparing $state proxies
-let lastAssignedProps = {}
-let lastAssignedRouteContext = {}
+// Track loading state to handle race conditions
+let loadingId = 0
 
-// For zone-based routing: get component from zone state if zone prop is set
-let zoneComponentData = $derived(zone ? getZoneComponent(zone) : null)
+// Track current route state (used for both beforeLeave guards and referrer tracking)
+let currentRoute = $state(null)
+let currentQuerystring = $state('')
+let currentParams = $state({})
+let currentRouteName = $state(null)
+let isCurrentRouteCatchAll = $state(false) // Track if we're on a catch-all route
 
 // Previous scroll state for restoration
 let previousScrollState = $state(null)
 
-// Track last location to handle race conditions
-let lastLoc = null
-let currentLocation = $state(null)
-let currentQuerystring = $state('')
-let lastNotFoundLocation = null
+// For zone-based routing: get component from zone state if zone prop is set
+let zoneComponentData = $derived(zone ? getZoneComponent(zone) : null)
 
-// Track current route info for referrer tracking
-let currentRouteInfo = $state({
-    location: '/',
-    querystring: '',
-    params: {},
-    routeName: null
-})
-
-// Track the last referrer we injected to avoid redundant updates
-let lastInjectedReferrer = null
-
-// Dispatch events using callbacks
+// Dispatch helper
 function dispatchEvent(name, detail) {
-    if (name === 'routeEvent' && onrouteEvent) {
-        onrouteEvent({ detail })
-    } else if (name === 'routeLoading' && onrouteLoading) {
+    if (name === 'routeLoading' && onrouteLoading) {
         onrouteLoading({ detail })
     } else if (name === 'routeLoaded' && onrouteLoaded) {
         onrouteLoaded({ detail })
@@ -384,14 +315,712 @@ function dispatchEvent(name, detail) {
     }
 }
 
-// Dispatch on next tick
 async function dispatchNextTick(name, detail) {
     await tick()
     dispatchEvent(name, detail)
 }
 
-// Note: We inject navigationContext synchronously wrapped in untrack() instead of
-// using nextTick, because we need components to see referrer immediately on mount
+/**
+ * Pure function: Find matching route for location
+ * No side effects, just returns the match
+ */
+function findMatchingRoute(loc) {
+    for (let i = 0; i < routesList.length; i++) {
+        const match = routesList[i].match(loc)
+        if (match !== null) {
+            return {
+                routeItem: routesList[i],
+                params: match,
+                location: loc
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * @typedef {Object} PipelineContext
+ * Pipeline context - carries all state through the pipeline
+ * This is a plain JavaScript object (not reactive)
+ *
+ * @property {string} location - Target location
+ * @property {string} querystring - Target querystring
+ * @property {any} incomingContext - Navigation context from push/replace
+ * @property {string|null} incomingRouteName - Route name if navigating via named route
+ * @property {number} loadingId - Unique ID for this navigation (race condition detection)
+ * @property {number} timestamp - When this navigation started
+ * @property {object|null} match - Route match result {routeItem, params, location}
+ * @property {boolean} canLeave - Result of beforeLeave guards
+ * @property {boolean} conditionsPassed - Result of route conditions check
+ * @property {any|null} component - Loaded component
+ * @property {any|null} loadingComponent - Loading component if present
+ * @property {any|null} loadingParams - Props for loading component
+ * @property {object|null} zoneComponents - Zone components for zone-based routes
+ * @property {array} composedBreadcrumbs - Hierarchically composed breadcrumbs
+ * @property {object} metadata - Route metadata
+ * @property {any|null} updatedNavigationContext - Updated navigation context with referrer
+ * @property {string|null} resultType - 'notFound'|'conditionsFailed'|'zone'|'component'|'cancelled'
+ * @property {boolean} isCatchAll - True if this is a catch-all (*) route
+ * @property {boolean} shouldWaitForData - True if route needs to wait for hideLoading() signal
+ * @property {boolean} shouldDisplayLoadingOnRouteLoad - True if route has custom loading component
+ * @property {object} previousRoute - Snapshot of current route for referrer calculation
+ * @property {object} componentProps - Props to pass to component
+ */
+
+/**
+ * Create initial pipeline context from reactive inputs
+ * Pure function - reads reactive state but doesn't modify it
+ */
+function createPipelineContext(loc, qs, incomingContext, currentRouteSnapshot) {
+    return {
+        // Input state (immutable once created)
+        location: loc,
+        querystring: qs,
+        incomingContext: incomingContext,
+        incomingRouteName: incomingContext?._routeName || null,
+
+        // Pipeline metadata
+        loadingId: ++loadingId,  // Increment counter
+        timestamp: Date.now(),
+
+        // Route matching result
+        match: null,
+
+        // Guard results
+        canLeave: true,
+        conditionsPassed: false,
+
+        // Loaded resources
+        component: null,
+        loadingComponent: null,
+        loadingParams: null,
+        zoneComponents: null,
+
+        // Computed metadata
+        composedBreadcrumbs: [],
+        metadata: {},
+        updatedNavigationContext: null,
+
+        // Result type (determines commit behavior)
+        resultType: null,
+
+        // Flags
+        isCatchAll: false,
+        shouldWaitForData: false,
+        shouldDisplayLoadingOnRouteLoad: false,
+
+        // Component props
+        componentProps: {},
+
+        // Snapshot of current state (for referrer calculation)
+        previousRoute: currentRouteSnapshot
+    }
+}
+
+/**
+ * Commit pipeline results to reactive state
+ * This is the ONLY place where reactive state is written (besides effect initialization)
+ * Uses untrack() to prevent triggering the routing effect
+ */
+function commitToReactiveState(ctx) {
+    routerLogger.debug(' Committing pipeline result:', ctx.resultType)
+
+    // Use untrack to prevent triggering the effect
+    untrack(() => {
+        switch (ctx.resultType) {
+            case 'notFound':
+                // Clear component state
+                component = null
+                componentParams = null
+                componentProps = {}
+                currentRouteItem = null
+                loadingComponent = null
+                loadingParams = null
+
+                // Update external state
+                setParams(undefined)
+                if (ctx.updatedNavigationContext) {
+                    setNavigationContext(ctx.updatedNavigationContext)
+                }
+
+                // Don't update currentRoute tracking for 404 (keep referrer chain clean)
+                // But mark that we're in a "no route" state
+                isCurrentRouteCatchAll = false
+                break
+
+            case 'conditionsFailed':
+                // Clear component state
+                component = null
+                componentParams = null
+                componentProps = {}
+                currentRouteItem = null
+                loadingComponent = null
+                loadingParams = null
+
+                // Update external state
+                setParams(undefined)
+
+                // Don't update currentRoute tracking for failed conditions
+                isCurrentRouteCatchAll = false
+                break
+
+            case 'zone':
+                // Update zone components in shared state
+                setZoneComponents(ctx.zoneComponents)
+
+                // Set params
+                setParams(ctx.match.params)
+
+                // Update metadata
+                updateRouteMetadata(ctx.metadata, ctx.location, ctx.querystring, ctx.match.params)
+
+                // Clear single component state (zone routing doesn't render locally)
+                component = null
+                componentParams = null
+                componentProps = {}
+                currentRouteItem = null
+                loadingComponent = null
+                loadingParams = null
+
+                // Update navigation context with referrer
+                if (ctx.updatedNavigationContext) {
+                    setNavigationContext(ctx.updatedNavigationContext)
+                }
+
+                // Update current route tracking (unless catch-all)
+                if (!ctx.isCatchAll) {
+                    currentRoute = ctx.location
+                    currentQuerystring = ctx.querystring
+                    currentParams = ctx.match.params || {}
+                    currentRouteName = ctx.incomingRouteName
+                    isCurrentRouteCatchAll = false
+                } else {
+                    // We're on a catch-all route
+                    isCurrentRouteCatchAll = true
+                }
+                break
+
+            case 'component':
+                // Update component state
+                component = ctx.component
+                componentParams = ctx.match.params
+                componentProps = ctx.componentProps
+                currentRouteItem = ctx.match.routeItem
+
+                // Update loading state
+                loadingComponent = ctx.loadingComponent
+                loadingParams = ctx.loadingParams
+                isWaitingForData = ctx.shouldWaitForData
+
+                // Clear zone components (single component mode)
+                setZoneComponents({})
+
+                // Set params
+                setParams(ctx.match.params)
+
+                // Update metadata
+                updateRouteMetadata(ctx.metadata, ctx.location, ctx.querystring, ctx.match.params)
+
+                // Update navigation context with referrer
+                if (ctx.updatedNavigationContext) {
+                    setNavigationContext(ctx.updatedNavigationContext)
+                }
+
+                // Update current route tracking (unless catch-all)
+                if (!ctx.isCatchAll) {
+                    currentRoute = ctx.location
+                    currentQuerystring = ctx.querystring
+                    currentParams = ctx.match.params || {}
+                    currentRouteName = ctx.incomingRouteName
+                    isCurrentRouteCatchAll = false
+                } else {
+                    // We're on a catch-all route
+                    isCurrentRouteCatchAll = true
+                }
+                break
+
+            case 'cancelled':
+                // Race condition detected - do nothing
+                routerLogger.debug(' Commit cancelled (race condition)')
+                break
+
+            default:
+                routerLogger.warn(' Unknown result type:', ctx.resultType)
+                break
+        }
+    })
+}
+
+// ============================================================================
+// PURE PIPELINE FUNCTIONS
+// ============================================================================
+
+/**
+ * Pipeline Step 1: Match route
+ * Pure function - no side effects
+ */
+function pipelineMatchRoute(ctx) {
+    const match = findMatchingRoute(ctx.location)
+    return { ...ctx, match }
+}
+
+/**
+ * Pipeline Step 2: Compose breadcrumbs
+ * Pure function - wrapper around existing composeBreadcrumbs
+ */
+function pipelineComposeBreadcrumbs(ctx) {
+    if (!ctx.match) {
+        return ctx
+    }
+
+    const composedBreadcrumbs = composeBreadcrumbs(ctx.match.routeItem)
+    return { ...ctx, composedBreadcrumbs }
+}
+
+/**
+ * Pipeline Step 3: Compute route metadata
+ * Pure function - builds metadata object
+ */
+function pipelineComputeMetadata(ctx) {
+    if (!ctx.match) {
+        return ctx
+    }
+
+    const routeItem = ctx.match.routeItem
+    const metadata = {
+        ...(routeItem.routeContext || {}),
+        breadcrumbs: ctx.composedBreadcrumbs.length > 0
+            ? ctx.composedBreadcrumbs
+            : (routeItem.routeContext?.breadcrumbs || [])
+    }
+
+    return { ...ctx, metadata }
+}
+
+/**
+ * Pipeline Step 4: Calculate referrer context
+ * Pure function - determines referrer based on route type and config
+ */
+function pipelineCalculateReferrer(ctx) {
+    if (!ctx.match) {
+        // No match - might inject referrer in 404 handler
+        const includeReferrer = getIncludeReferrer()
+        const hasReferrer = ctx.previousRoute.location !== null
+
+        if ((includeReferrer === 'notfound' || includeReferrer === 'always') && hasReferrer) {
+            return {
+                ...ctx,
+                updatedNavigationContext: {
+                    ...ctx.incomingContext,
+                    attemptedRoute: ctx.location,
+                    attemptedQuerystring: ctx.querystring,
+                    referrer: {
+                        location: ctx.previousRoute.location,
+                        querystring: ctx.previousRoute.querystring,
+                        params: ctx.previousRoute.params,
+                        routeName: ctx.previousRoute.routeName,
+                        scrollX: ctx.previousRoute.scrollX,
+                        scrollY: ctx.previousRoute.scrollY
+                    }
+                }
+            }
+        }
+        return ctx
+    }
+
+    const includeReferrer = getIncludeReferrer()
+    const isCatchAll = ctx.match.routeItem.path === '*'
+    const hasReferrer = ctx.previousRoute.location !== null
+
+    let updatedContext = ctx.incomingContext
+
+    if (isCatchAll && (includeReferrer === 'notfound' || includeReferrer === 'always') && hasReferrer) {
+        // Catch-all route: inject referrer with attemptedRoute
+        routerLogger.debug(' Catch-all route - Injecting referrer:', ctx.previousRoute.location)
+        updatedContext = {
+            ...updatedContext,
+            attemptedRoute: ctx.location,
+            attemptedQuerystring: ctx.querystring,
+            referrer: {
+                location: ctx.previousRoute.location,
+                querystring: ctx.previousRoute.querystring,
+                params: ctx.previousRoute.params,
+                routeName: ctx.previousRoute.routeName,
+                scrollX: ctx.previousRoute.scrollX,
+                scrollY: ctx.previousRoute.scrollY
+            }
+        }
+    } else if (!isCatchAll && includeReferrer === 'always' && hasReferrer) {
+        // Regular route: inject referrer if 'always' mode
+        updatedContext = {
+            ...updatedContext,
+            referrer: {
+                location: ctx.previousRoute.location,
+                querystring: ctx.previousRoute.querystring,
+                params: ctx.previousRoute.params,
+                routeName: ctx.previousRoute.routeName,
+                scrollX: ctx.previousRoute.scrollX,
+                scrollY: ctx.previousRoute.scrollY
+            }
+        }
+    }
+
+    return {
+        ...ctx,
+        updatedNavigationContext: updatedContext,
+        isCatchAll
+    }
+}
+
+/**
+ * Pipeline Step 5: Determine result type
+ * Pure function - categorizes the navigation result
+ */
+function pipelineDetermineResultType(ctx) {
+    // Already set by zone/component loaders
+    if (ctx.resultType) {
+        return ctx
+    }
+
+    // Not found
+    if (!ctx.match) {
+        return { ...ctx, resultType: 'notFound' }
+    }
+
+    // Conditions failed
+    if (!ctx.conditionsPassed) {
+        return { ...ctx, resultType: 'conditionsFailed' }
+    }
+
+    return ctx
+}
+
+// ============================================================================
+// END PURE PIPELINE FUNCTIONS
+// ============================================================================
+
+// ============================================================================
+// ASYNC PIPELINE FUNCTIONS
+// ============================================================================
+
+/**
+ * Pipeline Step: Check beforeLeave guards
+ * Async function - may have side effect of reverting browser history
+ */
+async function pipelineCheckGuards(ctx) {
+    if (!ctx.previousRoute.location || ctx.previousRoute.location === ctx.location) {
+        return { ...ctx, canLeave: true }
+    }
+
+    const canLeave = await runBeforeLeaveGuards({
+        from: ctx.previousRoute.location,
+        to: ctx.location,
+        params: ctx.previousRoute.params,
+        querystring: ctx.previousRoute.querystring
+    })
+
+    return { ...ctx, canLeave }
+}
+
+/**
+ * Pipeline Step: Check route conditions
+ * Async function - executes route condition checks
+ */
+async function pipelineCheckConditions(ctx) {
+    if (!ctx.match) {
+        return ctx // No match, skip
+    }
+
+    const detail = {
+        route: ctx.match.routeItem.path,
+        location: ctx.location,
+        querystring: ctx.querystring,
+        params: ctx.match.params,
+        userData: ctx.match.routeItem.routeContext?.userData
+    }
+
+    const conditionsPassed = await ctx.match.routeItem.checkConditions(detail)
+    return { ...ctx, conditionsPassed }
+}
+
+/**
+ * Pipeline Step: Load single component
+ * Async function - loads the route's component
+ */
+async function pipelineLoadComponent(ctx) {
+    if (!ctx.match || !ctx.conditionsPassed) {
+        return ctx
+    }
+
+    const routeItem = ctx.match.routeItem
+    const componentLoader = routeItem.component
+
+    // Extract loading component info
+    const loadingComponent = componentLoader.loading || null
+    const loadingParams = componentLoader.loadingParams || null
+
+    // Load component
+    const loadedComponent = await componentLoader()
+    const component = (loadedComponent && loadedComponent.default) || loadedComponent
+
+    routerLogger.debug(' Route loaded successfully:', routeItem.path)
+
+    // Check race condition
+    if (ctx.loadingId !== loadingId) {
+        routerLogger.debug(' Component load cancelled (newer navigation)')
+        return { ...ctx, resultType: 'cancelled' }
+    }
+
+    return {
+        ...ctx,
+        component,
+        loadingComponent,
+        loadingParams,
+        componentProps: routeItem.props || {},
+        shouldDisplayLoadingOnRouteLoad: routeItem.shouldDisplayLoadingOnRouteLoad || false,
+        resultType: 'component'
+    }
+}
+
+/**
+ * Pipeline Step: Load zone components in parallel
+ * Async function - loads all zone components
+ */
+async function pipelineLoadZoneComponents(ctx) {
+    if (!ctx.match || !ctx.conditionsPassed) {
+        return ctx
+    }
+
+    const routeItem = ctx.match.routeItem
+    if (!routeItem.isZoneMode) {
+        return ctx
+    }
+
+    const zoneComponents = {}
+    const zones = routeItem.zones
+
+    // Load all zone components in parallel
+    await Promise.all(
+        Object.entries(zones).map(async ([zoneName, zoneLoader]) => {
+            const loaded = await zoneLoader()
+            zoneComponents[zoneName] = {
+                component: (loaded && loaded.default) || loaded,
+                params: ctx.match.params,
+                props: routeItem.props || {},
+                routeContext: routeItem.routeContext || {}
+            }
+        })
+    )
+
+    routerLogger.debug(' Zone components loaded:', Object.keys(zoneComponents))
+
+    // Check race condition
+    if (ctx.loadingId !== loadingId) {
+        routerLogger.debug(' Zone load cancelled (newer navigation)')
+        return { ...ctx, resultType: 'cancelled' }
+    }
+
+    return {
+        ...ctx,
+        zoneComponents,
+        resultType: 'zone'
+    }
+}
+
+// ============================================================================
+// END ASYNC PIPELINE FUNCTIONS
+// ============================================================================
+
+// ============================================================================
+// MAIN PIPELINE ORCHESTRATION
+// ============================================================================
+
+/**
+ * Main routing pipeline
+ * Processes navigation through pure/async functions, then commits at the end
+ * This is the waterfall/pipeline approach
+ */
+async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot) {
+    routerLogger.debug(' Running pipeline for:', loc)
+
+    // Phase 1: Create pipeline context (plain JS object, not reactive)
+    let ctx = createPipelineContext(loc, qs, incomingContext, currentRouteSnapshot)
+
+    // Phase 2: Match route (pure)
+    ctx = pipelineMatchRoute(ctx)
+
+    // Early exit: No match (404)
+    if (!ctx.match) {
+        routerLogger.debug(' No route matched')
+        ctx = pipelineCalculateReferrer(ctx)
+        ctx = pipelineDetermineResultType(ctx)
+        commitToReactiveState(ctx)
+        await dispatchNextTick('notFound', { location: ctx.location, querystring: ctx.querystring })
+        return
+    }
+
+    // Phase 3: Check navigation guards (async, may have side effects)
+    ctx = await pipelineCheckGuards(ctx)
+
+    if (!ctx.canLeave) {
+        routerLogger.debug(' Navigation cancelled by beforeLeave guard')
+        // Revert browser history
+        if (typeof window !== 'undefined' && window.history) {
+            const fullPath = ctx.previousRoute.location + (ctx.previousRoute.querystring ? '?' + ctx.previousRoute.querystring : '')
+            // Check if we're in hash mode or history mode
+            if (ctx.location.startsWith('#')) {
+                window.location.hash = fullPath
+            } else {
+                window.history.pushState({}, '', fullPath)
+            }
+        }
+        return // Early exit
+    }
+
+    // Dispatch loading event
+    await dispatchNextTick('routeLoading', {
+        route: ctx.match.routeItem.path,
+        location: ctx.location,
+        querystring: ctx.querystring,
+        params: ctx.match.params
+    })
+
+    // Phase 4: Check route conditions (async)
+    ctx = await pipelineCheckConditions(ctx)
+
+    // Race condition check
+    if (ctx.loadingId !== loadingId) {
+        routerLogger.debug(' Pipeline cancelled (newer navigation)')
+        return
+    }
+
+    if (!ctx.conditionsPassed) {
+        routerLogger.debug(' Route conditions failed')
+        ctx = pipelineDetermineResultType(ctx)
+        commitToReactiveState(ctx)
+        await dispatchNextTick('conditionsFailed', {
+            route: ctx.match.routeItem.path,
+            location: ctx.location,
+            querystring: ctx.querystring,
+            params: ctx.match.params
+        })
+        return
+    }
+
+    // Phase 5: Branch - zone vs single component
+    if (ctx.match.routeItem.isZoneMode) {
+        // Zone route path
+        ctx = await pipelineLoadZoneComponents(ctx)
+
+        // Race condition check
+        if (ctx.resultType === 'cancelled') {
+            return
+        }
+
+        // Compute metadata and referrer
+        ctx = pipelineComposeBreadcrumbs(ctx)
+        ctx = pipelineComputeMetadata(ctx)
+        ctx = pipelineCalculateReferrer(ctx)
+
+        // Commit all state changes at once
+        commitToReactiveState(ctx)
+
+        // Dispatch success event
+        await dispatchNextTick('routeLoaded', {
+            route: ctx.match.routeItem.path,
+            location: ctx.location,
+            querystring: ctx.querystring,
+            params: ctx.match.params,
+            zones: Object.keys(ctx.zoneComponents)
+        })
+    } else {
+        // Single component route path
+        ctx = await pipelineLoadComponent(ctx)
+
+        // Race condition check
+        if (ctx.resultType === 'cancelled') {
+            return
+        }
+
+        // Compute metadata and referrer
+        ctx = pipelineComposeBreadcrumbs(ctx)
+        ctx = pipelineComputeMetadata(ctx)
+        ctx = pipelineCalculateReferrer(ctx)
+
+        // Special case: shouldDisplayLoadingOnRouteLoad
+        if (ctx.shouldDisplayLoadingOnRouteLoad && ctx.loadingComponent) {
+            ctx.shouldWaitForData = true
+
+            // Commit first (so component can mount)
+            commitToReactiveState(ctx)
+
+            // Start loading indicator
+            startRouteLoading(true)
+
+            // Wait for hideLoading() signal
+            await waitForRouteReady()
+
+            // Update loading state
+            untrack(() => {
+                isWaitingForData = false
+            })
+        } else {
+            // Normal path: commit all at once
+            commitToReactiveState(ctx)
+        }
+
+        // Dispatch success event
+        await dispatchNextTick('routeLoaded', {
+            route: ctx.match.routeItem.path,
+            location: ctx.location,
+            querystring: ctx.querystring,
+            params: ctx.match.params,
+            component: ctx.component,
+            name: ctx.component?.name,
+            routeContext: ctx.match.routeItem.routeContext
+        })
+    }
+}
+
+// ============================================================================
+// END MAIN PIPELINE ORCHESTRATION
+// ============================================================================
+
+/**
+ * Main routing effect - NOW USES PIPELINE!
+ * Simplified: just read inputs and trigger pipeline
+ */
+$effect(() => {
+    const loc = location()
+    const qs = querystring()
+
+    // Early return if location hasn't actually changed AND we're not on a catch-all route
+    // If we're on a catch-all route (404), we need to allow navigation even if currentRoute matches
+    // This allows navigating back from 404 to the last valid route
+    // Use untrack() to prevent writes to isCurrentRouteCatchAll from triggering this effect
+    if (currentRoute === loc && currentQuerystring === qs && !untrack(() => isCurrentRouteCatchAll)) {
+        return
+    }
+
+    routerLogger.debug(' Location changed:', loc, qs)
+
+    // Read navigationContext to get route name (untracked to prevent re-runs on context changes)
+    const incomingContext = untrack(() => navigationContext() || {})
+
+    // Capture current route snapshot for referrer calculation
+    const currentRouteSnapshot = {
+        location: currentRoute,
+        querystring: currentQuerystring,
+        params: currentParams,
+        routeName: currentRouteName,
+        isCatchAll: isCurrentRouteCatchAll,
+        scrollX: typeof window !== 'undefined' ? window.scrollX : 0,
+        scrollY: typeof window !== 'undefined' ? window.scrollY : 0
+    }
+
+    // Run pipeline asynchronously
+    runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot)
+})
 
 // Effect to handle scroll restoration
 $effect(() => {
@@ -419,446 +1048,47 @@ $effect(() => {
 
 // Effect to restore scroll after component updates
 $effect(() => {
-    if (restoreScrollState && component) {
-        restoreScroll(previousScrollState)
-    }
-})
+    routerLogger.debug(' Scroll effect triggered - restoreScrollState:', restoreScrollState, 'component:', !!component)
+    if (component) {
+        // Check if navigationContext has scroll behavior override
+        const navContext = untrack(() => navigationContext())
+        const scrollBehavior = navContext?.__scrollBehavior
 
-// Main routing effect - watches location changes
-$effect(() => {
-    // Create a location object from the shared state
-    const newLoc = {
-        location: location(),
-        querystring: querystring()
-    }
+        routerLogger.debug(' Scroll behavior:', scrollBehavior, 'navigationContext:', navContext)
 
-    // Early return if location hasn't actually changed
-    // This prevents unnecessary effect re-runs
-    if (lastLoc && lastLoc.location === newLoc.location && lastLoc.querystring === newLoc.querystring) {
-        return
-    }
-
-    // Read navigationContext at the very beginning, before any writes
-    // This must happen BEFORE we call setNavigationContext() anywhere
-    const incomingContext = untrack(() => navigationContext() || {})
-    const incomingRouteName = incomingContext._routeName || null
-
-    // Inject referrer SYNCHRONOUSLY before async routing logic
-    // This ensures components see referrer as soon as possible
-    //
-    // TIMING NOTE: On the first navigation after a referrer is updated, component $effects
-    // may run twice: once when location changes (referrer not yet injected), and once when
-    // navigationContext changes (referrer now injected). This is expected behavior and doesn't
-    // affect functionality - the UI will render correctly on the second run. Subsequent
-    // navigations will be smooth with single $effect runs since referrer already exists.
-    //
-    // This happens because:
-    // 1. location() changes → triggers all dependent $effects (including component $effects)
-    // 2. This $effect runs and injects referrer into navigationContext
-    // 3. navigationContext change → triggers component $effects again
-    //
-    // We inject here (in Router's $effect) rather than in navigate() because we need access
-    // to currentRouteInfo which is only maintained in Router.svelte. Moving this to navigate()
-    // would require exposing internal routing state globally.
-    const includeReferrer = getIncludeReferrer()
-    if (includeReferrer === 'always' && currentRouteInfo.location) {
-        // Only update if referrer actually changed (compare with last injected)
-        const needsUpdate = !lastInjectedReferrer ||
-            lastInjectedReferrer.location !== currentRouteInfo.location ||
-            lastInjectedReferrer.querystring !== currentRouteInfo.querystring ||
-            JSON.stringify(lastInjectedReferrer.params) !== JSON.stringify(currentRouteInfo.params) ||
-            lastInjectedReferrer.routeName !== currentRouteInfo.routeName
-
-        if (needsUpdate) {
-            // Create referrer object from CURRENT route (the one we're leaving)
-            const newReferrer = {
-                location: currentRouteInfo.location,
-                querystring: currentRouteInfo.querystring,
-                params: currentRouteInfo.params,
-                routeName: currentRouteInfo.routeName
-            }
-
-            // Track what we're injecting
-            lastInjectedReferrer = newReferrer
-
-            // Inject synchronously wrapped in untrack() to avoid creating reactive dependencies
-            untrack(() => setNavigationContext({
-                ...incomingContext,  // Preserve all existing context
-                referrer: newReferrer
-            }))
-        }
-    }
-
-    // Run routing logic
-    ;(async () => {
-        // Run beforeLeave guards if we're changing routes
-        if (currentLocation && currentLocation !== newLoc.location) {
-            const canLeave = await runBeforeLeaveGuards({
-                from: currentLocation,
-                to: newLoc.location,
-                params: untrack(() => routeParams()),
-                querystring: untrack(() => querystring())
-            })
-
-            if (!canLeave) {
-                // Navigation cancelled - revert to current location
-                // We need to restore the browser history state with the original querystring
-                if (typeof window !== 'undefined' && window.history) {
-                    // Build the full URL with the original querystring
-                    const fullPath = currentLocation + (currentQuerystring ? '?' + currentQuerystring : '')
-
-                    // Push the previous location back to history
-                    const hashMode = location().startsWith('#')
-                    if (hashMode) {
-                        window.location.hash = fullPath
-                    } else {
-                        window.history.pushState({}, '', fullPath)
-                    }
-                }
-                return
-            }
-        }
-
-        // Update current location and querystring
-        currentLocation = newLoc.location
-        currentQuerystring = newLoc.querystring
-        lastLoc = newLoc
-
-        // Find a route matching the location
-        let i = 0
-        while (i < routesList.length) {
-            const match = routesList[i].match(newLoc.location)
-            if (!match) {
-                i++
-                continue
-            }
-
-            const detail = {
-                route: routesList[i].path,
-                location: newLoc.location,
-                querystring: newLoc.querystring,
-                routeContext: routesList[i].routeContext,
-                params: (match && typeof match == 'object' && Object.keys(match).length) ? match : null
-            }
-
-            // Fire onNotFound if this is the catch-all route (only once per location)
-            if (routesList[i].path === '*' && onNotFound && lastNotFoundLocation !== newLoc.location) {
-                lastNotFoundLocation = newLoc.location
-
-                // Auto-inject navigationContext with referrer info for "Go Back" functionality
-                // Only update if referrer actually changed (compare with last injected)
-                const needsUpdate = !lastInjectedReferrer ||
-                    lastInjectedReferrer.location !== currentRouteInfo.location ||
-                    lastInjectedReferrer.querystring !== currentRouteInfo.querystring ||
-                    JSON.stringify(lastInjectedReferrer.params) !== JSON.stringify(currentRouteInfo.params) ||
-                    lastInjectedReferrer.routeName !== currentRouteInfo.routeName
-
-                if (needsUpdate) {
-                    // Create referrer object
-                    const newReferrer = {
-                        location: currentRouteInfo.location,
-                        querystring: currentRouteInfo.querystring,
-                        params: currentRouteInfo.params,
-                        routeName: currentRouteInfo.routeName
-                    }
-
-                    // Track what we're injecting
-                    lastInjectedReferrer = newReferrer
-
-                    // Inject synchronously so component sees it immediately
-                    // Safe to do here because:
-                    // 1. We read incomingContext at top of effect with untrack()
-                    // 2. We have change detection (needsUpdate) to prevent unnecessary updates
-                    // 3. We have early return if location unchanged
-                    untrack(() => setNavigationContext({
-                        ...incomingContext,  // Preserve all existing context
-                        attemptedRoute: newLoc.location,
-                        attemptedQuerystring: newLoc.querystring,
-                        referrer: newReferrer
-                    }))
-                }
-
-                dispatchNextTick('notFound', {
-                    location: newLoc.location,
-                    querystring: newLoc.querystring
-                })
-            }
-
-            // Check if the route can be loaded - check composed conditions (includes parent conditions)
-            const composedConditions = composeConditions(routesList[i])
-            let allConditionsPassed = true
-
-            for (let condIdx = 0; condIdx < composedConditions.length; condIdx++) {
-                if (!(await composedConditions[condIdx](detail))) {
-                    allConditionsPassed = false
-                    break
-                }
-            }
-
-            if (!allConditionsPassed) {
-                // Don't display anything
-                component = null
-                componentObj = null
-                // Only clear if not already empty (use untrack to avoid dependencies)
-                if (untrack(() => Object.keys(componentrouteContext).length > 0)) {
-                    componentrouteContext = {}
-                    lastAssignedRouteContext = {}
-                }
-                isWaitingForData = false
-                updateRouteMetadata({})
-                // Trigger an event to notify the user, then exit
-                dispatchNextTick('conditionsFailed', detail)
-                return
-            }
-
-            // Update current route info for next navigation (for use as referrer on next nav)
-            // Use the routeName we captured at the beginning of the effect
-            // Note: Referrer injection happens BEFORE async block (synchronously)
-            if (routesList[i].path !== '*') {
-                currentRouteInfo = {
-                    location: newLoc.location,
-                    querystring: newLoc.querystring,
-                    params: detail.params || {},
-                    routeName: incomingRouteName
-                }
-            }
-
-            // Trigger an event to alert that we're loading the route
-            dispatchNextTick('routeLoading', Object.assign({}, detail))
-
-            // Check if this is a zone-based route
-            if (routesList[i].isZoneMode) {
-                // Zone-based route: load all zone components
-                const zoneComponents = {}
-                const zones = routesList[i].zones
-
-                // Load all zone components in parallel
-                await Promise.all(
-                    Object.entries(zones).map(async ([zoneName, zoneLoader]) => {
-                        const loaded = await zoneLoader()
-                        // Extract default export if present
-                        zoneComponents[zoneName] = {
-                            component: (loaded && loaded.default) || loaded,
-                            params: (match && typeof match == 'object' && Object.keys(match).length) ? match : null,
-                            props: routesList[i].props,
-                            routeContext: detail.routeContext || {}
-                        }
-                    })
-                )
-
-                // Check if we still want this route
-                if (untrack(() => newLoc != lastLoc)) {
-                    return
-                }
-
-                // Update zone components in shared state (all Router instances will see this)
-                // Use untrack to prevent this update from triggering the $effect again
-                untrack(() => setZoneComponents(zoneComponents))
-
-                // Set params from match
-                // Only update if params actually changed (avoid triggering reactivity with same values)
-                // Use untrack to prevent reading state from creating dependencies
-                if (match && typeof match == 'object' && Object.keys(match).length) {
-                    const paramsChanged = untrack(() => {
-                        const currentKeys = componentParams ? Object.keys(componentParams) : []
-                        const newKeys = Object.keys(match)
-
-                        // Check if params actually changed
-                        if (currentKeys.length !== newKeys.length) return true
-
-                        for (const key of newKeys) {
-                            if (componentParams[key] !== match[key]) {
-                                return true
-                            }
-                        }
-                        return false
-                    })
-
-                    if (paramsChanged) {
-                        componentParams = match
-                    }
-                } else if (untrack(() => componentParams !== null)) {
-                    componentParams = null
-                }
-
-                // Set static props and routeContext
-                // Only update if props reference changed (compare with last assigned value)
-                const newProps = routesList[i].props
-                if (lastAssignedProps !== newProps) {
-                    componentProps = newProps
-                    lastAssignedProps = newProps
-                }
-                // Only update routeContext if it's different (compare with last assigned value)
-                const newRouteContext = detail.routeContext || {}
-                if (lastAssignedRouteContext !== newRouteContext) {
-                    componentrouteContext = newRouteContext
-                    lastAssignedRouteContext = newRouteContext
-                }
-
-                // Update route metadata with composed breadcrumbs
-                const composedBreadcrumbs = composeBreadcrumbs(routesList[i])
-                console.log('[Router] Zone route - composedBreadcrumbs:', composedBreadcrumbs)
-                const metadata = {
-                    ...(detail.routeContext || {}),
-                    breadcrumbs: composedBreadcrumbs.length > 0 ? composedBreadcrumbs : (detail.routeContext?.breadcrumbs || [])
-                }
-                console.log('[Router] Zone route - metadata:', metadata)
-                updateRouteMetadata(metadata, newLoc.location, newLoc.querystring, match)
-
-                // Set params in shared state
-                setParams(componentParams)
-
-                // For non-zone Router instances, clear component
-                component = null
-                componentObj = null
-                loadingComponent = null
-                loadingParams = null
-
-                // Dispatch the routeLoaded event then exit
-                dispatchNextTick('routeLoaded', Object.assign({}, detail, {
-                    zones: Object.keys(zoneComponents),
-                    params: componentParams
-                }))
-                return
-            } else {
-                // Single component route (original behavior)
-                // Clear zone components when switching to single-component route
-                setZoneComponents({})
-
-                // Check if this route should display loading on route load
-                const shouldDisplayLoadingOnRouteLoad = routesList[i].shouldDisplayLoadingOnRouteLoad
-
-                // If there's a component to show while we're loading the route, display it
-                const obj = routesList[i].component
-                // Do not replace the component if we're loading the same one as before
-                if (componentObj != obj) {
-                    // Store loading component info if exists
-                    if (obj.loading) {
-                        loadingComponent = obj.loading
-                        loadingParams = obj.loadingParams
-
-                        // If NOT waiting for data, show loading component immediately
-                        if (!shouldDisplayLoadingOnRouteLoad) {
-                            component = obj.loading
-                            componentObj = obj
-                            componentParams = obj.loadingParams
-                            componentProps = {}
-
-                            // Trigger the routeLoaded event for the loading component
-                            dispatchNextTick('routeLoaded', Object.assign({}, detail, {
-                                component: component,
-                                name: component.name,
-                                params: componentParams
-                            }))
-                        }
-                    }
-                    else {
-                        loadingComponent = null
-                        loadingParams = null
-                        component = null
-                        componentObj = null
-                    }
-
-                    // Invoke the Promise to load the actual component
-                    const loaded = await obj()
-
-                    // Check if we still want this component
-                    if (untrack(() => newLoc != lastLoc)) {
-                        return
-                    }
-
-                    // If there is a "default" property, pick that
-                    component = (loaded && loaded.default) || loaded
-                    componentObj = obj
-                }
-            }
-
-            // Set componentParams, props and routeContext BEFORE waiting
-            // This allows the component to mount with correct params
-            // Only update if params actually changed (avoid triggering reactivity with same values)
-            // Use untrack to prevent reading state from creating dependencies
-            if (match && typeof match == 'object' && Object.keys(match).length) {
-                const paramsChanged = untrack(() => {
-                    const currentKeys = componentParams ? Object.keys(componentParams) : []
-                    const newKeys = Object.keys(match)
-
-                    // Check if params actually changed
-                    if (currentKeys.length !== newKeys.length) return true
-
-                    for (const key of newKeys) {
-                        if (componentParams[key] !== match[key]) {
-                            return true
-                        }
-                    }
-                    return false
-                })
-
-                if (paramsChanged) {
-                    componentParams = match
-                }
-            }
-            else if (untrack(() => componentParams !== null)) {
-                componentParams = null
-            }
-
-            // Set static props and routeContext
-            // Only update if props reference changed (compare with last assigned value)
-            const newProps = routesList[i].props
-            if (lastAssignedProps !== newProps) {
-                componentProps = newProps
-                lastAssignedProps = newProps
-            }
-            // Only update routeContext if it's different (compare with last assigned value)
-            const newRouteContext = detail.routeContext || {}
-            if (lastAssignedRouteContext !== newRouteContext) {
-                componentrouteContext = newRouteContext
-                lastAssignedRouteContext = newRouteContext
-            }
-
-            // If shouldDisplayLoadingOnRouteLoad is true, set waiting state and wait for component to signal ready
-            // Note: This only applies to single-component routes, not zone routes
-            if (!routesList[i].isZoneMode && routesList[i].shouldDisplayLoadingOnRouteLoad && loadingComponent) {
-                isWaitingForData = true
-                startRouteLoading(true) // true indicates this route has a custom loading component
-                await waitForRouteReady()
-                isWaitingForData = false
-            }
-
-            // Update route metadata with composed breadcrumbs
-            const composedBreadcrumbs = composeBreadcrumbs(routesList[i])
-            console.log('[Router] Regular route - composedBreadcrumbs:', composedBreadcrumbs)
-            const metadata = {
-                ...(detail.routeContext || {}),
-                breadcrumbs: composedBreadcrumbs.length > 0 ? composedBreadcrumbs : (detail.routeContext?.breadcrumbs || [])
-            }
-            console.log('[Router] Regular route - metadata:', metadata)
-            updateRouteMetadata(metadata, newLoc.location, newLoc.querystring, match)
-
-            // Dispatch the routeLoaded event then exit
-            dispatchNextTick('routeLoaded', Object.assign({}, detail, {
-                component: component,
-                name: component.name,
-                params: componentParams
-            })).then(() => {
-                setParams(componentParams)
-            })
+        if (scrollBehavior === 'none') {
+            // Don't scroll
+            routerLogger.debug(' Skipping scroll (behavior: none)')
             return
+        } else if (scrollBehavior === 'restore') {
+            // Restore from target scroll position in navigationContext (goBack scenario)
+            if (navContext?.__targetScrollX !== undefined && navContext?.__targetScrollY !== undefined) {
+                const targetState = {
+                    __svelte_spa_router_scrollX: navContext.__targetScrollX,
+                    __svelte_spa_router_scrollY: navContext.__targetScrollY
+                }
+                routerLogger.debug(' Restoring scroll from navigationContext target:', targetState)
+                restoreScroll(targetState)
+            } else {
+                // Fallback to history.state (if available)
+                const state = typeof window !== 'undefined' ? window.history.state : null
+                routerLogger.debug(' Restoring scroll from history.state:', state)
+                restoreScroll(state)
+            }
+        } else if (restoreScrollState) {
+            // Browser back/forward: restore from previousScrollState
+            routerLogger.debug(' Browser back/forward - previousScrollState:', previousScrollState)
+            restoreScroll(previousScrollState)
+        } else {
+            // Default programmatic navigation: scroll to top
+            routerLogger.debug(' Default programmatic navigation - scrolling to top')
+            restoreScroll(null)
         }
-
-        // If we're still here, there was no match (and no catch-all route)
-        // Note: onNotFound is already fired if catch-all route ('*') matched
-        component = null
-        componentObj = null
-        // Only clear if not already empty (use untrack to avoid dependencies)
-        if (untrack(() => Object.keys(componentrouteContext).length > 0)) {
-            componentrouteContext = {}
-            lastAssignedRouteContext = {}
-        }
-        isWaitingForData = false
-        setParams(undefined)
-        // untrack(() => updateRouteMetadata({}))
-    })()
+    }
 })
+
+// OLD loadRoute function removed - now using pipeline architecture
+// See runRoutingPipeline() above for the new implementation
 </script>
 
 {#if zone}
@@ -869,9 +1099,9 @@ $effect(() => {
         {@const zoneProps = zoneComponentData.props}
         {@const zonerouteContext = zoneComponentData.routeContext}
         {#if zoneParams}
-            <Comp routeParams={zoneParams} {onrouteEvent} routeContext={zonerouteContext} {...zoneProps} />
+            <Comp routeParams={zoneParams} routeContext={zonerouteContext} {...zoneProps} />
         {:else}
-            <Comp {onrouteEvent} routeContext={zonerouteContext} {...zoneProps} />
+            <Comp routeContext={zonerouteContext} {...zoneProps} />
         {/if}
     {/if}
 {:else if component}
@@ -890,10 +1120,10 @@ $effect(() => {
     <div style:display={isWaitingForData ? 'none' : 'block'}>
         {#if componentParams}
             {@const Comp = component}
-            <Comp routeParams={componentParams} {onrouteEvent} routeContext={componentrouteContext} {...componentProps} />
+            <Comp routeParams={componentParams} {...componentProps} />
         {:else}
             {@const Comp = component}
-            <Comp {onrouteEvent} routeContext={componentrouteContext} {...componentParams} />
+            <Comp {...componentProps} />
         {/if}
     </div>
 {/if}

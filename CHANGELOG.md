@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-rc10] - 2025-02-01
+
+### Added
+
+#### Debug Logging System
+- **Category-based debug logging** - Built-in debug logging to troubleshoot routing issues during development
+  - **`setDebugLoggingEnabled()` function** - Enable/disable debug logging with a single call
+    - Simple on/off control - no complex configuration needed
+    - Disabled by default to keep production consoles clean
+    - Example: `setDebugLoggingEnabled(import.meta.env.DEV)`
+  - **`getDebugLoggingEnabled()` function** - Check current debug logging state
+  - **Color-coded console output** - Easy visual distinction between log categories
+    - `[Router]` logs in orange (#ff3e00) - Route matching, component loading, guard execution, metadata updates
+    - `[Router:Utils]` logs in green (#10b981) - Navigation functions (push, pop, replace, goBack), scroll restoration
+  - **Multiple log levels** - debug, info, warn, error for different severity
+  - **Zero overhead when disabled** - If checks can be eliminated by bundlers in production
+  - **Internal architecture** - Generic logging utility (`src/lib/internal/logging.js`) not exposed to users
+    - `createLogger(category, prefix, color)` factory function
+    - `enableLoggingCategory()` / `disableLoggingCategory()` for granular control
+    - Logger instances: `routerLogger`, `utilsLogger`
+  - **Configuration warnings unaffected** - Critical configuration errors always show regardless of debug setting
+  - **Example output**:
+    ```
+    [Router] Running pipeline for: /document/123
+    [Router] Route loaded successfully: /document/:id
+    [Router:Utils] Called - navigationContext: { source: 'menu' }
+    [Router] Scroll effect triggered - restoreScrollState: true
+    ```
+  - **TypeScript support** - Full type definitions with comprehensive JSDoc
+  - Package export: `@keenmate/svelte-spa-router/utils` (setDebugLoggingEnabled, getDebugLoggingEnabled)
+
 ## [5.0.0-rc09] - 2025-01-30
 
 ### Added

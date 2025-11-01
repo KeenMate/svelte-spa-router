@@ -1,5 +1,5 @@
 <script>
-import { push, navigationContext } from '@keenmate/svelte-spa-router/utils'
+import { push, navigationContext, goBack } from '@keenmate/svelte-spa-router/utils'
 import { user } from '../stores/userStore.svelte.js'
 
 const currentUser = $derived(user())
@@ -20,8 +20,14 @@ const hasReturnPath = $derived(
     (navContext?.returnTo && navContext.returnTo !== '/')
 )
 
-function goBack() {
-    push(returnUrl)
+function handleGoBack() {
+    // If we have a referrer, use the built-in goBack() which restores scroll position
+    if (referrer?.location) {
+        goBack()
+    } else {
+        // Fallback to manual returnTo path (no scroll restoration since no referrer)
+        push(returnUrl)
+    }
 }
 
 function goHome() {
@@ -54,7 +60,7 @@ function goHome() {
 
     <div class="actions">
         {#if hasReturnPath}
-        <button onclick={goBack} class="btn-secondary">
+        <button onclick={handleGoBack} class="btn-secondary">
             ← Go Back
         </button>
         {/if}

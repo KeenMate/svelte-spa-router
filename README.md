@@ -35,6 +35,58 @@ npm install @keenmate/svelte-spa-router
 
 > **⚠️ Important:** This package requires **Node.js 22 or higher** for production builds. Node.js 20 has compatibility issues with Svelte 5 that may cause runtime errors like "link is not defined" in production builds. Make sure your build environment (CI/CD, Docker, etc.) uses Node 22+.
 
+## Debug Logging
+
+The router includes a built-in debug logging system to help troubleshoot routing issues during development.
+
+### Enabling Debug Logs
+
+```javascript
+// main.js
+import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+
+// Enable debug logs in development only
+if (import.meta.env.DEV) {
+  setDebugLoggingEnabled(true)
+}
+```
+
+### What Gets Logged
+
+When enabled, the router displays color-coded console logs for:
+
+- **Route Pipeline** (`[Router]` in orange) - Route matching, component loading, guard execution, metadata updates
+- **Navigation** (`[Router:Utils]` in green) - push(), pop(), replace(), goBack() calls
+- **Scroll Restoration** - Scroll position saving and restoration
+
+**Example output:**
+```
+[Router] Running pipeline for: /document/123
+[Router] Route loaded successfully: /document/:id
+[Router:Utils] Called - navigationContext: { source: 'menu' }
+[Router] Scroll effect triggered - restoreScrollState: true
+```
+
+### Filtering Logs
+
+To focus on specific router logs in your browser console, use the filter feature:
+
+- Chrome/Edge: Filter by `Router` in the Console filter box
+- Firefox: Filter by `Router` in the Console filter input
+- Safari: Filter by `Router` in the Filter field
+
+### Checking Debug State
+
+```javascript
+import { getDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+
+if (getDebugLoggingEnabled()) {
+  console.log('Router debug logging is active')
+}
+```
+
+Debug logs are **disabled by default** to keep production consoles clean.
+
 ## Key Features
 
 This router leverages Svelte 5's runes and provides:
@@ -73,6 +125,45 @@ The router now uses:
 - `$derived` for computed values
 
 This provides better performance and follows Svelte 5 best practices.
+
+## Architecture
+
+The router uses a **pipeline architecture** for clean separation of concerns:
+
+```mermaid
+flowchart TD
+    Start([User Navigation]) --> Effect[🔄 Reactive Effect<br/>Reads location state]
+    Effect --> Snapshot[📸 Capture Current Route<br/>for Referrer Tracking]
+    Snapshot --> Pipeline[⚙️ Async Pipeline<br/>No reactive tracking]
+
+    Pipeline --> Stage1[1️⃣ Find Matching Route<br/>Pattern matching with regexparam]
+    Stage1 --> Stage2[2️⃣ Load Component<br/>Async import & race protection]
+    Stage2 --> Stage3[3️⃣ Execute Guards<br/>Permissions & conditions]
+    Stage3 --> Stage4[4️⃣ Inject Referrer<br/>Track previous route]
+    Stage4 --> Stage5[5️⃣ Update Metadata<br/>Breadcrumbs & route data]
+
+    Stage5 --> Commit[💾 Commit to Reactive State<br/>Single write operation]
+
+    Commit --> Render[🎨 Svelte Renders<br/>Component with props]
+
+    Stage3 -->|Guard Failed| Unauthorized[❌ Unauthorized<br/>Redirect or 401]
+    Stage1 -->|No Match| NotFound[🔍 404 Not Found<br/>Catch-all route]
+
+    style Pipeline fill:#e3f2fd
+    style Commit fill:#c8e6c9
+    style Effect fill:#fff9c4
+    style Render fill:#f3e5f5
+    style Unauthorized fill:#ffccbc
+    style NotFound fill:#ffccbc
+```
+
+### Key Benefits
+
+- **No `untrack()` calls needed**: Pipeline runs outside reactive context
+- **Race condition safety**: Each navigation has a unique ID to prevent stale updates
+- **Single write point**: All state updates happen in one place (`commitToReactiveState`)
+- **Testable**: Pure functions for each pipeline stage
+- **Extensible**: Easy to add new stages or modify existing ones
 
 ## Routing Modes
 

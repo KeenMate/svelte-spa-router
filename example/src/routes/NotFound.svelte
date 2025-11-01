@@ -1,16 +1,14 @@
 <script>
-import {push, navigationContext, location} from '@keenmate/svelte-spa-router/utils'
+import {push, navigationContext, location, goBack} from '@keenmate/svelte-spa-router/utils'
 
 const navContext = $derived(navigationContext())
 const attemptedRoute = $derived(navContext?.attemptedRoute || location())
 const referrer = $derived(navContext?.referrer)
 const canGoBack = $derived(referrer?.location && referrer.location !== '/')
 
-function goBack() {
-    const returnPath = referrer?.location || '/'
-    const returnQuery = referrer?.querystring
-    const returnUrl = returnQuery ? `${returnPath}?${returnQuery}` : returnPath
-    push(returnUrl)  // Safe - explicit route, not history.back()
+// Use the imported goBack() which automatically restores scroll position
+function handleGoBack() {
+    goBack()
 }
 
 function goHome() {
@@ -27,7 +25,7 @@ function goHome() {
 
     <div class="actions">
         {#if canGoBack}
-            <button onclick={goBack} class="btn btn-primary">
+            <button onclick={handleGoBack} class="btn btn-primary">
                 ← Go Back to {referrer.location}
             </button>
         {/if}

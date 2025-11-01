@@ -1,5 +1,5 @@
 import { mount } from 'svelte'
-import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled, setIncludeReferrer } from '@keenmate/svelte-spa-router/utils'
+import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled, setIncludeReferrer, setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
 import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
 import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
 import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
@@ -19,6 +19,12 @@ setHierarchicalRoutesEnabled(true)
 // This automatically injects previous route info (location, querystring, params, routeName) into navigationContext
 // Options: 'never' (default), 'notfound' (only for 404), 'always' (all routes)
 setIncludeReferrer('always')
+
+// Enable debug logging in development mode
+// This displays color-coded console logs for route matching, navigation, and scroll restoration
+if (import.meta.env.DEV) {
+    setDebugLoggingEnabled(true)
+}
 
 // Configure querystring parsing for the whole app
 // Use 'auto' to automatically detect format, or specify 'comma' or 'repeat'
