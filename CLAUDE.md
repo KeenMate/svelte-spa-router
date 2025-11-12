@@ -52,7 +52,7 @@ The router is organized into several key modules:
 **utils.svelte.js** - Core routing utilities and state management
 - Contains all reactive state using `$state()` (locationState, paramsState, navigationContextState)
 - Dual-mode routing: hash-based (default) or history API
-- Configuration: `setHashRoutingEnabled()`, `setBasePath()`, `setParamReplacementPlaceholder()`, `setDebugLoggingEnabled()`
+- Configuration: `setHashRoutingEnabled()`, `setBasePath()`, `setParamReplacementPlaceholder()`
 - Navigation functions: `push()`, `pop()`, `replace()`, `goBack()` with multi-parameter signatures
 - `goBack()` - Navigate to referrer with automatic scroll position restoration (requires referrer tracking)
 - State accessors: `location()`, `querystring()`, `routeParams()`, `navigationContext()`, `loc()`
@@ -106,48 +106,68 @@ The router is organized into several key modules:
 - Optional route names for programmatic navigation
 - Coexists with flat route definitions
 
-**internal/logging.js** - Debug logging system (internal only, not exported)
-- Generic category-based logging utility
-- `createLogger(category, prefix, color)` - Factory function for creating logger instances
-- `enableLoggingCategory(category)` / `disableLoggingCategory(category)` - Toggle logging per category
-- Color-coded console output with CSS styling
-- Multiple log levels: debug, info, warn, error
-- Used by Router.svelte and utils.svelte.js for debug output
-- Public API exposed via utils.svelte.js: `setDebugLoggingEnabled()`, `getDebugLoggingEnabled()`
+**logger.ts** - Debug logging system using loglevel
+- Based on loglevel library (~1KB) with loglevel-plugin-prefix for timestamps
+- 12 hierarchical categories: ROUTER, ROUTER:NAVIGATION, ROUTER:SCROLL, ROUTER:GUARDS, ROUTER:CONDITIONS, ROUTER:HIERARCHY, ROUTER:PERMISSIONS, ROUTER:ROUTES, ROUTER:ZONES, ROUTER:METADATA, ROUTER:ERROR_HANDLER, ROUTER:FILTERS
+- Color-coded console output with timestamps: `[HH:MM:SS.mmm] [LEVEL] [CATEGORY]`
+- Public API: `enableLogging()`, `disableLogging()`, `setLogLevel()`, `enableCategory()`
+- Zero overhead when disabled (logs are no-ops at silent level)
+- Vendored dependencies in `src/lib/vendor/loglevel/` (consistent with @keenmate/web-multiselect)
 
 ### Debug Logging System
 
-The router includes a category-based debug logging system to help troubleshoot routing issues.
+The router uses loglevel for category-based debug logging to help troubleshoot routing issues.
 
 **Architecture:**
-- **Two-layer design**: Generic internal utility + simple public API
-- **Category-based filtering**: Separate categories for 'router' and 'router-utils'
-- **Color-coded output**: `[Router]` in orange (#ff3e00), `[Router:Utils]` in green (#10b981)
-- **Zero overhead when disabled**: If checks can be eliminated by bundlers in production
+- **Hierarchical categories**: ROUTER, ROUTER:NAVIGATION, ROUTER:SCROLL, etc.
+- **Color-coded output**: Blue (debug), Green (info), Orange (warn), Red (error)
+- **Timestamps**: Format `[HH:MM:SS.mmm] [LEVEL] [CATEGORY] message`
+- **Global + per-category control**: Set all loggers to same level or enable specific categories
 
 **Usage:**
 ```javascript
-// main.js - Enable debug logging
-import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+// main.js - Enable all debug logging
+import { enableLogging } from '@keenmate/svelte-spa-router/logger'
 
 if (import.meta.env.DEV) {
-  setDebugLoggingEnabled(true)
+  enableLogging()  // Sets all categories to debug level
 }
+
+// Or enable specific categories only
+import { disableLogging, enableCategory } from '@keenmate/svelte-spa-router/logger'
+
+disableLogging()  // Disable all
+enableCategory('ROUTER:SCROLL', 'debug')  // Enable only scroll logs
+enableCategory('ROUTER:NAVIGATION', 'info')  // Enable navigation at info level
+
+// Or set global level
+import { setLogLevel } from '@keenmate/svelte-spa-router/logger'
+setLogLevel('warn')  // Only show warnings and errors
 ```
 
+**Available Categories:**
+- **ROUTER** - Core routing pipeline, route matching (Router.svelte)
+- **ROUTER:NAVIGATION** - push, pop, replace, goBack (utils.svelte.js)
+- **ROUTER:SCROLL** - Scroll restoration (Router.svelte, utils.svelte.js)
+- **ROUTER:GUARDS** - Navigation guards (Router.svelte)
+- **ROUTER:CONDITIONS** - Route condition checks (Router.svelte)
+- **ROUTER:HIERARCHY** - Hierarchical route inheritance (Router.svelte)
+- **ROUTER:PERMISSIONS** - Permission checking (permissions.svelte.js)
+- **ROUTER:ROUTES** - Named routes and URL building (routes.svelte.js)
+- **ROUTER:ZONES** - Multi-zone routing (Router.svelte)
+- **ROUTER:METADATA** - Breadcrumbs and route metadata (route-metadata.svelte.js)
+- **ROUTER:ERROR_HANDLER** - Global error handling (error-handler.svelte.js, GlobalErrorHandler.svelte)
+- **ROUTER:FILTERS** - Filter parsing (filters.svelte.js)
+
 **Implementation Details:**
-- Internal utility in `src/lib/internal/logging.js` (not exposed to users)
-- Logger instances created in utils.svelte.js: `routerLogger`, `utilsLogger`
-- Router.svelte imports `routerLogger` and uses it for all debug output
-- utils.svelte.js uses `utilsLogger` for navigation and scroll restoration logs
-- Console.warn statements for configuration errors remain always visible
+- Logger instances exported from `src/lib/logger.ts`
+- Configuration warnings (console.warn/console.error) remain always visible
+- No build step required - distributed as TypeScript source
 
 **When NOT to use debug logging:**
 - Configuration warnings/errors should always show (use console.warn/console.error directly)
 - Critical errors that need immediate attention
 - Production-only telemetry (use proper logging service instead)
-
-### State Management with Runes
 
 **Critical:** This project uses Svelte 5 runes, NOT Svelte stores. Never use `writable()`, `readable()`, `derived()`, or `$subscribe()`.
 

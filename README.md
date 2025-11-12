@@ -43,47 +43,71 @@ The router includes a built-in debug logging system to help troubleshoot routing
 
 ```javascript
 // main.js
-import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+import { enableLogging } from '@keenmate/svelte-spa-router/logger'
 
 // Enable debug logs in development only
 if (import.meta.env.DEV) {
-  setDebugLoggingEnabled(true)
+  enableLogging()  // Enable all categories
 }
+
+// Or enable specific categories only
+import { disableLogging, enableCategory } from '@keenmate/svelte-spa-router/logger'
+
+disableLogging()  // Disable all first
+enableCategory('ROUTER:SCROLL', 'debug')  // Enable only scroll logs
+enableCategory('ROUTER:NAVIGATION', 'info')  // Enable navigation at info level
 ```
 
 ### What Gets Logged
 
-When enabled, the router displays color-coded console logs for:
+The router provides **12 hierarchical logging categories** for granular control:
 
-- **Route Pipeline** (`[Router]` in orange) - Route matching, component loading, guard execution, metadata updates
-- **Navigation** (`[Router:Utils]` in green) - push(), pop(), replace(), goBack() calls
-- **Scroll Restoration** - Scroll position saving and restoration
+| Category | Description |
+|----------|-------------|
+| `ROUTER` | Core routing pipeline, route matching |
+| `ROUTER:NAVIGATION` | push, pop, replace, goBack |
+| `ROUTER:SCROLL` | Scroll restoration |
+| `ROUTER:GUARDS` | Navigation guards |
+| `ROUTER:CONDITIONS` | Route condition checks |
+| `ROUTER:HIERARCHY` | Hierarchical route inheritance |
+| `ROUTER:PERMISSIONS` | Permission checking |
+| `ROUTER:ROUTES` | Named routes and URL building |
+| `ROUTER:ZONES` | Multi-zone routing |
+| `ROUTER:METADATA` | Breadcrumbs and route metadata |
+| `ROUTER:ERROR_HANDLER` | Global error handling |
+| `ROUTER:FILTERS` | Filter parsing |
 
 **Example output:**
 ```
-[Router] Running pipeline for: /document/123
-[Router] Route loaded successfully: /document/:id
-[Router:Utils] Called - navigationContext: { source: 'menu' }
-[Router] Scroll effect triggered - restoreScrollState: true
+[13:42:48.123] [DEBUG] [ROUTER] Running pipeline for: /document/123
+[13:42:48.234] [DEBUG] [ROUTER] Route loaded successfully: /document/:id
+[13:42:48.345] [DEBUG] [ROUTER:NAVIGATION] Called - navigationContext: { source: 'menu' }
+[13:42:48.456] [DEBUG] [ROUTER:SCROLL] Scroll effect triggered - restoreScrollState: true
 ```
+
+### Advanced Logging Control
+
+```javascript
+import { setLogLevel, enableCategory } from '@keenmate/svelte-spa-router/logger'
+
+// Set global log level (affects all categories)
+setLogLevel('warn')  // Only show warnings and errors
+
+// Enable specific categories at different levels
+disableLogging()  // Start with all disabled
+enableCategory('ROUTER:SCROLL', 'debug')  // Debug scroll issues
+enableCategory('ROUTER:PERMISSIONS', 'info')  // Monitor permission checks
+```
+
+**Log Levels:** `trace`, `debug`, `info`, `warn`, `error`, `silent`
 
 ### Filtering Logs
 
-To focus on specific router logs in your browser console, use the filter feature:
+To focus on specific router logs in your browser console:
 
-- Chrome/Edge: Filter by `Router` in the Console filter box
-- Firefox: Filter by `Router` in the Console filter input
-- Safari: Filter by `Router` in the Filter field
-
-### Checking Debug State
-
-```javascript
-import { getDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
-
-if (getDebugLoggingEnabled()) {
-  console.log('Router debug logging is active')
-}
-```
+- Filter by `ROUTER` to see all router logs
+- Filter by `ROUTER:SCROLL` to see only scroll-related logs
+- Filter by `[ERROR]` to see only errors
 
 Debug logs are **disabled by default** to keep production consoles clean.
 

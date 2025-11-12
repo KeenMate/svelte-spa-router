@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-rc11] - 2025-02-01
+
+### Changed
+
+#### BREAKING: Logging System Migration to loglevel
+- **Migrated from custom logging to loglevel library** (~1KB) with hierarchical categories
+  - Consistent with `@keenmate/web-multiselect` logging implementation
+  - Uses vendored `loglevel` and `loglevel-plugin-prefix` libraries (ESM versions)
+  - **Breaking API change**: `setDebugLoggingEnabled()` replaced with new API
+    - Old: `import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'`
+    - New: `import { enableLogging, disableLogging, setLogLevel, enableCategory } from '@keenmate/svelte-spa-router/logger'`
+  - **12 hierarchical categories** for granular control:
+    - `ROUTER` - Core routing pipeline, route matching
+    - `ROUTER:NAVIGATION` - push, pop, replace, goBack
+    - `ROUTER:SCROLL` - Scroll restoration
+    - `ROUTER:GUARDS` - Navigation guards
+    - `ROUTER:CONDITIONS` - Route condition checks
+    - `ROUTER:HIERARCHY` - Hierarchical route inheritance
+    - `ROUTER:PERMISSIONS` - Permission checking
+    - `ROUTER:ROUTES` - Named routes and URL building
+    - `ROUTER:ZONES` - Multi-zone routing
+    - `ROUTER:METADATA` - Breadcrumbs and route metadata
+    - `ROUTER:ERROR_HANDLER` - Global error handling
+    - `ROUTER:FILTERS` - Filter parsing
+  - **Enhanced output format**: \`[HH:MM:SS.mmm] [LEVEL] [CATEGORY] message\`
+  - **Color-coded by log level**: Blue (debug), Green (info), Orange (warn), Red (error)
+  - **Per-category control**: Enable specific categories at different log levels
+    \`\`\`javascript
+    disableLogging()  // Disable all
+    enableCategory('ROUTER:SCROLL', 'debug')  // Enable only scroll logs
+    enableCategory('ROUTER:NAVIGATION', 'info')  // Navigation at info level
+    \`\`\`
+  - **Global level control**: \`setLogLevel('warn')\` to set all categories at once
+  - Removed \`src/lib/internal/logging.js\` (custom implementation)
+  - Added \`src/lib/logger.ts\` (loglevel-based implementation)
+  - Added \`src/lib/vendor/loglevel/\` with ESM library files
+
+### Fixed
+- Fixed ESM import error with loglevel library (\`Cannot set properties of undefined\`)
+  - Switched from UMD to ESM versions of vendored libraries
+  - Added wrapper files (\`index.js\`, \`prefix.js\`) for proper ES module imports
+
 ## [5.0.0-rc10] - 2025-02-01
 
 ### Added

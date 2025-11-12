@@ -1,3 +1,4 @@
+import { metadataLogger } from '../logger.ts'
 ﻿/**
  * Route metadata helpers for accessing title and breadcrumbs
  *
@@ -53,7 +54,7 @@ export function updateRouteMetadata(routeContext = {}, location = '', querystrin
 
     // Clear cache if navigating to a different base path (e.g., /documents/1 → /documents/2)
     if (currentBasePath && currentBasePath !== basePath && !location.startsWith(currentBasePath + '/')) {
-        console.log('[updateRouteMetadata] Base path changed from', currentBasePath, 'to', basePath, '- clearing cache')
+        metadataLogger.debug('[updateRouteMetadata] Base path changed from', currentBasePath, 'to', basePath, '- clearing cache')
         clearBreadcrumbCache()
     }
 
@@ -62,9 +63,9 @@ export function updateRouteMetadata(routeContext = {}, location = '', querystrin
         currentRouterouteContext = routeContext
         currentRouteKey = routeKey
         currentBasePath = basePath
-        console.log('[updateRouteMetadata] Route changed to:', routeKey)
+        metadataLogger.debug('[updateRouteMetadata] Route changed to:', routeKey)
     } else {
-        console.log('[updateRouteMetadata] Same route, ignoring update')
+        metadataLogger.debug('[updateRouteMetadata] Same route, ignoring update')
     }
 }
 
@@ -143,26 +144,26 @@ export function routerouteContext() {
 export function updateBreadcrumb(id, updates) {
     // Store the update in cache
     updatedBreadcrumbsCache.set(id, updates)
-    console.log('[updateBreadcrumb] Cached update for id:', id, 'updates:', updates)
+    metadataLogger.debug('[updateBreadcrumb] Cached update for id:', id, 'updates:', updates)
 
     // Get snapshot to work with plain values (not proxies)
     const currentContext = $state.snapshot(currentRouterouteContext)
     const breadcrumbs = [...(currentContext.breadcrumbs || [])]
     const index = breadcrumbs.findIndex(crumb => crumb.id === id)
-    console.log('[updateBreadcrumb] Found at index:', index)
+    metadataLogger.debug('[updateBreadcrumb] Found at index:', index)
 
     if (index !== -1) {
         breadcrumbs[index] = {
             ...breadcrumbs[index],
             ...updates
         }
-        console.log('[updateBreadcrumb] Updated breadcrumb to:', breadcrumbs[index])
+        metadataLogger.debug('[updateBreadcrumb] Updated breadcrumb to:', breadcrumbs[index])
         currentRouterouteContext = {
             ...currentContext,
             breadcrumbs
         }
     } else {
-        console.log('[updateBreadcrumb] Breadcrumb with id not found!')
+        metadataLogger.debug('[updateBreadcrumb] Breadcrumb with id not found!')
     }
 }
 
@@ -182,7 +183,7 @@ export function getUpdatedBreadcrumb(id) {
  * Called when navigating to a different route (not child routes)
  */
 export function clearBreadcrumbCache() {
-    console.log('[clearBreadcrumbCache] Clearing cache')
+    metadataLogger.debug('[clearBreadcrumbCache] Clearing cache')
     updatedBreadcrumbsCache.clear()
 }
 

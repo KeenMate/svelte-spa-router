@@ -26,9 +26,10 @@
 
 import { parse } from './parse-route.js'
 import { tick, untrack } from 'svelte'
-import { location, querystring, routeParams, setParams, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer, restoreScroll, getZoneComponent, setZoneComponents, routerLogger } from './utils.svelte.js'
+import { location, querystring, routeParams, setParams, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer, restoreScroll, getZoneComponent, setZoneComponents } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 import { updateRouteMetadata, getUpdatedBreadcrumb, startRouteLoading, waitForRouteReady } from './helpers/route-metadata.svelte.js'
+import { routerLogger, scrollLogger, guardsLogger, conditionsLogger, hierarchyLogger, zonesLogger } from './logger.ts'
 
 // Component props
 let {
@@ -177,7 +178,7 @@ if (routes instanceof Map) {
     })
 }
 
-routerLogger.debug(' Initialized with', routesList.length, 'routes')
+routerLogger.debug('Initialized with', routesList.length, 'routes')
 
 /**
  * Find parent route for hierarchical inheritance
@@ -226,7 +227,7 @@ function getRouteHierarchy(route) {
     while (current) {
         // Check for circular reference
         if (visited.has(current.path)) {
-            routerLogger.warn(' Circular route hierarchy detected for path:', current.path)
+            hierarchyLogger.warn('Circular route hierarchy detected for path:', current.path)
             break
         }
         visited.add(current.path)
@@ -423,7 +424,7 @@ function createPipelineContext(loc, qs, incomingContext, currentRouteSnapshot) {
  * Uses untrack() to prevent triggering the routing effect
  */
 function commitToReactiveState(ctx) {
-    routerLogger.debug(' Committing pipeline result:', ctx.resultType)
+    routerLogger.debug('Committing pipeline result:', ctx.resultType)
 
     // Use untrack to prevent triggering the effect
     untrack(() => {
@@ -541,11 +542,11 @@ function commitToReactiveState(ctx) {
 
             case 'cancelled':
                 // Race condition detected - do nothing
-                routerLogger.debug(' Commit cancelled (race condition)')
+                routerLogger.debug('Commit cancelled (race condition)')
                 break
 
             default:
-                routerLogger.warn(' Unknown result type:', ctx.resultType)
+                routerLogger.warn('Unknown result type:', ctx.resultType)
                 break
         }
     })
@@ -636,7 +637,7 @@ function pipelineCalculateReferrer(ctx) {
 
     if (isCatchAll && (includeReferrer === 'notfound' || includeReferrer === 'always') && hasReferrer) {
         // Catch-all route: inject referrer with attemptedRoute
-        routerLogger.debug(' Catch-all route - Injecting referrer:', ctx.previousRoute.location)
+        hierarchyLogger.debug('Catch-all route - Injecting referrer:', ctx.previousRoute.location)
         updatedContext = {
             ...updatedContext,
             attemptedRoute: ctx.location,
@@ -763,11 +764,11 @@ async function pipelineLoadComponent(ctx) {
     const loadedComponent = await componentLoader()
     const component = (loadedComponent && loadedComponent.default) || loadedComponent
 
-    routerLogger.debug(' Route loaded successfully:', routeItem.path)
+    routerLogger.debug('Route loaded successfully:', routeItem.path)
 
     // Check race condition
     if (ctx.loadingId !== loadingId) {
-        routerLogger.debug(' Component load cancelled (newer navigation)')
+        routerLogger.debug('Component load cancelled (newer navigation)')
         return { ...ctx, resultType: 'cancelled' }
     }
 
@@ -812,11 +813,11 @@ async function pipelineLoadZoneComponents(ctx) {
         })
     )
 
-    routerLogger.debug(' Zone components loaded:', Object.keys(zoneComponents))
+    zonesLogger.debug('Zone components loaded:', Object.keys(zoneComponents))
 
     // Check race condition
     if (ctx.loadingId !== loadingId) {
-        routerLogger.debug(' Zone load cancelled (newer navigation)')
+        zonesLogger.debug('Zone load cancelled (newer navigation)')
         return { ...ctx, resultType: 'cancelled' }
     }
 
@@ -841,7 +842,7 @@ async function pipelineLoadZoneComponents(ctx) {
  * This is the waterfall/pipeline approach
  */
 async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot) {
-    routerLogger.debug(' Running pipeline for:', loc)
+    routerLogger.debug('Running pipeline for:', loc)
 
     // Phase 1: Create pipeline context (plain JS object, not reactive)
     let ctx = createPipelineContext(loc, qs, incomingContext, currentRouteSnapshot)
@@ -851,7 +852,7 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
 
     // Early exit: No match (404)
     if (!ctx.match) {
-        routerLogger.debug(' No route matched')
+        routerLogger.debug('No route matched')
         ctx = pipelineCalculateReferrer(ctx)
         ctx = pipelineDetermineResultType(ctx)
         commitToReactiveState(ctx)
@@ -863,7 +864,7 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
     ctx = await pipelineCheckGuards(ctx)
 
     if (!ctx.canLeave) {
-        routerLogger.debug(' Navigation cancelled by beforeLeave guard')
+        guardsLogger.debug('Navigation cancelled by beforeLeave guard')
         // Revert browser history
         if (typeof window !== 'undefined' && window.history) {
             const fullPath = ctx.previousRoute.location + (ctx.previousRoute.querystring ? '?' + ctx.previousRoute.querystring : '')
@@ -890,12 +891,12 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
 
     // Race condition check
     if (ctx.loadingId !== loadingId) {
-        routerLogger.debug(' Pipeline cancelled (newer navigation)')
+        conditionsLogger.debug('Pipeline cancelled (newer navigation)')
         return
     }
 
     if (!ctx.conditionsPassed) {
-        routerLogger.debug(' Route conditions failed')
+        conditionsLogger.debug('Route conditions failed')
         ctx = pipelineDetermineResultType(ctx)
         commitToReactiveState(ctx)
         await dispatchNextTick('conditionsFailed', {
@@ -1002,7 +1003,7 @@ $effect(() => {
         return
     }
 
-    routerLogger.debug(' Location changed:', loc, qs)
+    routerLogger.debug('Location changed:', loc, qs)
 
     // Read navigationContext to get route name (untracked to prevent re-runs on context changes)
     const incomingContext = untrack(() => navigationContext() || {})
@@ -1048,17 +1049,17 @@ $effect(() => {
 
 // Effect to restore scroll after component updates
 $effect(() => {
-    routerLogger.debug(' Scroll effect triggered - restoreScrollState:', restoreScrollState, 'component:', !!component)
+    scrollLogger.debug('Scroll effect triggered - restoreScrollState:', restoreScrollState, 'component:', !!component)
     if (component) {
         // Check if navigationContext has scroll behavior override
         const navContext = untrack(() => navigationContext())
         const scrollBehavior = navContext?.__scrollBehavior
 
-        routerLogger.debug(' Scroll behavior:', scrollBehavior, 'navigationContext:', navContext)
+        scrollLogger.debug('Scroll behavior:', scrollBehavior, 'navigationContext:', navContext)
 
         if (scrollBehavior === 'none') {
             // Don't scroll
-            routerLogger.debug(' Skipping scroll (behavior: none)')
+            scrollLogger.debug('Skipping scroll (behavior: none)')
             return
         } else if (scrollBehavior === 'restore') {
             // Restore from target scroll position in navigationContext (goBack scenario)
@@ -1067,21 +1068,21 @@ $effect(() => {
                     __svelte_spa_router_scrollX: navContext.__targetScrollX,
                     __svelte_spa_router_scrollY: navContext.__targetScrollY
                 }
-                routerLogger.debug(' Restoring scroll from navigationContext target:', targetState)
+                scrollLogger.debug('Restoring scroll from navigationContext target:', targetState)
                 restoreScroll(targetState)
             } else {
                 // Fallback to history.state (if available)
                 const state = typeof window !== 'undefined' ? window.history.state : null
-                routerLogger.debug(' Restoring scroll from history.state:', state)
+                scrollLogger.debug('Restoring scroll from history.state:', state)
                 restoreScroll(state)
             }
         } else if (restoreScrollState) {
             // Browser back/forward: restore from previousScrollState
-            routerLogger.debug(' Browser back/forward - previousScrollState:', previousScrollState)
+            scrollLogger.debug('Browser back/forward - previousScrollState:', previousScrollState)
             restoreScroll(previousScrollState)
         } else {
             // Default programmatic navigation: scroll to top
-            routerLogger.debug(' Default programmatic navigation - scrolling to top')
+            scrollLogger.debug('Default programmatic navigation - scrolling to top')
             restoreScroll(null)
         }
     }

@@ -1,4 +1,5 @@
 <script>
+import { errorHandlerLogger } from '../logger.ts'
 /**
  * Global Error Handler Component
  * Catches all unhandled errors and executes recovery strategies
@@ -36,13 +37,13 @@ function handleError(event) {
 
     // Check if error should be ignored
     if (shouldIgnoreError(error)) {
-        console.debug('Ignoring error:', error.message)
+        errorHandlerLogger.debug('Ignoring error:', error.message)
         return
     }
 
     const errorInfo = createErrorInfo(error, event.type)
 
-    console.error('Global error caught:', error)
+    errorHandlerLogger.error('Global error caught:', error)
 
     // Store error in state
     setError(error, errorInfo)
@@ -54,7 +55,7 @@ function handleError(event) {
                 sessionErrors: errorState.sessionErrors,
             })
         } catch (err) {
-            console.error('Error in onError callback:', err)
+            errorHandlerLogger.error('Error in onError callback:', err)
         }
     }
 
@@ -83,12 +84,12 @@ function executeRecoveryStrategy(error, errorInfo) {
                     sessionErrors: errorState.sessionErrors,
                 }, helpers)
             } catch (err) {
-                console.error('Error in onRecover callback:', err)
+                errorHandlerLogger.error('Error in onRecover callback:', err)
                 // Fallback to navigateSafe
                 helpers.navigate(config.safeRoute)
             }
         } else {
-            console.warn('Custom strategy selected but no onRecover callback provided, falling back to navigateSafe')
+            errorHandlerLogger.warn('Custom strategy selected but no onRecover callback provided, falling back to navigateSafe')
             helpers.navigate(config.safeRoute)
         }
         return
@@ -118,7 +119,7 @@ function executeRecoveryStrategy(error, errorInfo) {
                 push(config.safeRoute)
                 clearError()
             } catch (err) {
-                console.error('Failed to navigate to safe route:', err)
+                errorHandlerLogger.error('Failed to navigate to safe route:', err)
                 config.showErrorComponent = true
             }
             break

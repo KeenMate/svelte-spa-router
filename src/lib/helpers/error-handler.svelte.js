@@ -1,3 +1,4 @@
+import { errorHandlerLogger } from '../logger.ts'
 /**
  * Global Error Handler for svelte-spa-router
  * Provides production-ready error handling with loop prevention and recovery strategies
@@ -108,7 +109,7 @@ export function getRestartHistory() {
         const history = sessionStorage.getItem(RESTART_KEY)
         return history ? JSON.parse(history) : []
     } catch (err) {
-        console.warn('Failed to read restart history:', err)
+        errorHandlerLogger.warn('Failed to read restart history:', err)
         return []
     }
 }
@@ -154,7 +155,7 @@ export function recordRestart() {
 
         sessionStorage.setItem(RESTART_KEY, JSON.stringify(recentRestarts))
     } catch (err) {
-        console.warn('Failed to record restart:', err)
+        errorHandlerLogger.warn('Failed to record restart:', err)
     }
 }
 
@@ -169,7 +170,7 @@ export function clearRestartHistory() {
     try {
         sessionStorage.removeItem(RESTART_KEY)
     } catch (err) {
-        console.warn('Failed to clear restart history:', err)
+        errorHandlerLogger.warn('Failed to clear restart history:', err)
     }
 }
 
@@ -178,7 +179,7 @@ export function clearRestartHistory() {
  */
 export function restart() {
     if (!canRestart()) {
-        console.error('Restart prevented: too many restarts in time window')
+        errorHandlerLogger.error('Restart prevented: too many restarts in time window')
         return false
     }
 

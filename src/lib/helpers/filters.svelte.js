@@ -1,3 +1,4 @@
+import { filtersLogger } from '../logger.ts'
 /**
  * Flexible filters system for querystring-based filtering
  *
@@ -131,7 +132,7 @@ export function filters() {
             try {
                 return config.parse(filterString)
             } catch (e) {
-                console.error('Error parsing filters:', e)
+                filtersLogger.error('Error parsing filters:', e)
                 return {}
             }
         }

@@ -1,5 +1,6 @@
 import { mount } from 'svelte'
-import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled, setIncludeReferrer, setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
+import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled, setIncludeReferrer } from '@keenmate/svelte-spa-router/utils'
+import { enableLogging } from '@keenmate/svelte-spa-router/logger'
 import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
 import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
 import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
@@ -23,7 +24,7 @@ setIncludeReferrer('always')
 // Enable debug logging in development mode
 // This displays color-coded console logs for route matching, navigation, and scroll restoration
 if (import.meta.env.DEV) {
-    setDebugLoggingEnabled(true)
+    enableLogging()
 }
 
 // Configure querystring parsing for the whole app
@@ -69,12 +70,13 @@ configureFilters({
 configureGlobalErrorHandler({
     // Log errors to console (you could send to Sentry, LogRocket, etc.)
     onError: (error, errorInfo, context) => {
-        console.error('Global error logged:', error)
-        console.log('Error info:', errorInfo)
-        console.log('Session errors:', context.sessionErrors.length)
-
-        // Example: Send to monitoring service
-        // Sentry.captureException(error, { extra: errorInfo })
+        console.error('Global error caught:', {
+            error,
+            errorInfo,
+            sessionErrorCount: context.sessionErrors.length,
+            // Example: Send to monitoring service
+            // Sentry.captureException(error, { extra: errorInfo })
+        })
     },
 
     // Recovery strategy

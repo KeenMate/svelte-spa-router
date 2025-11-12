@@ -1,7 +1,7 @@
 ﻿import { tick } from 'svelte'
 import { joinPaths } from './helpers/url-helpers.svelte.js'
 import { buildUrl, hasRoute } from './routes.svelte.js'
-import { createLogger, enableLoggingCategory, disableLoggingCategory } from './internal/logging.js'
+import { navigationLogger, scrollLogger } from './logger.ts'
 
 /**
  * @typedef {Object} Location
@@ -14,7 +14,6 @@ let hashRoutingEnabled = $state(true)
 let basePath = $state('/')
 let paramReplacementPlaceholder = $state('N-A')
 let hierarchicalRoutesEnabled = $state(false)
-let debugLoggingEnabled = $state(false)
 
 /**
  * Enable or disable hash-based routing
@@ -110,42 +109,6 @@ export function getHierarchicalRoutesEnabled() {
     return hierarchicalRoutesEnabled
 }
 
-/**
- * Enable or disable debug logging for the router
- * When enabled, displays color-coded console logs for:
- * - Route matching and pipeline execution
- * - Navigation (push, pop, replace, goBack)
- * - Scroll restoration
- *
- * @param {boolean} value - true to enable debug logs, false to disable
- *
- * @example
- * import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
- *
- * // Enable debug logs in development
- * setDebugLoggingEnabled(true)
- */
-export function setDebugLoggingEnabled(value) {
-    debugLoggingEnabled = value
-
-    if (value) {
-        enableLoggingCategory('router')
-        enableLoggingCategory('router-utils')
-    } else {
-        disableLoggingCategory('router')
-        disableLoggingCategory('router-utils')
-    }
-}
-
-/**
- * Check if debug logging is currently enabled
- *
- * @returns {boolean} true if debug logging is enabled
- */
-export function getDebugLoggingEnabled() {
-    return debugLoggingEnabled
-}
-
 // Referrer tracking configuration
 let includeReferrerState = $state('never')
 
@@ -172,10 +135,6 @@ export function getIncludeReferrer() {
     return includeReferrerState
 }
 
-// Create logger instances for router components
-// These are used internally to provide color-coded debug logging
-export const routerLogger = createLogger('router', '[Router]', '#ff3e00')
-export const utilsLogger = createLogger('router-utils', '[Router:Utils]', '#10b981')
 
 /**
  * Returns the current location from the hash or pathname.
@@ -571,11 +530,11 @@ export async function push(location, param2, param3, param4, param5) {
 
     // Inject scroll behavior into context if specified
     if (scrollOptions.scrollBehavior) {
-        utilsLogger.debug('Injecting scroll behavior into context:', scrollOptions.scrollBehavior)
+        navigationLogger.debug('Injecting scroll behavior into context:', scrollOptions.scrollBehavior)
         context.__scrollBehavior = scrollOptions.scrollBehavior
     }
 
-    utilsLogger.debug('Navigating to:', href, 'with context:', context)
+    navigationLogger.debug('Navigating to:', href, 'with context:', context)
 
     // Execute this code when the current call stack is complete
     await tick()
@@ -608,17 +567,17 @@ export async function pop() {
 export async function goBack() {
     const navContext = navigationContext()
 
-    utilsLogger.debug('Called - navigationContext:', navContext)
+    navigationLogger.debug('Called - navigationContext:', navContext)
 
     if (!navContext?.referrer) {
-        utilsLogger.warn('No referrer available for goBack(), using browser back')
+        navigationLogger.warn('No referrer available for goBack(), using browser back')
         return pop()
     }
 
     const ref = navContext.referrer
     const targetUrl = ref.location + (ref.querystring ? '?' + ref.querystring : '')
 
-    utilsLogger.debug('Navigating to referrer:', targetUrl, 'with scroll position:', { scrollX: ref.scrollX, scrollY: ref.scrollY })
+    navigationLogger.debug('Navigating to referrer:', targetUrl, 'with scroll position:', { scrollX: ref.scrollX, scrollY: ref.scrollY })
 
     // Pass scroll position in the navigation context so it can be restored
     const contextWithScroll = {
@@ -703,11 +662,11 @@ export async function replace(location, param2, param3, param4, param5) {
 
     // Inject scroll behavior into context if specified
     if (scrollOptions.scrollBehavior) {
-        utilsLogger.debug('Injecting scroll behavior into context:', scrollOptions.scrollBehavior)
+        navigationLogger.debug('Injecting scroll behavior into context:', scrollOptions.scrollBehavior)
         context.__scrollBehavior = scrollOptions.scrollBehavior
     }
 
-    utilsLogger.debug('Navigating to:', href, 'with context:', context)
+    navigationLogger.debug('Navigating to:', href, 'with context:', context)
 
     // Execute this code when the current call stack is complete
     await tick()
@@ -779,11 +738,11 @@ export function restoreScroll(state) {
     if (state) {
         const scrollX = state.__svelte_spa_router_scrollX
         const scrollY = state.__svelte_spa_router_scrollY
-        utilsLogger.debug('Restoring scroll to:', { scrollX, scrollY })
+        scrollLogger.debug('Restoring scroll to:', { scrollX, scrollY })
         window.scrollTo(scrollX, scrollY)
     }
     else {
-        utilsLogger.debug('No state provided, scrolling to top')
+        scrollLogger.debug('No state provided, scrolling to top')
         // Otherwise this is a forward navigation: scroll to top
         window.scrollTo(0, 0)
     }
