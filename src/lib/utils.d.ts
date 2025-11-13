@@ -97,45 +97,6 @@ export function setParamReplacementPlaceholder(value: string): void;
 export function getParamReplacementPlaceholder(): string;
 
 /**
- * Enable or disable debug logging for the router
- * When enabled, displays color-coded console logs for:
- * - Route matching and pipeline execution
- * - Navigation (push, pop, replace, goBack)
- * - Scroll restoration
- *
- * Logs are disabled by default for clean production consoles.
- *
- * @param value - true to enable debug logs, false to disable
- *
- * @example
- * ```typescript
- * import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
- *
- * // Enable debug logs in development
- * if (import.meta.env.DEV) {
- *   setDebugLoggingEnabled(true)
- * }
- * ```
- */
-export function setDebugLoggingEnabled(value: boolean): void;
-
-/**
- * Check if debug logging is currently enabled
- *
- * @returns true if debug logging is enabled
- *
- * @example
- * ```typescript
- * import { getDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'
- *
- * if (getDebugLoggingEnabled()) {
- *   console.log('Debug mode is active')
- * }
- * ```
- */
-export function getDebugLoggingEnabled(): boolean;
-
-/**
  * Get the current location path
  *
  * @returns Current location (e.g., '/about')

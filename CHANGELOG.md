@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-rc12] - 2025-02-12
+
+### Fixed
+- **Critical:** Fixed missing TypeScript source files in published npm package
+  - Added `src/lib/**/*.ts` to `package.json` files field
+  - Fixes build error: `Rollup failed to resolve import "@keenmate/svelte-spa-router/logger"`
+  - The `logger.ts` file was missing from rc11 npm package, breaking production builds
+- Removed deprecated `setDebugLoggingEnabled()` and `getDebugLoggingEnabled()` type declarations from `utils.d.ts`
+  - These functions were removed in rc11 but TypeScript definitions remained, causing confusion
+  - Use new API: `import { enableLogging, disableLogging } from '@keenmate/svelte-spa-router/logger'`
+- Added missing TypeScript definitions for `helpers/hierarchy` module
+  - Created `src/lib/helpers/hierarchy.d.ts` with full type support for `createHierarchy()`
+  - Includes `HierarchyNode`, `HierarchyTree`, and `CreateHierarchyOptions` interfaces
+- Fixed logger type resolution in package.json exports
+  - Changed `"types": "./src/lib/logger.d.ts"` to `"types": "./src/lib/logger.ts"`
+  - TypeScript now correctly resolves types from the source file
+
 ## [5.0.0-rc11] - 2025-02-01
 
 ### Changed
