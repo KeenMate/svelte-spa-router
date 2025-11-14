@@ -7,8 +7,6 @@ import { metadataLogger } from '../logger.ts'
  * It also provides loading control for routes that need to fetch data.
  */
 
-import { untrack } from 'svelte'
-
 /**
  * Current route metadata state
  * Single source of truth - other values derive from this

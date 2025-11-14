@@ -53,9 +53,9 @@ let {
     /**
      * Event handlers
      */
-    onrouteLoading,
-    onrouteLoaded,
-    onconditionsFailed,
+    onRouteLoading,
+    onRouteLoaded,
+    onConditionsFailed,
     onNotFound
 } = $props()
 
@@ -305,12 +305,12 @@ let zoneComponentData = $derived(zone ? getZoneComponent(zone) : null)
 
 // Dispatch helper
 function dispatchEvent(name, detail) {
-    if (name === 'routeLoading' && onrouteLoading) {
-        onrouteLoading({ detail })
-    } else if (name === 'routeLoaded' && onrouteLoaded) {
-        onrouteLoaded({ detail })
-    } else if (name === 'conditionsFailed' && onconditionsFailed) {
-        onconditionsFailed({ detail })
+    if (name === 'routeLoading' && onRouteLoading) {
+        onRouteLoading({ detail })
+    } else if (name === 'routeLoaded' && onRouteLoaded) {
+        onRouteLoaded({ detail })
+    } else if (name === 'conditionsFailed' && onConditionsFailed) {
+        onConditionsFailed({ detail })
     } else if (name === 'notFound' && onNotFound) {
         onNotFound({ detail })
     }

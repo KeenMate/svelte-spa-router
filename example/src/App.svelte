@@ -357,21 +357,21 @@ function handleToggleUser() {
         <div class="zone-layout">
             <aside class="zone-sidebar">
                 <div class="zone-header">Zone: "sidebar"</div>
-                <Router routes={allRoutes} zone="sidebar" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="sidebar" onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </aside>
             <main class="zone-main">
                 <div class="zone-header">Zone: "main"</div>
-                <Router routes={allRoutes} zone="main" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="main" onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </main>
             <aside class="zone-panel">
                 <div class="zone-header">Zone: "panel"</div>
-                <Router routes={allRoutes} zone="panel" onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="panel" onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
             </aside>
         </div>
     {:else}
         <!-- Single component layout -->
         <main>
-            <Router routes={allRoutes} onrouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+            <Router routes={allRoutes} onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
         </main>
     {/if}
 

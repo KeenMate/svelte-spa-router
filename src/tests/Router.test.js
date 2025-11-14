@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/svelte'
-import { tick, flushSync } from 'svelte'
+import { tick } from 'svelte'
 import Router from '../lib/Router.svelte'
-import { push, location } from '../lib/utils.svelte.js'
+import { push } from '../lib/utils.svelte.js'
 import Home from './components/Home.svelte'
 import About from './components/About.svelte'
 import User from './components/User.svelte'
@@ -94,23 +94,23 @@ describe('Router Component', () => {
       '/about': About
     }
 
-    const onrouteLoaded = vi.fn()
-    const onrouteLoading = vi.fn()
+    const onRouteLoaded = vi.fn()
+    const onRouteLoading = vi.fn()
 
     render(Router, {
       routes,
-      onrouteLoaded: (e) => onrouteLoaded(e.detail),
-      onrouteLoading: (e) => onrouteLoading(e.detail)
+      onRouteLoaded: (e) => onRouteLoaded(e.detail),
+      onRouteLoading: (e) => onRouteLoading(e.detail)
     })
     await waitForRouter()
 
     await push('/about')
     await waitForRouter()
 
-    expect(onrouteLoading).toHaveBeenCalled()
-    expect(onrouteLoaded).toHaveBeenCalled()
+    expect(onRouteLoading).toHaveBeenCalled()
+    expect(onRouteLoaded).toHaveBeenCalled()
 
-    const loadedEvent = onrouteLoaded.mock.calls[0][0]
+    const loadedEvent = onRouteLoaded.mock.calls[0][0]
     expect(loadedEvent.location).toBe('/about')
   })
 

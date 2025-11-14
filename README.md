@@ -134,9 +134,9 @@ import { routeParams} from '@keenmate/svelte-spa-router'
 **Example:**
 ```svelte
 <Router {routes}
-  onrouteLoading={handleLoading}
-  onrouteLoaded={handleLoaded}
-  onconditionsFailed={handleFailed}
+  onRouteLoading={handleLoading}
+  onRouteLoaded={handleLoaded}
+  onConditionsFailed={handleFailed}
 />
 ```
 
@@ -1509,9 +1509,9 @@ const routes = {
 ```svelte
 <Router
     {routes}
-    onrouteLoading={(e) => console.log('Loading:', e.detail)}
-    onrouteLoaded={(e) => console.log('Loaded:', e.detail)}
-    onconditionsFailed={(e) => console.log('Failed:', e.detail)}
+    onRouteLoading={(e) => console.log('Loading:', e.detail)}
+    onRouteLoaded={(e) => console.log('Loaded:', e.detail)}
+    onConditionsFailed={(e) => console.log('Failed:', e.detail)}
 />
 ```
 

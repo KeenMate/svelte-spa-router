@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.0.0-rc12] - 2025-02-12
+## [5.0.0-rc12] - 2025-02-12 ✅ Published
 
 ### Fixed
 - **Critical:** Fixed missing TypeScript source files in published npm package

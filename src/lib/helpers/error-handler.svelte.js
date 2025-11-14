@@ -230,7 +230,7 @@ export function createErrorInfo(error, type = 'error') {
         // Add router location if available
         try {
             info.route = getLocation()
-        } catch (err) {
+        } catch {
             // Router might not be initialized yet
         }
     }

@@ -13,7 +13,7 @@ import { wrap } from '../wrap.js'
  *
  * @type {(user: any, requirements: any) => boolean}
  */
-let permissionChecker = (user, requirements) => {
+let permissionChecker = () => {
     // Default: always allow
     console.warn('No permission checker configured. All routes allowed by default.')
     return true

@@ -231,11 +231,30 @@ package: build ## Package for npm publication
 	@echo ""
 	@echo "Package created successfully!"
 
-publish-dry: package ## Dry run of npm publish (test without publishing)
+publish-dry: ## Dry run of npm publish (test without publishing)
+	@echo "Cleaning old package files and dist folders..."
+ifeq ($(DETECTED_OS),Windows)
+	@if exist *.tgz del /f /q *.tgz
+	@if exist dist rmdir /s /q dist
+else
+	@rm -f *.tgz
+	@rm -rf dist
+endif
+	@$(MAKE) build
 	@echo "Running npm publish --dry-run..."
 	$(NPM) publish --dry-run
+	@echo ""
+	@echo "Dry-run complete - Review the output above"
 
-publish: package ## Publish package to npm
+publish: ## Publish package to npm
+	@echo "Cleaning old package files and dist folders..."
+ifeq ($(DETECTED_OS),Windows)
+	@if exist *.tgz del /f /q *.tgz
+	@if exist dist rmdir /s /q dist
+else
+	@rm -f *.tgz
+	@rm -rf dist
+endif
 	@echo "WARNING: This will publish the package to npm registry!"
 ifeq ($(DETECTED_OS),Windows)
 	@echo Press Ctrl+C to cancel, or any key to continue...
@@ -244,6 +263,7 @@ else
 	@echo "Press Ctrl+C to cancel, or Enter to continue..."
 	@read -r dummy
 endif
+	@$(MAKE) build
 	@echo "Publishing to npm..."
 	$(NPM) publish
 	@echo ""

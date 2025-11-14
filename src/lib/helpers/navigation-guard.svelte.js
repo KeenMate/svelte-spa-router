@@ -136,7 +136,7 @@ export async function runBeforeLeaveGuards(context) {
  * ```
  */
 export function createDirtyCheckGuard(isDirtyFn, message = 'You have unsaved changes. Leave this page?') {
-    return async function beforeLeave(ctx) {
+    return async function beforeLeave() {
         if (isDirtyFn() && !confirm(message)) {
             throw new NavigationCancelledError()
         }

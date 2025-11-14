@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/svelte'
+import { render } from '@testing-library/svelte'
 import { tick } from 'svelte'
 import Router from '../lib/Router.svelte'
 import { push, setHierarchicalRoutesEnabled } from '../lib/utils.svelte.js'
@@ -8,7 +8,6 @@ import { createProtectedRoute, configurePermissions } from '../lib/helpers/permi
 import Home from './components/Home.svelte'
 import About from './components/About.svelte'
 import User from './components/User.svelte'
-import NotFound from './components/NotFound.svelte'
 
 describe('Hierarchical Routes', () => {
     beforeEach(() => {
@@ -348,7 +347,7 @@ describe('Hierarchical Routes', () => {
 
                 const parentCondition = vi.fn(() => false)  // Fails
                 const childCondition = vi.fn(() => true)
-                const onconditionsFailed = vi.fn()
+                const onConditionsFailed = vi.fn()
 
                 const routes = {
                     '/documents': createRoute({
@@ -363,7 +362,7 @@ describe('Hierarchical Routes', () => {
 
                 render(Router, {
                     routes,
-                    onconditionsFailed
+                    onConditionsFailed
                 })
                 await waitForRouter()
 
@@ -374,7 +373,7 @@ describe('Hierarchical Routes', () => {
                 expect(parentCondition).toHaveBeenCalled()
                 // Child condition should NOT run (fail fast)
                 expect(childCondition).not.toHaveBeenCalled()
-                expect(onconditionsFailed).toHaveBeenCalled()
+                expect(onConditionsFailed).toHaveBeenCalled()
             })
         })
 
@@ -417,7 +416,7 @@ describe('Hierarchical Routes', () => {
 
                 const checkFolderAccess = vi.fn(async () => false)  // Fails
                 const checkDocumentAccess = vi.fn(async () => true)
-                const onconditionsFailed = vi.fn()
+                const onConditionsFailed = vi.fn()
 
                 configurePermissions({
                     checkPermissions: () => true,
@@ -437,7 +436,7 @@ describe('Hierarchical Routes', () => {
 
                 render(Router, {
                     routes,
-                    onconditionsFailed
+                    onConditionsFailed
                 })
                 await waitForRouter()
 
@@ -448,7 +447,7 @@ describe('Hierarchical Routes', () => {
                 expect(checkFolderAccess).toHaveBeenCalled()
                 // Child authorization should NOT run
                 expect(checkDocumentAccess).not.toHaveBeenCalled()
-                expect(onconditionsFailed).toHaveBeenCalled()
+                expect(onConditionsFailed).toHaveBeenCalled()
             })
         })
 

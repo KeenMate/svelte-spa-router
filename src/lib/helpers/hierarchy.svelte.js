@@ -1,4 +1,3 @@
-import { hierarchyLogger } from '../logger.ts'
 /**
  * @module helpers/hierarchy
  *

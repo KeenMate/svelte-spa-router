@@ -1,6 +1,6 @@
 ﻿import { tick } from 'svelte'
 import { joinPaths } from './helpers/url-helpers.svelte.js'
-import { buildUrl, hasRoute } from './routes.svelte.js'
+import { buildUrl } from './routes.svelte.js'
 import { navigationLogger, scrollLogger } from './logger.ts'
 
 /**
@@ -368,7 +368,7 @@ function navigate(location, shouldReplace = false, context = null) {
                 if (context !== null) {
                     structuredClone(context)
                 }
-            } catch (e) {
+            } catch {
                 // If structured clone fails, try JSON serialization
                 try {
                     if (context !== null) {
@@ -414,7 +414,7 @@ function navigate(location, shouldReplace = false, context = null) {
             state = {
                 __svelte_spa_router_navigation_context: processedNavigationContext
             }
-        } catch (e) {
+        } catch {
             // If structured clone fails, try JSON serialization
             try {
                 if (context !== null) {

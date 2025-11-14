@@ -5,7 +5,7 @@
  * is the source of truth for filters, pagination, search, etc.
  */
 
-import { querystring, location, push, replace } from '../utils.svelte.js'
+import { querystring, push, replace } from '../utils.svelte.js'
 
 /**
  * Parse querystring into an object

@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/svelte'
-import { tick } from 'svelte'
-import { location } from '../lib/utils.svelte.js'
 import LinkTest from './components/LinkTest.svelte'
 
 describe('link action', () => {

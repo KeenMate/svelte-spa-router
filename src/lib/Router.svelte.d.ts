@@ -67,17 +67,17 @@ export interface RouterProps {
     /**
      * Event handler called when a route starts loading
      */
-    onrouteLoading?: (event: { detail: RouteEventDetail }) => void;
+    onRouteLoading?: (event: { detail: RouteEventDetail }) => void;
 
     /**
      * Event handler called when a route finishes loading
      */
-    onrouteLoaded?: (event: { detail: RouteEventDetail }) => void;
+    onRouteLoaded?: (event: { detail: RouteEventDetail }) => void;
 
     /**
      * Event handler called when route conditions fail
      */
-    onconditionsFailed?: (event: { detail: RouteEventDetail }) => void;
+    onConditionsFailed?: (event: { detail: RouteEventDetail }) => void;
 
     /**
      * Event handler called when no route matches the current location (404)

@@ -47,7 +47,7 @@ The router is organized into several key modules:
 - Handles async component loading with race condition protection
 - Manages route conditions/guards evaluation
 - Implements scroll restoration with browser History API
-- Event system via callback props (onrouteLoading, onrouteLoaded, onconditionsFailed, onNotFound)
+- Event system via callback props (onRouteLoading, onRouteLoaded, onConditionsFailed, onNotFound)
 
 **utils.svelte.js** - Core routing utilities and state management
 - Contains all reactive state using `$state()` (locationState, paramsState, navigationContextState)
@@ -434,9 +434,9 @@ let { routeParams = {} } = $props()
 ```svelte
 <Router
     {routes}
-    onrouteLoading={(e) => console.log('Loading:', e.detail)}
-    onrouteLoaded={(e) => console.log('Loaded:', e.detail)}
-    onconditionsFailed={(e) => push('/unauthorized')}
+    onRouteLoading={(e) => console.log('Loading:', e.detail)}
+    onRouteLoaded={(e) => console.log('Loaded:', e.detail)}
+    onConditionsFailed={(e) => push('/unauthorized')}
 />
 ```
 
