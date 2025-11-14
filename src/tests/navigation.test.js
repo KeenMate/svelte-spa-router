@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { push, pop, replace, location, querystring, routeParams } from '../lib/utils.svelte.js'
 
 describe('Navigation Functions', () => {

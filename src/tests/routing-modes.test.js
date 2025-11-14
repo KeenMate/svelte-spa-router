@@ -3,11 +3,9 @@ import { setHashRoutingEnabled, setBasePath, getHashRoutingEnabled, getBasePath,
 
 describe('Routing Modes', () => {
   let originalHash
-  let originalPathname
 
   beforeEach(() => {
     originalHash = window.location.hash
-    originalPathname = window.location.pathname
     // Reset to defaults
     setHashRoutingEnabled(true)
     setBasePath('/')

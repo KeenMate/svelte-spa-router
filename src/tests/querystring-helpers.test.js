@@ -284,7 +284,6 @@ describe('Querystring Helpers', () => {
 
         it('should use push by default', async () => {
             window.history.replaceState({}, '', '/test')
-            const initialLength = window.history.length
 
             await updateQuerystring({ search: 'foo' })
 
