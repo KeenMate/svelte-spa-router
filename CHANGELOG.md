@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Code Quality:** Major ESLint cleanup - reduced linting issues from 161 to 11 (93% reduction)
+  - Removed unused imports across multiple modules (hierarchyLogger, location, untrack, hasRoute, etc.)
+  - Removed unused function parameters in test files
+  - Replaced unused catch error variables with bare catch blocks
+  - Added `src/lib/vendor/**` to eslint ignore list (third-party loglevel library)
+  - Remaining 11 warnings are false positives from ESLint not understanding Svelte 5 runes
+  - **Note:** If issues arise, this cleanup touched error-handler, hierarchy, navigation-guard, permissions, querystring-helpers, route-metadata, utils, and all test files
+- **Logger API:** Renamed `enableCategory()` to `setCategoryLevel()` for better clarity
+  - Old name was confusing: `enableCategory('ROUTER:SCROLL', 'silent')` reads as "enable to disable"
+  - New name is explicit: `setCategoryLevel('ROUTER:SCROLL', 'silent')` clearly sets the level
+  - Added `'silent'` to TypeScript type definitions for level parameter
+  - No backward compatibility - clean break for clearer API
+
+### Fixed
+- **Breaking:** Standardized Router callback prop naming to camelCase (JavaScript convention)
+  - `onrouteLoading` → `onRouteLoading`
+  - `onrouteLoaded` → `onRouteLoaded`
+  - `onconditionsFailed` → `onConditionsFailed`
+  - `onNotFound` remains unchanged (already correct)
+  - Updated all documentation, examples, tests, and showcase site
+  - **Migration:** Update your Router component props to use camelCase naming
+- **Permissions:** Completely redesigned unauthorized handling system
+  - Previously required manual `/unauthorized` route definition and `onUnauthorized` callback with hash-based navigation
+  - New system treats unauthorized state as special router state (like 404), not a regular route
+  - `/unauthorized` route no longer needs to be defined in routes object
+  - Respects configured routing mode (hash/history) instead of forcing hash navigation
+  - Two behavior modes available:
+    - `unauthorizedBehavior: 'component'` - Shows unauthorized component without changing URL (default)
+    - `unauthorizedBehavior: 'navigate'` - Navigates to configured unauthorized route
+  - Configure via `configurePermissions()` with new options: `unauthorizedBehavior`, `unauthorizedRoute`, `unauthorizedComponent`
+  - Router automatically detects permission failures by checking `routeContext.permissions`
+  - `createPermissionCondition()` only calls `onUnauthorized` handler if explicitly configured (backward compatibility)
+  - Added internal `hasExplicitHandler()` tracking to distinguish explicit callbacks from defaults
+  - **Migration:** Old `onUnauthorized` callback approach still works, new declarative config recommended
+
 ## [5.0.0-rc12] - 2025-02-12 ✅ Published
 
 ### Fixed

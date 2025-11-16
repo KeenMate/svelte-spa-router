@@ -3,7 +3,13 @@
     "allow": [
       "Bash(timeout 8 npm run dev:*)",
       "Bash(git push:*)",
-      "Bash(npm test)"
+      "Bash(npm test)",
+      "Bash(npm run lint)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(npm test:*)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []

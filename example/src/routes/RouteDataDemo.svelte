@@ -1,5 +1,5 @@
 <script>
-import { routeParams, location, link } from '@keenmate/svelte-spa-router/utils'
+import { routeParams, location, link } from '@keenmate/svelte-spa-router'
 import '../main.scss'
 
 // Reactive values from route params
@@ -145,7 +145,7 @@ const logTypes = ['activity', 'errors', 'security', 'audit']
 
     <div class="usage-example">
         <h3>📖 Code Example</h3>
-        <pre><code>{`import { routeParams } from '@keenmate/svelte-spa-router/utils'
+        <pre><code>{`import { routeParams } from '@keenmate/svelte-spa-router'
 
 // Extract route parameters
 const userId = $derived(routeParams()?.userId)

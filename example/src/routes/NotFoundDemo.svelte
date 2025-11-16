@@ -4,7 +4,7 @@
  * Demonstrates the onNotFound callback for analytics and monitoring
  */
 
-import { push } from '@keenmate/svelte-spa-router/utils'
+import { push } from '@keenmate/svelte-spa-router'
 
 let testPaths = [
     '/this-does-not-exist',

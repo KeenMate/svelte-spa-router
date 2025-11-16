@@ -21,7 +21,6 @@
   "exports": {
     ".": {
       "types": "./src/lib/index.d.ts",
-      "svelte": "./src/lib/Router.svelte",
       "import": "./src/lib/index.js"
     },
     "./active": {

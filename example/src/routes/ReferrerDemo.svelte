@@ -5,7 +5,7 @@
  * Includes location, querystring, params, and route name
  */
 
-import { push, navigationContext, location, querystring } from '@keenmate/svelte-spa-router/utils'
+import { push, navigationContext, location, querystring } from '@keenmate/svelte-spa-router'
 
 // Get navigation context (includes referrer when tracking is enabled)
 const ctx = $derived(navigationContext())
@@ -63,7 +63,7 @@ function navigateTo(path) {
         <div class="config-info">
             <h3>⚙️ Configuration</h3>
             <p>Set referrer tracking mode in <code>main.js</code>:</p>
-            <pre><code>import &#123; setIncludeReferrer &#125; from '@keenmate/svelte-spa-router/utils'
+            <pre><code>import &#123; setIncludeReferrer &#125; from '@keenmate/svelte-spa-router'
 
 // Options:
 setIncludeReferrer('never')    // Disabled (default)
@@ -246,7 +246,7 @@ setIncludeReferrer('always')   // All routes (current mode)</code></pre>
 
     <div class="code-example">
         <h2>💻 Usage Example</h2>
-        <pre><code>import &#123; navigationContext &#125; from '@keenmate/svelte-spa-router/utils'
+        <pre><code>import &#123; navigationContext &#125; from '@keenmate/svelte-spa-router'
 
 // Get referrer from navigation context
 const ctx = $derived(navigationContext())

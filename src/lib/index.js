@@ -1,8 +1,7 @@
-// Main router export
-export { default as Router } from './Router.svelte';
+// Main router export (both default and named for flexibility)
+export { default, default as Router } from './Router.svelte';
 
 // Core utilities
-export * from './active.svelte.js';
 export * from './utils.svelte.js';
 export * from './constants.js';
 export { default as wrap } from './wrap.js';

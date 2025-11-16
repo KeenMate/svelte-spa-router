@@ -7,7 +7,8 @@ export default [
       'result/**',
       '*.min.js',
       '**/*.svelte',          // Ignore Svelte files (need svelte-eslint-parser)
-      '**/*.html'             // Ignore HTML files
+      '**/*.html',            // Ignore HTML files
+      'src/lib/vendor/**'     // Ignore vendored third-party libraries
     ]
   },
   {

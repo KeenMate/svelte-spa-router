@@ -1,6 +1,6 @@
 import { mount } from 'svelte'
-import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled, setIncludeReferrer } from '@keenmate/svelte-spa-router/utils'
-import { enableLogging } from '@keenmate/svelte-spa-router/logger'
+import { setHashRoutingEnabled, setBasePath, setHierarchicalRoutesEnabled, setIncludeReferrer } from '@keenmate/svelte-spa-router'
+import { enableLogging, setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
 import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
 import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
 import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
@@ -25,6 +25,7 @@ setIncludeReferrer('always')
 // This displays color-coded console logs for route matching, navigation, and scroll restoration
 if (import.meta.env.DEV) {
     enableLogging()
+    setCategoryLevel('ROUTER:SCROLL', 'silent')  // Disable scroll logs to reduce noise
 }
 
 // Configure querystring parsing for the whole app

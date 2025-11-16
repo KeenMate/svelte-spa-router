@@ -1,5 +1,5 @@
 <script>
-import { push, navigationContext, goBack } from '@keenmate/svelte-spa-router/utils'
+import { push, navigationContext, goBack } from '@keenmate/svelte-spa-router'
 import { user } from '../stores/userStore.svelte.js'
 
 const currentUser = $derived(user())

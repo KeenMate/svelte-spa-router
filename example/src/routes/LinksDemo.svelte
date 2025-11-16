@@ -1,5 +1,5 @@
 <script>
-import {link, push, replace} from '@keenmate/svelte-spa-router/utils'
+import {link, push, replace} from '@keenmate/svelte-spa-router'
 import {registerRoutes} from '@keenmate/svelte-spa-router/routes'
 import '../main.scss'
 

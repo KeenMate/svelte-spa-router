@@ -1,5 +1,5 @@
 <script>
-import { link } from '@keenmate/svelte-spa-router/utils'
+import { link } from '@keenmate/svelte-spa-router'
 import PageWrapper from '../components/PageWrapper.svelte'
 </script>
 

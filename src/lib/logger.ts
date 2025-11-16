@@ -19,7 +19,7 @@
  * - By default, all logging is disabled (silent mode) for production
  * - Enable logging in browser console:
  *   ```javascript
- *   import { enableLogging, setLogLevel, enableCategory } from '@keenmate/svelte-spa-router/logger';
+ *   import { enableLogging, setLogLevel, setCategoryLevel } from '@keenmate/svelte-spa-router/logger';
  *
  *   // Enable all logging at debug level
  *   enableLogging();
@@ -27,10 +27,11 @@
  *   // Or set a specific log level
  *   setLogLevel('info');  // 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent'
  *
- *   // Or enable only specific categories
+ *   // Or configure specific categories
  *   disableLogging();  // First disable all
- *   enableCategory('ROUTER:SCROLL', 'debug');  // Enable only scroll logs
- *   enableCategory('ROUTER:NAVIGATION', 'info');  // Enable only navigation logs at info level
+ *   setCategoryLevel('ROUTER:SCROLL', 'debug');  // Enable only scroll logs
+ *   setCategoryLevel('ROUTER:NAVIGATION', 'info');  // Enable navigation logs at info level
+ *   setCategoryLevel('ROUTER:PERMISSIONS', 'silent');  // Disable permission logs
  *   ```
  */
 
@@ -194,15 +195,15 @@ export const disableLogging = () => {
 };
 
 /**
- * Enable logging for a specific category only
- * @param category Category logger to enable
+ * Set log level for a specific category
+ * @param category Category logger to configure
  * @param level Log level to set (default: 'debug')
  */
-export const enableCategory = (
+export const setCategoryLevel = (
     category: 'ROUTER' | 'ROUTER:NAVIGATION' | 'ROUTER:SCROLL' | 'ROUTER:GUARDS' | 'ROUTER:CONDITIONS' |
               'ROUTER:HIERARCHY' | 'ROUTER:PERMISSIONS' | 'ROUTER:ROUTES' | 'ROUTER:ZONES' |
               'ROUTER:METADATA' | 'ROUTER:ERROR_HANDLER' | 'ROUTER:FILTERS',
-    level: 'trace' | 'debug' | 'info' | 'warn' | 'error' = 'debug'
+    level: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent' = 'debug'
 ) => {
     const loggerMap = {
         'ROUTER': routerLogger,

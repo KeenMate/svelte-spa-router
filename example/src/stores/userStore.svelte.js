@@ -8,15 +8,15 @@ const USERS = {
         id: 1,
         name: 'Donna Hayward',
         permissions: ['read', 'write', 'user:view'],
-        // Donna can only access documents 1, 2, 3
-        accessibleDocuments: [1, 2, 3]
+        // Donna can only access document 1 (shared access)
+        accessibleDocuments: [1]
     },
     audrey: {
         id: 2,
         name: 'Audrey Horne',
         permissions: ['read', 'admin', 'user:view', 'user:edit', 'settings:manage'],
-        // Audrey can access all documents
-        accessibleDocuments: [1, 2, 3, 4, 5]
+        // Audrey can access documents 1 (shared) and 4 (admin-only)
+        accessibleDocuments: [1, 4]
     }
 }
 

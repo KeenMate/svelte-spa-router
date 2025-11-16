@@ -1,5 +1,5 @@
 <script>
-import {push, navigationContext, location, querystring, goBack} from '@keenmate/svelte-spa-router/utils'
+import {push, navigationContext, location, querystring, goBack} from '@keenmate/svelte-spa-router'
 
 const navContext = $derived(navigationContext())
 const referrer = $derived(navContext?.referrer)

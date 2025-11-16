@@ -29,6 +29,7 @@ import { tick, untrack } from 'svelte'
 import { location, querystring, routeParams, setParams, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer, restoreScroll, getZoneComponent, setZoneComponents } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 import { updateRouteMetadata, getUpdatedBreadcrumb, startRouteLoading, waitForRouteReady } from './helpers/route-metadata.svelte.js'
+import { getUnauthorizedBehavior, getUnauthorizedRoute, getUnauthorizedComponent, getUnauthorizedHandler, hasExplicitHandler } from './helpers/permissions.svelte.js'
 import { routerLogger, scrollLogger, guardsLogger, conditionsLogger, hierarchyLogger, zonesLogger } from './logger.ts'
 
 // Component props
@@ -460,8 +461,43 @@ function commitToReactiveState(ctx) {
 
                 // Update external state
                 setParams(undefined)
+                // Don't update navigationContext - preserve existing referrer
+                // Only successful navigations should update referrer
 
-                // Don't update currentRoute tracking for failed conditions
+                // Update currentRoute to the failed route so redirects work correctly
+                // Without this, clicking a protected route twice from unauthorized page causes blank page
+                currentRoute = ctx.location
+                currentQuerystring = ctx.querystring
+                isCurrentRouteCatchAll = false
+                break
+
+            case 'unauthorized':
+                // Show unauthorized component without changing current route (for component mode)
+                // or with navigation to unauthorized route (for navigate mode)
+                component = ctx.unauthorizedComponent
+                componentParams = ctx.unauthorizedParams || {}
+                componentProps = ctx.unauthorizedProps || {}
+                currentRouteItem = null
+                loadingComponent = null
+                loadingParams = null
+
+                // Update params
+                setParams(undefined)
+
+                // DON'T update navigationContext - preserve referrer
+                // Only successful navigations should update referrer
+
+                // Update currentRoute based on mode
+                if (ctx.unauthorizedMode === 'navigate') {
+                    // Navigate mode: update to unauthorized route
+                    currentRoute = ctx.unauthorizedRoute
+                    currentQuerystring = ''
+                } else {
+                    // Component mode: track attempted route to prevent redirect loops
+                    currentRoute = ctx.attemptedLocation
+                    currentQuerystring = ctx.attemptedQuerystring
+                }
+
                 isCurrentRouteCatchAll = false
                 break
 
@@ -561,6 +597,26 @@ function commitToReactiveState(ctx) {
  * Pure function - no side effects
  */
 function pipelineMatchRoute(ctx) {
+    // Check if this is navigation to the configured unauthorized route
+    const unauthorizedRoute = getUnauthorizedRoute()
+    const unauthorizedComponent = getUnauthorizedComponent()
+
+    if (ctx.location === unauthorizedRoute && unauthorizedComponent) {
+        // Create a synthetic match for the unauthorized route
+        const syntheticMatch = {
+            routeItem: {
+                path: unauthorizedRoute,
+                component: () => unauthorizedComponent,
+                checkConditions: () => true,  // Always passes
+                props: {},
+                isZoneMode: false,
+                routeContext: {}
+            },
+            params: {}
+        }
+        return { ...ctx, match: syntheticMatch, isUnauthorizedRoute: true }
+    }
+
     const match = findMatchingRoute(ctx.location)
     return { ...ctx, match }
 }
@@ -688,7 +744,56 @@ function pipelineDetermineResultType(ctx) {
         return { ...ctx, resultType: 'notFound' }
     }
 
-    // Conditions failed
+    // Permission failure - check if we should use unauthorized state
+    if (!ctx.conditionsPassed && ctx.isPermissionFailure) {
+        const unauthorizedHandler = getUnauthorizedHandler()
+        const unauthorizedComponent = getUnauthorizedComponent()
+        const unauthorizedBehavior = getUnauthorizedBehavior()
+        const unauthorizedRoute = getUnauthorizedRoute()
+
+        conditionsLogger.debug('Detected permission failure - checking unauthorized handling', {
+            hasExplicitHandler: hasExplicitHandler(),
+            unauthorizedComponent: !!unauthorizedComponent,
+            unauthorizedBehavior,
+            unauthorizedRoute
+        })
+
+        // Priority 1: If onUnauthorized callback was explicitly configured, use old behavior (conditionsFailed)
+        // The callback will be called and handle the redirect
+        if (hasExplicitHandler()) {
+            conditionsLogger.debug('Using explicit onUnauthorized handler')
+            return { ...ctx, resultType: 'conditionsFailed' }
+        }
+
+        // Priority 2: Use configured unauthorized behavior
+        if (unauthorizedComponent) {
+            conditionsLogger.debug('Using unauthorized component', { mode: unauthorizedBehavior })
+            const user = ctx.match.routeItem.routeContext?.userData
+            const failedPermissions = ctx.match.routeItem.routeContext?.permissions
+
+            return {
+                ...ctx,
+                resultType: 'unauthorized',
+                unauthorizedMode: unauthorizedBehavior,
+                unauthorizedRoute,
+                unauthorizedComponent,
+                unauthorizedParams: {},
+                unauthorizedProps: {
+                    attemptedRoute: ctx.match.routeItem.path,
+                    attemptedLocation: ctx.location,
+                    attemptedQuerystring: ctx.querystring,
+                    attemptedParams: ctx.match.params,
+                    failedPermissions,
+                    user,
+                    referrer: ctx.previousRoute
+                },
+                attemptedLocation: ctx.location,
+                attemptedQuerystring: ctx.querystring
+            }
+        }
+    }
+
+    // Other conditions failed (not permission-related)
     if (!ctx.conditionsPassed) {
         return { ...ctx, resultType: 'conditionsFailed' }
     }
@@ -741,7 +846,20 @@ async function pipelineCheckConditions(ctx) {
     }
 
     const conditionsPassed = await ctx.match.routeItem.checkConditions(detail)
-    return { ...ctx, conditionsPassed }
+
+    // Check if this was a permission failure
+    // (permissions are stored in routeContext by createProtectedRoute)
+    const hasPermissions = ctx.match.routeItem.routeContext?.permissions
+    const isPermissionFailure = !conditionsPassed && hasPermissions
+
+    conditionsLogger.debug('Permission check:', {
+        conditionsPassed,
+        hasPermissions,
+        isPermissionFailure,
+        routeContext: ctx.match.routeItem.routeContext
+    })
+
+    return { ...ctx, conditionsPassed, isPermissionFailure }
 }
 
 /**
@@ -898,13 +1016,33 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
     if (!ctx.conditionsPassed) {
         conditionsLogger.debug('Route conditions failed')
         ctx = pipelineDetermineResultType(ctx)
+
+        // Handle unauthorized state specially for navigate mode
+        if (ctx.resultType === 'unauthorized' && ctx.unauthorizedMode === 'navigate') {
+            // For navigate mode, trigger actual navigation to unauthorized route
+            const { push } = await import('./utils.svelte.js')
+            push(ctx.unauthorizedRoute)
+            return  // Let the navigation to unauthorized route proceed normally
+        }
+
+        // For component mode or other failures, commit immediately
         commitToReactiveState(ctx)
-        await dispatchNextTick('conditionsFailed', {
-            route: ctx.match.routeItem.path,
-            location: ctx.location,
-            querystring: ctx.querystring,
-            params: ctx.match.params
-        })
+
+        if (ctx.resultType === 'unauthorized') {
+            await dispatchNextTick('conditionsFailed', {
+                route: ctx.match.routeItem.path,
+                location: ctx.location,
+                querystring: ctx.querystring,
+                params: ctx.match.params
+            })
+        } else {
+            await dispatchNextTick('conditionsFailed', {
+                route: ctx.match.routeItem.path,
+                location: ctx.location,
+                querystring: ctx.querystring,
+                params: ctx.match.params
+            })
+        }
         return
     }
 

@@ -1,6 +1,6 @@
 <script>
 import { showLoading, hideLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
-import { link } from '@keenmate/svelte-spa-router/utils'
+import { link } from '@keenmate/svelte-spa-router'
 import PageWrapper from '../components/PageWrapper.svelte'
 
 let isLoading = $state(false)

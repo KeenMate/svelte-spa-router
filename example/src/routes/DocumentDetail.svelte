@@ -23,25 +23,17 @@
     const documents = {
       "1": {
         id: 1,
-        filename: "Invoice_Q4_2024.pdf",
-        type: "Invoice",
+        filename: "Public_Report.pdf",
+        type: "Report",
         size: "245 KB",
-        description: "Quarterly invoice for services rendered in Q4 2024.",
+        description: "Public quarterly report accessible to all users with 'read' permission.",
       },
-      "2": {
-        id: 2,
-        filename: "Contract_Template.docx",
-        type: "Contract",
-        size: "128 KB",
-        description: "Standard employment contract template for new hires.",
-      },
-      "3": {
-        id: 3,
-        filename: "Project_Proposal.pdf",
-        type: "Proposal",
-        size: "1.2 MB",
-        description:
-          "Detailed proposal for the new client project including timeline and budget.",
+      "4": {
+        id: 4,
+        filename: "Admin_Configuration.json",
+        type: "Configuration",
+        size: "15 KB",
+        description: "Administrative configuration file - restricted to admin users only.",
       },
     };
 

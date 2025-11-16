@@ -36,6 +36,7 @@
 
 import { wrap } from '../wrap.js'
 import { registerRoute } from '../routes.svelte.js'
+import { createPermissionCondition } from './permissions.svelte.js'
 
 /**
  * Transforms a hierarchical route tree into a flat routes object.
@@ -90,9 +91,9 @@ export function createHierarchy(tree, options = {}) {
         visited.add(absolutePath)
 
         // Extract route definition and children
-        const { children, name, breadcrumbs, title, routeContext, ...routeDefinition } = node
+        const { children, name, breadcrumbs, title, routeContext, permissions, authorizationCallback, ...routeDefinition } = node
 
-        // Merge breadcrumbs and title into routeContext (same pattern as createRoute)
+        // Merge breadcrumbs, title, and permissions into routeContext
         const mergedRouteContext = {
             ...(routeContext || {})
         }
@@ -105,10 +106,29 @@ export function createHierarchy(tree, options = {}) {
             mergedRouteContext.breadcrumbs = breadcrumbs
         }
 
-        // Wrap the route with inheritance enabled
+        // Add permissions to routeContext so Router can detect permission failures
+        if (permissions) {
+            mergedRouteContext.permissions = permissions
+        }
+
+        // Build conditions array
+        const conditions = []
+
+        // Add permission condition if permissions specified (role-based)
+        if (permissions) {
+            conditions.push(createPermissionCondition(permissions))
+        }
+
+        // Add authorization callback if specified (resource-based)
+        if (authorizationCallback) {
+            conditions.push(authorizationCallback)
+        }
+
+        // Wrap the route with all options
         const wrappedRoute = wrap({
             ...routeDefinition,
             routeContext: Object.keys(mergedRouteContext).length > 0 ? mergedRouteContext : undefined,
+            conditions: conditions.length > 0 ? conditions : undefined,
             // Force inheritance flags to true in tree mode
             inheritBreadcrumbs: enableHierarchical,
             inheritPermissions: enableHierarchical,

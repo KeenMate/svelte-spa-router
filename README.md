@@ -35,6 +35,135 @@ npm install @keenmate/svelte-spa-router
 
 > **⚠️ Important:** This package requires **Node.js 22 or higher** for production builds. Node.js 20 has compatibility issues with Svelte 5 that may cause runtime errors like "link is not defined" in production builds. Make sure your build environment (CI/CD, Docker, etc.) uses Node 22+.
 
+## Quick Start: Common Imports
+
+Here are the most frequently used imports and where to get them:
+
+### Basic Router Setup
+
+```javascript
+// Main Router component
+import Router from '@keenmate/svelte-spa-router'
+
+// Navigation functions - available from main module OR /utils
+import { push, replace, pop, goBack } from '@keenmate/svelte-spa-router'
+// Alternative:
+import { push, replace, pop, goBack } from '@keenmate/svelte-spa-router'
+
+// Link action for <a> tags
+import { link } from '@keenmate/svelte-spa-router'
+```
+
+### Accessing Route Information
+
+```javascript
+// Get current route data (call as functions, not stores!)
+import { location, querystring, routeParams, navigationContext } from '@keenmate/svelte-spa-router'
+
+// Usage in components:
+const currentPath = $derived(location())        // e.g., "/user/123"
+const query = $derived(querystring())           // e.g., "?tab=profile"
+const params = $derived(routeParams())          // e.g., { id: "123" }
+const context = $derived(navigationContext())   // Navigation context data
+
+// Alternative: Access from /utils
+import { location, querystring, routeParams } from '@keenmate/svelte-spa-router'
+```
+
+**⚠️ Important:** In route components, prefer receiving `routeParams` as props instead of importing:
+
+```svelte
+<script>
+// Recommended in route components
+let { routeParams = {} } = $props()
+</script>
+
+<p>User ID: {routeParams.id}</p>
+```
+
+### Route Configuration
+
+```javascript
+// Wrap routes with loading/conditions
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+// Active link highlighting
+import active from '@keenmate/svelte-spa-router/active'
+
+// Named routes system
+import { registerRoutes, buildUrl } from '@keenmate/svelte-spa-router/routes'
+```
+
+### Advanced Features
+
+```javascript
+// Permission-based routing
+import {
+  configurePermissions,
+  createProtectedRoute,
+  hasPermission
+} from '@keenmate/svelte-spa-router/helpers/permissions'
+
+// Navigation guards
+import {
+  registerBeforeLeave,
+  unregisterBeforeLeave,
+  NavigationCancelledError
+} from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+
+// Hierarchical route structure
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
+// Error handling
+import {
+  configureGlobalErrorHandler
+} from '@keenmate/svelte-spa-router/helpers/error-handler'
+import { GlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
+
+// URL utilities
+import { joinPaths } from '@keenmate/svelte-spa-router/helpers/url-helpers'
+
+// Query string helpers
+import {
+  parseQuerystring,
+  stringifyQuerystring,
+  updateQuerystring
+} from '@keenmate/svelte-spa-router/helpers/querystring'
+```
+
+### All Available Import Paths
+
+```javascript
+'@keenmate/svelte-spa-router'                        // Main module (Router, push, location, etc.)
+'@keenmate/svelte-spa-router/utils'                  // Alternative path for utils
+'@keenmate/svelte-spa-router/wrap'                   // Route wrapping
+'@keenmate/svelte-spa-router/active'                 // Active link action
+'@keenmate/svelte-spa-router/routes'                 // Named routes system
+'@keenmate/svelte-spa-router/constants'              // Constants and enums
+'@keenmate/svelte-spa-router/logger'                 // Debug logging
+'@keenmate/svelte-spa-router/helpers/permissions'    // Permission system
+'@keenmate/svelte-spa-router/helpers/navigation-guard'  // Navigation guards
+'@keenmate/svelte-spa-router/helpers/hierarchy'      // Hierarchical routes
+'@keenmate/svelte-spa-router/helpers/error-handler'  // Error handling
+'@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'  // Error component
+'@keenmate/svelte-spa-router/helpers/url-helpers'    // URL utilities
+'@keenmate/svelte-spa-router/helpers/querystring'    // Query string helpers
+'@keenmate/svelte-spa-router/helpers/route-metadata' // Breadcrumbs/metadata
+'@keenmate/svelte-spa-router/helpers/filters'        // Filter parsing
+```
+
+**❌ Common Mistake:**
+
+```javascript
+// ❌ WRONG - /stores path doesn't exist (this was the old v3/v4 API)
+import { routeParams } from '@keenmate/svelte-spa-router/stores'
+
+// ✅ CORRECT - Import from main module or /utils
+import { routeParams } from '@keenmate/svelte-spa-router'
+```
+
+> **Note:** This is a Svelte 5 router using runes (`$state`, `$derived`), not Svelte stores. There is no `/stores` export path.
+
 ## Debug Logging
 
 The router includes a built-in debug logging system to help troubleshoot routing issues during development.
@@ -233,7 +362,7 @@ Uses the History API with clean URLs like `http://example.com/path`.
 ```javascript
 // main.js
 import { mount } from 'svelte'
-import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router/utils'
+import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router'
 import App from './App.svelte'
 
 // Enable history mode
@@ -436,7 +565,7 @@ Automatically track and access information about the previous route:
 
 ```javascript
 // main.js - Enable referrer tracking
-import { setIncludeReferrer } from '@keenmate/svelte-spa-router/utils'
+import { setIncludeReferrer } from '@keenmate/svelte-spa-router'
 
 setIncludeReferrer('always')  // Track referrer for all routes
 // Options: 'never' (default), 'notfound' (404 only), 'always'
@@ -445,7 +574,7 @@ setIncludeReferrer('always')  // Track referrer for all routes
 ```svelte
 <!-- In any route component -->
 <script>
-import { push, navigationContext } from '@keenmate/svelte-spa-router/utils'
+import { push, navigationContext } from '@keenmate/svelte-spa-router'
 
 const navContext = $derived(navigationContext())
 const referrer = $derived(navContext?.referrer)
@@ -483,7 +612,7 @@ Configure how missing route parameters are handled:
 
 ```javascript
 // main.js
-import { setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router/utils'
+import { setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router'
 
 // Set placeholder for missing parameters (default: 'N-A')
 setParamReplacementPlaceholder('N-A')
@@ -1522,7 +1651,7 @@ Define routes in a hierarchical tree structure as an alternative to flat definit
 **Enable hierarchical mode first:**
 ```javascript
 // main.js - before mounting app
-import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
 
 setHierarchicalRoutesEnabled(true)
 ```
@@ -1618,7 +1747,7 @@ import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
 import active from '@keenmate/svelte-spa-router/active'
 
 // Configuration
-import { setHashRoutingEnabled, setBasePath, setParamReplacementPlaceholder, setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
+import { setHashRoutingEnabled, setBasePath, setParamReplacementPlaceholder, setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
 
 // Querystring helpers (shared reactive state)
 import { configureQuerystring, query } from '@keenmate/svelte-spa-router/helpers/querystring'

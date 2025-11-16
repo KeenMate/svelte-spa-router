@@ -1,5 +1,5 @@
 <script>
-import { link } from '@keenmate/svelte-spa-router/utils'
+import { link } from '@keenmate/svelte-spa-router'
 import { routeBreadcrumbs } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 
 const breadcrumbs = $derived(routeBreadcrumbs())

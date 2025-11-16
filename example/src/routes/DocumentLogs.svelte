@@ -1,6 +1,6 @@
 <script>
 import { onMount } from 'svelte'
-import { link } from '@keenmate/svelte-spa-router/utils'
+import { link } from '@keenmate/svelte-spa-router'
 import { updateBreadcrumb, updateTitle } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 import PageWrapper from '../components/PageWrapper.svelte'
 import Breadcrumbs from '../components/Breadcrumbs.svelte'
@@ -16,9 +16,8 @@ async function fetchData(id) {
   await new Promise(resolve => setTimeout(resolve, 800))
 
   const documents = {
-    '1': { id: 1, filename: 'Invoice_Q4_2024.pdf' },
-    '2': { id: 2, filename: 'Contract_Template.docx' },
-    '3': { id: 3, filename: 'Project_Proposal.pdf' }
+    '1': { id: 1, filename: 'Public_Report.pdf' },
+    '4': { id: 4, filename: 'Admin_Configuration.json' }
   }
 
   const doc = documents[id]

@@ -1,5 +1,5 @@
 <script>
-import { link, location, querystring, push } from '@keenmate/svelte-spa-router/utils'
+import { link, location, querystring, push } from '@keenmate/svelte-spa-router'
 import { user, hasDocumentAccess } from '../stores/userStore.svelte.js'
 import '../main.scss'
 
@@ -7,11 +7,8 @@ const currentUser = $derived(user())
 
 // Mock documents with different access levels
 const documents = [
-    { id: 1, title: 'Twin Peaks Case File', owner: 'Dale Cooper', status: 'Open' },
-    { id: 2, title: 'Black Lodge Research', owner: 'Major Briggs', status: 'Classified' },
-    { id: 3, title: 'Laura Palmer Diary', owner: 'Dr. Jacoby', status: 'Evidence' },
-    { id: 4, title: 'Project Blue Book', owner: 'Major Briggs', status: 'Top Secret' },
-    { id: 5, title: 'Owl Cave Symbols', owner: 'Margaret Lanterman', status: 'Under Review' }
+    { id: 1, title: 'Public Report', owner: 'Dale Cooper', status: 'Open' },
+    { id: 4, title: 'Admin Configuration', owner: 'System Admin', status: 'Restricted' }
 ]
 
 function canAccess(docId) {
@@ -49,8 +46,8 @@ async function attemptAccess(doc) {
     <h3>🔐 Resource-Based Authorization</h3>
     <p>This demo shows how to implement resource-based authorization using the <code>authorizationCallback</code> parameter.</p>
     <ul>
-        <li><strong>Donna Hayward</strong> can only access documents 1, 2, 3</li>
-        <li><strong>Audrey Horne</strong> can access all documents (1-5)</li>
+        <li><strong>Document 1 (Public Report):</strong> Accessible to all users with 'read' permission</li>
+        <li><strong>Document 4 (Admin Configuration):</strong> Only accessible to Audrey Horne (admin)</li>
     </ul>
     <p>Try clicking on different documents below and switch users using the Toggle button in the header!</p>
 </div>
@@ -95,7 +92,7 @@ async function attemptAccess(doc) {
     <pre><code>// In routes definition
 import &#123; createProtectedRoute &#125; from '@keenmate/svelte-spa-router/helpers/permissions'
 import &#123; hasDocumentAccess &#125; from './stores/userStore'
-import &#123; push &#125; from '@keenmate/svelte-spa-router/utils'
+import &#123; push &#125; from '@keenmate/svelte-spa-router'
 
 const routes = &#123;
   '/document/:id': createProtectedRoute(&#123;
@@ -206,10 +203,7 @@ const routes = &#123;
 }
 
 .doc-status.open { background: #4caf50; color: white; }
-.doc-status.classified { background: #ff9800; color: white; }
-.doc-status.evidence { background: #2196f3; color: white; }
-.doc-status.top-secret { background: #f44336; color: white; }
-.doc-status.under-review { background: #9c27b0; color: white; }
+.doc-status.restricted { background: #f44336; color: white; }
 
 .doc-info {
     margin: 1rem 0;

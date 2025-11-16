@@ -1,7 +1,7 @@
 <script>
 import PageWrapper from '../components/PageWrapper.svelte'
 import { NavigationCancelledError, registerBeforeLeave, unregisterBeforeLeave, createDirtyCheckGuard } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
-import { link } from '@keenmate/svelte-spa-router/utils'
+import { link } from '@keenmate/svelte-spa-router'
 import { onMount, onDestroy, untrack } from 'svelte'
 
 // Form state

@@ -6,6 +6,7 @@
  */
 
 import { wrap } from '../wrap.js'
+import { permissionsLogger } from '../logger.ts'
 
 /**
  * Global permission checker function
@@ -43,6 +44,29 @@ let unauthorizedHandler = (detail) => {
         window.location.hash = '#/unauthorized'
     }
 }
+
+/**
+ * Unauthorized behavior mode: 'component' or 'navigate'
+ * - 'component': Show unauthorized component without changing URL
+ * - 'navigate': Navigate to unauthorizedRoute
+ */
+let unauthorizedBehavior = 'component'
+
+/**
+ * Route to navigate to when unauthorized (if behavior is 'navigate')
+ */
+let unauthorizedRoute = '/unauthorized'
+
+/**
+ * Component to show when unauthorized
+ */
+let unauthorizedComponent = null
+
+/**
+ * Track if onUnauthorized callback was explicitly configured
+ * Used to determine priority: explicit callback > configured behavior > default
+ */
+let hasExplicitUnauthorizedHandler = false
 
 /**
  * Configure the permission system
@@ -84,6 +108,16 @@ export function configurePermissions(config) {
     }
     if (config.onUnauthorized) {
         unauthorizedHandler = config.onUnauthorized
+        hasExplicitUnauthorizedHandler = true
+    }
+    if (config.unauthorizedBehavior !== undefined) {
+        unauthorizedBehavior = config.unauthorizedBehavior
+    }
+    if (config.unauthorizedRoute !== undefined) {
+        unauthorizedRoute = config.unauthorizedRoute
+    }
+    if (config.unauthorizedComponent !== undefined) {
+        unauthorizedComponent = config.unauthorizedComponent
     }
 }
 
@@ -115,12 +149,27 @@ export function createPermissionCondition(requirements) {
         const user = currentUserGetter()
         const hasPermission = permissionChecker(user, requirements)
 
+        permissionsLogger.debug('Permission condition check:', {
+            user,
+            requirements,
+            hasPermission,
+            hasExplicitHandler: hasExplicitUnauthorizedHandler,
+            detailRouteContext: detail.routeContext
+        })
+
         if (!hasPermission) {
             // Store the attempted route in routeContext for potential redirect after login
             detail.routeContext = detail.routeContext || {}
             detail.routeContext.deniedRoute = detail.location
 
-            unauthorizedHandler(detail)
+            // Only call handler if explicitly configured (backward compatibility)
+            // Otherwise, let Router handle unauthorized state
+            if (hasExplicitUnauthorizedHandler) {
+                permissionsLogger.debug('Calling explicit unauthorized handler')
+                unauthorizedHandler(detail)
+            } else {
+                permissionsLogger.debug('No explicit handler - letting Router handle unauthorized state')
+            }
             return false
         }
 
@@ -348,4 +397,44 @@ export function createProtectedRoute(options) {
 export function hasPermission(requirements) {
     const user = currentUserGetter()
     return permissionChecker(user, requirements)
+}
+
+/**
+ * Get configured unauthorized behavior mode
+ * @returns {'component'|'navigate'} The configured behavior
+ */
+export function getUnauthorizedBehavior() {
+    return unauthorizedBehavior
+}
+
+/**
+ * Get configured unauthorized route path
+ * @returns {string} The unauthorized route path
+ */
+export function getUnauthorizedRoute() {
+    return unauthorizedRoute
+}
+
+/**
+ * Get configured unauthorized component
+ * @returns {any} The unauthorized component
+ */
+export function getUnauthorizedComponent() {
+    return unauthorizedComponent
+}
+
+/**
+ * Get configured unauthorized handler
+ * @returns {Function} The unauthorized handler callback
+ */
+export function getUnauthorizedHandler() {
+    return unauthorizedHandler
+}
+
+/**
+ * Check if onUnauthorized callback was explicitly configured
+ * @returns {boolean} True if onUnauthorized was provided in configurePermissions
+ */
+export function hasExplicitHandler() {
+    return hasExplicitUnauthorizedHandler
 }

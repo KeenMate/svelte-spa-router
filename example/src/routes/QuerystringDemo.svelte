@@ -1,7 +1,7 @@
 <script>
 import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
 import { updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
-import { querystring } from '@keenmate/svelte-spa-router/utils'
+import { querystring } from '@keenmate/svelte-spa-router'
 
 // Detect initial array format from URL
 function detectArrayFormat() {

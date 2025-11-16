@@ -5,7 +5,7 @@
  * This enables "WinForms-like" experiences where you pass rich objects between views
  */
 
-import { push, navigationContext } from '@keenmate/svelte-spa-router/utils'
+import { push, navigationContext } from '@keenmate/svelte-spa-router'
 
 // Get context if navigated here with data
 const ctx = $derived(navigationContext())
@@ -121,7 +121,7 @@ function deleteOrder() {
 
             <div class="code-example">
                 <h3>How It Works</h3>
-                <pre><code>{`import { push, navigationContext } from '@keenmate/svelte-spa-router/utils'
+                <pre><code>{`import { push, navigationContext } from '@keenmate/svelte-spa-router'
 
 // Pass context when navigating (4-parameter signature)
 function viewOrder(order) {

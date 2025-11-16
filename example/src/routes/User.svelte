@@ -1,5 +1,5 @@
 <script>
-import {push, navigationContext, goBack} from '@keenmate/svelte-spa-router/utils'
+import {push, navigationContext, goBack} from '@keenmate/svelte-spa-router'
 
 // Get route params using $props
 let { routeParams = {} } = $props()

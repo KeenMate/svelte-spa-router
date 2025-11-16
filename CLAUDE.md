@@ -12,6 +12,70 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Vitest + Testing Library for tests
 - No build step required (distributed as source)
 
+## Critical: Import Patterns
+
+**⚠️ IMPORTANT:** This is a Svelte 5 router using runes, NOT Svelte stores. There is **NO `/stores` export path**.
+
+### Correct Import Patterns
+
+```javascript
+// ✅ CORRECT - Main module or /utils
+import Router from '@keenmate/svelte-spa-router'
+import { push, replace, location, querystring, routeParams } from '@keenmate/svelte-spa-router'
+// OR
+import { location, routeParams } from '@keenmate/svelte-spa-router'
+
+// ✅ CORRECT - Use as functions (not stores!)
+const path = $derived(location())        // Call as function
+const params = $derived(routeParams())   // Call as function
+
+// ✅ CORRECT - Receive as props in route components (preferred)
+let { routeParams = {} } = $props()
+```
+
+```javascript
+// ❌ WRONG - /stores path doesn't exist!
+import { routeParams } from '@keenmate/svelte-spa-router/stores'  // ERROR!
+
+// ❌ WRONG - Store syntax doesn't work
+const path = $location  // ERROR! location is not a store
+const params = $routeParams  // ERROR! routeParams is not a store
+
+// ❌ WRONG - Old v3/v4 name
+import { params } from '@keenmate/svelte-spa-router'  // Should be routeParams
+```
+
+### Common Import Errors
+
+1. **"Missing './stores' specifier"** - Users trying to use old v3/v4 API
+   - Fix: Import from main module or `/utils`, not `/stores`
+   - Use `routeParams()` as a function, not `$params` as a store
+
+2. **"params is undefined"** - Name changed in v5
+   - Old: `params`
+   - New: `routeParams`
+
+3. **Event handlers not working** - Naming changed to camelCase
+   - Old: `onrouteLoaded`, `onconditionsFailed`
+   - New: `onRouteLoaded`, `onConditionsFailed`
+
+### All Available Import Paths
+
+```
+@keenmate/svelte-spa-router                        // Main (Router, push, location, etc.)
+@keenmate/svelte-spa-router/utils                  // Alternative for utils
+@keenmate/svelte-spa-router/wrap                   // Route wrapping
+@keenmate/svelte-spa-router/active                 // Active link action
+@keenmate/svelte-spa-router/routes                 // Named routes
+@keenmate/svelte-spa-router/helpers/permissions    // Permission system
+@keenmate/svelte-spa-router/helpers/navigation-guard  // Navigation guards
+@keenmate/svelte-spa-router/helpers/hierarchy      // Hierarchical routes
+@keenmate/svelte-spa-router/helpers/error-handler  // Error handling
+@keenmate/svelte-spa-router/helpers/*              // Other helpers
+```
+
+**NO `/stores` path exists - this router uses functions, not stores!**
+
 ## Common Commands
 
 ```bash
@@ -203,7 +267,7 @@ The router supports two distinct modes configured before app mount:
 - Requires server configuration (fallback to index.html)
 - Configured in main.js:
   ```javascript
-  import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router/utils'
+  import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router'
   setHashRoutingEnabled(false)
   setBasePath('/')
   ```
@@ -308,7 +372,7 @@ registerRoutes({
 
 **Referrer Tracking:**
 ```javascript
-import { setIncludeReferrer, goBack } from '@keenmate/svelte-spa-router/utils'
+import { setIncludeReferrer, goBack } from '@keenmate/svelte-spa-router'
 
 // Configure referrer tracking mode
 setIncludeReferrer('always')  // Options: 'never', 'notfound', 'always'
@@ -335,7 +399,7 @@ function handleGoBack() {
 
 **Strict Parameter Replacement:**
 ```javascript
-import { setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router/utils'
+import { setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router'
 
 // Configure placeholder for missing route parameters (default: 'N-A')
 setParamReplacementPlaceholder('N-A')
@@ -465,7 +529,7 @@ The router supports hierarchical route inheritance for apps with deep route stru
 
 ```javascript
 // main.js - before app mount
-import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
 
 setHierarchicalRoutesEnabled(true)
 ```
@@ -718,7 +782,7 @@ await push('adminUserDetail', { id: 123 })
 
 ```javascript
 // main.js - enable hierarchical mode for inheritance to work
-import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router/utils'
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
 
 setHierarchicalRoutesEnabled(true)
 

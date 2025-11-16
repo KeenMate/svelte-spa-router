@@ -1,6 +1,5 @@
 ﻿<script>
-import Router from '@keenmate/svelte-spa-router'
-import {link, location, querystring, push, navigationContext} from '@keenmate/svelte-spa-router/utils'
+import Router, {link, location, querystring, push, navigationContext} from '@keenmate/svelte-spa-router'
 import active from '@keenmate/svelte-spa-router/active'
 import wrap from '@keenmate/svelte-spa-router/wrap'
 import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
@@ -51,16 +50,15 @@ import Loading from './components/Loading.svelte'
 configurePermissions({
     checkPermissions,
     getCurrentUser,
-    onUnauthorized: (detail) => {
-        console.log('Unauthorized access attempt:', detail)
-        const returnTo = location()
-        const returnQuery = querystring()
-        // push(route, routeParams, queryString, navigationContext)
-        push('/unauthorized', {}, {}, {
-            returnTo,
-            returnQuery
-        })
-    }
+
+    // Use component mode (shows unauthorized without changing URL)
+    unauthorizedBehavior: 'component',
+    unauthorizedComponent: Unauthorized
+
+    // For navigate mode (changes URL to /unauthorized):
+    // unauthorizedBehavior: 'navigate',
+    // unauthorizedRoute: '/unauthorized',
+    // unauthorizedComponent: Unauthorized
 })
 
 // Register named routes for referrer tracking demo
@@ -207,13 +205,13 @@ const routes = {
         ]
     }),
     '/unauthorized': Unauthorized,
-    '/admin': wrap({
+    '/admin': createProtectedRoute({
         component: AdminPanel,
-        conditions: [createPermissionCondition({ any: ['admin'] })]
+        permissions: { any: ['admin'] }
     }),
-    '/settings': wrap({
+    '/settings': createProtectedRoute({
         component: Settings,
-        conditions: [createPermissionCondition({ any: ['settings:manage'] })]
+        permissions: { any: ['settings:manage'] }
     }),
     '/multi-zone-demo': MultiZoneDemo,
     '/product-zones/:productId': wrap({

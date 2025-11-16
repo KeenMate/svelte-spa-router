@@ -1,5 +1,5 @@
 <script>
-import { link } from '@keenmate/svelte-spa-router/utils'
+import { link } from '@keenmate/svelte-spa-router'
 import active from '@keenmate/svelte-spa-router/active'
 </script>
 

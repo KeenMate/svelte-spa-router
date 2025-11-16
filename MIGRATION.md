@@ -29,10 +29,12 @@ import active from 'svelte-spa-router/active'
 **After:**
 ```js
 import Router from '@keenmate/svelte-spa-router'
-import {link, location, querystring, params} from '@keenmate/svelte-spa-router'
+import {link, location, querystring, routeParams} from '@keenmate/svelte-spa-router'
 import {wrap} from '@keenmate/svelte-spa-router/wrap'
-import active from '@keenmate/svelte-spa-router/active'
+import {active} from '@keenmate/svelte-spa-router/active'
 ```
+
+> **Note:** `params` is now named `routeParams` for clarity.
 
 ## Step 3: Convert Store Usage to Function Calls
 
@@ -52,13 +54,15 @@ import {location, querystring, params} from 'svelte-spa-router'
 **After (Svelte 5):**
 ```svelte
 <script>
-import {location, querystring, params} from '@keenmate/svelte-spa-router'
+import {location, querystring, routeParams} from '@keenmate/svelte-spa-router'
 </script>
 
 <p>Location: {location()}</p>
 <p>Query: {querystring()}</p>
-<p>Params: {JSON.stringify(params())}</p>
+<p>Params: {JSON.stringify(routeParams())}</p>
 ```
+
+> **Important:** Note `params` is now `routeParams` and called as a function.
 
 ### Reactive Statements
 
@@ -113,12 +117,14 @@ let isHomePage = $derived(location() === '/')
 ```svelte
 <Router
     {routes}
-    onrouteLoading={handleLoading}
-    onrouteLoaded={handleLoaded}
-    onconditionsFailed={handleFailed}
+    onRouteLoading={handleLoading}
+    onRouteLoaded={handleLoaded}
+    onConditionsFailed={handleFailed}
     onrouteEvent={handleRouteEvent}
 />
 ```
+
+> **Note:** Event handler props use camelCase naming (e.g., `onRouteLoading`, not `onrouteLoading`).
 
 ## Step 5: Update Route Components
 
@@ -136,11 +142,13 @@ export let params = {}
 **After (Svelte 5):**
 ```svelte
 <script>
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 </script>
 
-<p>ID: {params.id}</p>
+<p>ID: {routeParams.id}</p>
 ```
+
+> **Note:** The prop name is now `routeParams` (not `params`).
 
 ### Static Props from Router
 
@@ -305,9 +313,10 @@ $effect(() => {
 ## Breaking Changes Summary
 
 1. **Stores → Functions**: `$location` becomes `location()`
-2. **Events → Props**: `on:routeLoaded` becomes `onrouteLoaded`
-3. **Component Props**: `export let params` becomes `let { params } = $props()`
-4. **Subscriptions → Effects**: Use `$effect` instead of `.subscribe()`
+2. **Param Name Changed**: `params` is now `routeParams`
+3. **Events → Props**: `on:routeLoaded` becomes `onRouteLoaded` (camelCase)
+4. **Component Props**: `export let params` becomes `let { routeParams } = $props()`
+5. **Subscriptions → Effects**: Use `$effect` instead of `.subscribe()`
 
 ## What Stays the Same
 
@@ -330,6 +339,95 @@ $effect(() => {
 5. Test dynamic imports
 6. Verify scroll restoration (if enabled)
 7. Test `active` link highlighting
+
+## Common Migration Errors
+
+### Error: "Missing './stores' specifier"
+
+```
+Missing "./stores" specifier in "@keenmate/svelte-spa-router" package
+```
+
+**Cause:** You're trying to use the old v3/v4 API that used Svelte stores.
+
+**❌ Wrong:**
+```javascript
+import { routeParams } from '@keenmate/svelte-spa-router/stores'
+```
+
+**✅ Fix:**
+```javascript
+// Import from main module or /utils
+import { routeParams } from '@keenmate/svelte-spa-router'
+// OR
+import { routeParams } from '@keenmate/svelte-spa-router'
+
+// Use as a function, not a store
+const params = $derived(routeParams())
+```
+
+### Error: "routeParams is not a function"
+
+**Cause:** You're using the old store syntax.
+
+**❌ Wrong:**
+```svelte
+<p>ID: {$routeParams.id}</p>
+```
+
+**✅ Fix:**
+```svelte
+<p>ID: {routeParams().id}</p>
+```
+
+Or better yet, use props in route components:
+```svelte
+<script>
+let { routeParams = {} } = $props()
+</script>
+<p>ID: {routeParams.id}</p>
+```
+
+### Error: "params is undefined"
+
+**Cause:** The prop name changed from `params` to `routeParams`.
+
+**❌ Wrong:**
+```javascript
+import { params } from '@keenmate/svelte-spa-router'
+```
+
+**✅ Fix:**
+```javascript
+import { routeParams } from '@keenmate/svelte-spa-router'
+```
+
+### Error: Event handlers not firing
+
+**Cause:** Event handler prop names changed to camelCase.
+
+**❌ Wrong:**
+```svelte
+<Router {routes} onrouteLoaded={handler} />
+```
+
+**✅ Fix:**
+```svelte
+<Router {routes} onRouteLoaded={handler} />
+```
+
+### Import Path Quick Reference
+
+| Import | Path |
+|--------|------|
+| Router component | `'@keenmate/svelte-spa-router'` |
+| Navigation (push, replace, etc.) | `'@keenmate/svelte-spa-router'` or `/utils` |
+| Route data (location, routeParams) | `'@keenmate/svelte-spa-router'` or `/utils` |
+| Route wrapping | `'@keenmate/svelte-spa-router/wrap'` |
+| Active link highlighting | `'@keenmate/svelte-spa-router/active'` |
+| Permissions | `'@keenmate/svelte-spa-router/helpers/permissions'` |
+| Navigation guards | `'@keenmate/svelte-spa-router/helpers/navigation-guard'` |
+| ❌ Stores (doesn't exist!) | None - use functions instead |
 
 ## Need Help?
 
@@ -378,10 +476,10 @@ $: isHomePage = $location === '/'
 <script>
 import Router from '@keenmate/svelte-spa-router'
 import {location, link} from '@keenmate/svelte-spa-router'
-import active from '@keenmate/svelte-spa-router/active'
+import {active} from '@keenmate/svelte-spa-router/active'
 import routes from './routes'
 
-let { params = {} } = $props()
+let { routeParams = {} } = $props()
 
 let isHomePage = $derived(location() === '/')
 </script>
@@ -397,7 +495,7 @@ let isHomePage = $derived(location() === '/')
 
 <Router
     {routes}
-    onrouteLoaded={(e) => console.log(e.detail)}
+    onRouteLoaded={(e) => console.log(e.detail)}
 />
 
 <footer>Current page: {location()}</footer>
