@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2025-01-17
+
 ### Changed
 - **Code Quality:** Major ESLint cleanup - reduced linting issues from 161 to 11 (93% reduction)
   - Removed unused imports across multiple modules (hierarchyLogger, location, untrack, hasRoute, etc.)
@@ -42,6 +44,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `createPermissionCondition()` only calls `onUnauthorized` handler if explicitly configured (backward compatibility)
   - Added internal `hasExplicitHandler()` tracking to distinguish explicit callbacks from defaults
   - **Migration:** Old `onUnauthorized` callback approach still works, new declarative config recommended
+- **Referrer Tracking:** Fixed referrer not being preserved on browser back/forward navigation
+  - Previously, pressing back button would show chronological previous route as referrer instead of original referrer
+  - Example: `/` → `/links` (referrer: `/`) → `/query` (referrer: `/links`) → [BACK] → `/links` showed referrer `/query` (wrong!) instead of `/` (correct)
+  - Root cause: navigationContext with referrer was calculated by router but never saved to history.state
+  - Solution: Router now saves calculated navigationContext (with referrer) back to history.state after route loads
+  - Added serialization handling for Proxy objects in params (uses JSON serialization fallback when structuredClone fails)
+  - Applied to both hash mode and history mode navigation
+  - Navigation sequence tracking now correctly increments on forward and decrements on back
+  - `goBack()` function simplified to use native browser back (`window.history.back()`) instead of manual push
+  - Referrer and scroll position now automatically restored from history.state on back/forward navigation
+- **Permissions:** Fixed `createProtectedRoute()` failing with synchronous component imports
+  - Error: "Cannot read properties of undefined (reading 'before')" when using sync imports like `component: AdminPanel`
+  - Root cause: `createProtectedRouteDefinition()` always treated components as async, causing Router to call component constructor as function returning `undefined`
+  - Solution: Detect sync vs async components - use `component` key for sync (let wrap() handle Promise wrapping) and `asyncComponent` key for async
+  - Now supports both patterns: `component: AdminPanel` (sync) and `component: () => import('./Admin.svelte')` (async)
+  - Async detection: `typeof component === 'function' && component.length === 0`
 
 ## [5.0.0-rc12] - 2025-02-12 ✅ Published
 
@@ -70,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses vendored `loglevel` and `loglevel-plugin-prefix` libraries (ESM versions)
   - **Breaking API change**: `setDebugLoggingEnabled()` replaced with new API
     - Old: `import { setDebugLoggingEnabled } from '@keenmate/svelte-spa-router/utils'`
-    - New: `import { enableLogging, disableLogging, setLogLevel, enableCategory } from '@keenmate/svelte-spa-router/logger'`
+    - New: `import { enableLogging, disableLogging, setLogLevel, setCategoryLevel } from '@keenmate/svelte-spa-router/logger'`
   - **12 hierarchical categories** for granular control:
     - `ROUTER` - Core routing pipeline, route matching
     - `ROUTER:NAVIGATION` - push, pop, replace, goBack
@@ -89,8 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Per-category control**: Enable specific categories at different log levels
     \`\`\`javascript
     disableLogging()  // Disable all
-    enableCategory('ROUTER:SCROLL', 'debug')  // Enable only scroll logs
-    enableCategory('ROUTER:NAVIGATION', 'info')  // Navigation at info level
+    setCategoryLevel('ROUTER:SCROLL', 'debug')  // Enable only scroll logs
+    setCategoryLevel('ROUTER:NAVIGATION', 'info')  // Navigation at info level
     \`\`\`
   - **Global level control**: \`setLogLevel('warn')\` to set all categories at once
   - Removed \`src/lib/internal/logging.js\` (custom implementation)

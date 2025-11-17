@@ -350,6 +350,29 @@ function handleToggleUser() {
         </div>
     </header>
 
+    <!-- Route info bar -->
+    <div class="route-info">
+        <div class="route-info-content">
+            <div class="route-info-section">
+                <strong>Current route:</strong> <code>{location()}</code>
+            </div>
+            <div class="route-info-section">
+                <strong>Referrer:</strong>
+                {#if referrer}
+                    <code>{referrer.routeName || referrer.location}</code>
+                    {#if referrer.querystring}
+                        <span class="route-info-qs">?{referrer.querystring}</span>
+                    {/if}
+                    {#if referrer.params && Object.keys(referrer.params).length > 0}
+                        <span class="route-info-params">(params: {JSON.stringify(referrer.params)})</span>
+                    {/if}
+                {:else}
+                    <span class="route-info-none">(none)</span>
+                {/if}
+            </div>
+        </div>
+    </div>
+
     {#if isZoneRoute}
         <!-- Multi-zone layout -->
         <div class="zone-layout">
@@ -372,28 +395,6 @@ function handleToggleUser() {
             <Router routes={allRoutes} onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
         </main>
     {/if}
-
-    <footer>
-        <div class="footer-content">
-            <div class="footer-section">
-                <strong>Current route:</strong> <code>{location()}</code>
-            </div>
-            <div class="footer-section">
-                <strong>Referrer:</strong>
-                {#if referrer}
-                    <code>{referrer.routeName || referrer.location}</code>
-                    {#if referrer.querystring}
-                        <span class="footer-qs">?{referrer.querystring}</span>
-                    {/if}
-                    {#if referrer.params && Object.keys(referrer.params).length > 0}
-                        <span class="footer-params">(params: {JSON.stringify(referrer.params)})</span>
-                    {/if}
-                {:else}
-                    <span class="footer-none">(none)</span>
-                {/if}
-            </div>
-        </div>
-    </footer>
 </div>
 </GlobalErrorHandler>
 
@@ -497,13 +498,17 @@ function handleToggleUser() {
         width: 100%;
     }
 
-    footer {
-        background: #f5f5f5;
-        padding: 1rem 2rem;
-        border-top: 1px solid #ddd;
+    /* Route info bar (moved from footer to top) */
+    .route-info {
+        background: #f0f9ff;
+        padding: 0.75rem 2rem;
+        border-bottom: 2px solid #0ea5e9;
+        position: sticky;
+        top: 70px;
+        z-index: 99;
     }
 
-    .footer-content {
+    .route-info-content {
         display: flex;
         gap: 2rem;
         justify-content: center;
@@ -512,13 +517,13 @@ function handleToggleUser() {
         font-size: 0.9rem;
     }
 
-    .footer-section {
+    .route-info-section {
         display: flex;
         align-items: center;
         gap: 0.5rem;
     }
 
-    footer code {
+    .route-info code {
         background: white;
         padding: 0.2rem 0.5rem;
         border-radius: 3px;
@@ -527,19 +532,19 @@ function handleToggleUser() {
         font-weight: 600;
     }
 
-    .footer-qs {
+    .route-info-qs {
         color: #059669;
         font-family: monospace;
         font-size: 0.85rem;
     }
 
-    .footer-params {
+    .route-info-params {
         color: #7c3aed;
         font-family: monospace;
         font-size: 0.8rem;
     }
 
-    .footer-none {
+    .route-info-none {
         color: #999;
         font-style: italic;
     }

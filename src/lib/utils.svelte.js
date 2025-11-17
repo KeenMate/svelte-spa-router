@@ -186,6 +186,9 @@ function getLocation() {
 // Trigger for manual updates (must be declared before locationState)
 let updateTrigger = $state(0)
 
+// Navigation sequence for detecting back/forward navigation
+let navigationSequence = $state(0)
+
 // Navigation context state for passing data between routes without URL
 let navigationContextState = $state(null)
 
@@ -204,6 +207,15 @@ if (typeof window !== 'undefined') {
     // Listen to hashchange for hash mode
     window.addEventListener('hashchange', () => {
         if (hashRoutingEnabled) {
+            // Detect navigation direction by comparing sequence numbers
+            const historyEntrySequence = history.state?.__navigationSequence ?? 0
+            const isBackOrForward = historyEntrySequence !== 0  // If we have a sequence, it's back/forward
+
+            // Update our sequence to match the history entry we're navigating to
+            if (isBackOrForward) {
+                navigationSequence = historyEntrySequence
+            }
+
             // Restore context from history state if available
             if (history.state && history.state.__svelte_spa_router_navigation_context !== undefined) {
                 setNavigationContext(history.state.__svelte_spa_router_navigation_context)
@@ -217,6 +229,15 @@ if (typeof window !== 'undefined') {
     // Listen to popstate for history mode (back/forward buttons)
     window.addEventListener('popstate', (event) => {
         if (!hashRoutingEnabled) {
+            // Detect navigation direction by comparing sequence numbers
+            const historyEntrySequence = event.state?.__navigationSequence ?? 0
+            const isBackOrForward = historyEntrySequence !== 0  // If we have a sequence, it's back/forward
+
+            // Update our sequence to match the history entry we're navigating to
+            if (isBackOrForward) {
+                navigationSequence = historyEntrySequence
+            }
+
             // Restore context from history state if available
             if (event.state && event.state.__svelte_spa_router_navigation_context !== undefined) {
                 setNavigationContext(event.state.__svelte_spa_router_navigation_context)
@@ -383,11 +404,27 @@ function navigate(location, shouldReplace = false, context = null) {
             }
 
             try {
+                // Save CURRENT context (with referrer) to current history entry before navigating
+                const currentContext = navigationContextState
+
+                // Serialize context to handle Proxy objects in params
+                let serializableContext = currentContext
+                if (currentContext !== null) {
+                    try {
+                        structuredClone(currentContext)
+                    } catch {
+                        // If structured clone fails (e.g., Proxy objects), use JSON serialization
+                        const jsonString = JSON.stringify(currentContext)
+                        serializableContext = JSON.parse(jsonString)
+                    }
+                }
+
                 history.replaceState({
                     ...history.state,
                     __svelte_spa_router_scrollX: window.scrollX,
                     __svelte_spa_router_scrollY: window.scrollY,
-                    ...(shouldSaveContext && { __svelte_spa_router_navigation_context: processedNavigationContext })
+                    __navigationSequence: navigationSequence,
+                    ...(serializableContext !== null && { __svelte_spa_router_navigation_context: serializableContext })
                 }, undefined)
             } catch (e) {
                 // If even without context it fails, just ignore
@@ -401,54 +438,121 @@ function navigate(location, shouldReplace = false, context = null) {
         // Note: Don't append window.location.search here - the location parameter
         // already contains the querystring if one should be present
 
-        // Try to create state with context
+        // Declare state variable for both push and replace paths
         let state = null
         let processedNavigationContext = context
 
-        try {
-            // First try structured clone (handles more types than JSON)
-            if (context !== null) {
-                structuredClone(context)
-                processedNavigationContext = context
-            }
-            state = {
-                __svelte_spa_router_navigation_context: processedNavigationContext
-            }
-        } catch {
-            // If structured clone fails, try JSON serialization
-            try {
-                if (context !== null) {
-                    const jsonString = JSON.stringify(context)
-                    processedNavigationContext = JSON.parse(jsonString)
-                    state = {
-                        __svelte_spa_router_navigation_context: processedNavigationContext,
-                        __svelte_spa_router_navigation_context_serialized: true
-                    }
-                } else {
-                    state = {}
-                }
-            } catch (jsonError) {
-                // If JSON serialization also fails, don't store in history
-                console.warn('Navigation context data cannot be stored in history (not serializable). Navigation context will not persist on back/forward navigation.', jsonError)
-                state = {}
-            }
-        }
-
         if (shouldReplace) {
+            // For replace, just increment and use the new sequence
+
+            try {
+                // First try structured clone (handles more types than JSON)
+                if (context !== null) {
+                    structuredClone(context)
+                    processedNavigationContext = context
+                }
+                state = {
+                    __navigationSequence: ++navigationSequence,
+                    __svelte_spa_router_navigation_context: processedNavigationContext
+                }
+            } catch {
+                // If structured clone fails, try JSON serialization
+                try {
+                    if (context !== null) {
+                        const jsonString = JSON.stringify(context)
+                        processedNavigationContext = JSON.parse(jsonString)
+                        state = {
+                            __navigationSequence: ++navigationSequence,
+                            __svelte_spa_router_navigation_context: processedNavigationContext,
+                            __svelte_spa_router_navigation_context_serialized: true
+                        }
+                    } else {
+                        state = {
+                            __navigationSequence: ++navigationSequence
+                        }
+                    }
+                } catch (jsonError) {
+                    // If JSON serialization also fails, don't store in history
+                    console.warn('Navigation context data cannot be stored in history (not serializable). Navigation context will not persist on back/forward navigation.', jsonError)
+                    state = {
+                        __navigationSequence: ++navigationSequence
+                    }
+                }
+            }
             window.history.replaceState(state, '', fullPath)
         } else {
-            // Save scroll state and context before navigation
-            try {
-                history.replaceState({
-                    ...history.state,
-                    __svelte_spa_router_scrollX: window.scrollX,
-                    __svelte_spa_router_scrollY: window.scrollY,
-                    ...(processedNavigationContext !== null && state.__svelte_spa_router_navigation_context !== undefined && { __svelte_spa_router_navigation_context: processedNavigationContext })
-                }, undefined)
-            } catch (e) {
-                // If it fails, just ignore
-                console.warn('Failed to save state to history:', e)
+            // For push:
+            // 1. Save current entry with current sequence and current context (with referrer)
+            // 2. Increment sequence
+            // 3. Push new entry with new sequence and new context
+
+            // Step 1: Save current entry (only if we have a history state)
+            // On first navigation, history.state might be null, so we skip this
+            if (history.state) {
+                try {
+                    const currentContext = navigationContextState  // Get current context with referrer
+
+                    // Serialize context to handle Proxy objects in params
+                    let serializableContext = currentContext
+                    if (currentContext !== null) {
+                        try {
+                            structuredClone(currentContext)
+                        } catch {
+                            // If structured clone fails (e.g., Proxy objects), use JSON serialization
+                            const jsonString = JSON.stringify(currentContext)
+                            serializableContext = JSON.parse(jsonString)
+                        }
+                    }
+
+                    history.replaceState({
+                        ...history.state,
+                        __svelte_spa_router_scrollX: window.scrollX,
+                        __svelte_spa_router_scrollY: window.scrollY,
+                        __navigationSequence: navigationSequence,  // Use CURRENT sequence
+                        ...(serializableContext !== null && { __svelte_spa_router_navigation_context: serializableContext })
+                    }, undefined)
+                } catch (e) {
+                    // If it fails, just ignore
+                    console.warn('Failed to save state to history:', e)
+                }
             }
+
+            // Step 2 & 3: Increment and create new state
+            try {
+                // First try structured clone (handles more types than JSON)
+                if (context !== null) {
+                    structuredClone(context)
+                    processedNavigationContext = context
+                }
+                state = {
+                    __navigationSequence: ++navigationSequence,  // NOW increment
+                    __svelte_spa_router_navigation_context: processedNavigationContext
+                }
+            } catch {
+                // If structured clone fails, try JSON serialization
+                try {
+                    if (context !== null) {
+                        const jsonString = JSON.stringify(context)
+                        processedNavigationContext = JSON.parse(jsonString)
+                        state = {
+                            __navigationSequence: ++navigationSequence,
+                            __svelte_spa_router_navigation_context: processedNavigationContext,
+                            __svelte_spa_router_navigation_context_serialized: true
+                        }
+                    } else {
+                        state = {
+                            __navigationSequence: ++navigationSequence
+                        }
+                    }
+                } catch (jsonError) {
+                    // If JSON serialization also fails, don't store in history
+                    console.warn('Navigation context data cannot be stored in history (not serializable). Navigation context will not persist on back/forward navigation.', jsonError)
+                    state = {
+                        __navigationSequence: ++navigationSequence
+                    }
+                }
+            }
+
             window.history.pushState(state, '', fullPath)
         }
 
@@ -555,38 +659,19 @@ export async function pop() {
 }
 
 /**
- * Navigates back to the referrer with scroll restoration.
+ * Navigates back in browser history.
  *
- * This is a convenience function that:
- * 1. Checks if a referrer exists in navigationContext
- * 2. Navigates to the referrer location with scroll restoration
- * 3. Falls back to browser back if no referrer available
+ * This is equivalent to pressing the browser's back button or calling pop().
+ * The referrer and scroll position are automatically restored from history.state.
+ *
+ * This function is a convenience alias for pop() that provides better semantics
+ * when implementing "Go Back" buttons in your UI.
  *
  * @return {Promise<void>} Promise that resolves after navigation completes
  */
 export async function goBack() {
-    const navContext = navigationContext()
-
-    navigationLogger.debug('Called - navigationContext:', navContext)
-
-    if (!navContext?.referrer) {
-        navigationLogger.warn('No referrer available for goBack(), using browser back')
-        return pop()
-    }
-
-    const ref = navContext.referrer
-    const targetUrl = ref.location + (ref.querystring ? '?' + ref.querystring : '')
-
-    navigationLogger.debug('Navigating to referrer:', targetUrl, 'with scroll position:', { scrollX: ref.scrollX, scrollY: ref.scrollY })
-
-    // Pass scroll position in the navigation context so it can be restored
-    const contextWithScroll = {
-        __scrollBehavior: 'restore',
-        __targetScrollX: ref.scrollX,
-        __targetScrollY: ref.scrollY
-    }
-
-    await push(targetUrl, {}, {}, contextWithScroll, { scrollBehavior: 'restore' })
+    navigationLogger.debug('Going back in history')
+    return pop()
 }
 
 /**

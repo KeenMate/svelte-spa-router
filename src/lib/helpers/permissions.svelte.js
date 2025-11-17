@@ -265,8 +265,18 @@ export function createProtectedRouteDefinition(options) {
     } = options
 
     const wrapOptions = {
-        asyncComponent: component,  // Always treat as asyncComponent for wrap()
         ...restOptions
+    }
+
+    // Detect if component is async (function that returns a Promise) or sync (Svelte component constructor)
+    // Async: () => import('./Component.svelte') or () => Promise.resolve(Component)
+    // Sync: Component (direct reference)
+    if (typeof component === 'function' && component.length === 0) {
+        // It's a function with no parameters - likely an async loader
+        wrapOptions.asyncComponent = component
+    } else {
+        // It's a sync component - let wrap() handle Promise wrapping
+        wrapOptions.component = component
     }
 
     if (loadingComponent) {

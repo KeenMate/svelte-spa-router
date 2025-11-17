@@ -1,6 +1,6 @@
 {
   "name": "@keenmate/svelte-spa-router",
-  "version": "5.0.0-rc12",
+  "version": "5.0.0",
   "description": "Router for SPAs using Svelte 5 with runes, dual-mode routing, permissions, and error handling",
   "main": "./src/lib/index.js",
   "svelte": "./src/lib/Router.svelte",

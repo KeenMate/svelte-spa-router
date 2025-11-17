@@ -298,6 +298,14 @@ let currentParams = $state({})
 let currentRouteName = $state(null)
 let isCurrentRouteCatchAll = $state(false) // Track if we're on a catch-all route
 
+// Track previous route state for referrer calculation
+// This is updated AFTER navigation completes to avoid stale values during popstate
+let previousRoute = $state(null)
+let previousQuerystring = $state('')
+let previousParams = $state({})
+let previousRouteName = $state(null)
+let isPreviousRouteCatchAll = $state(false)
+
 // Previous scroll state for restoration
 let previousScrollState = $state(null)
 
@@ -561,7 +569,36 @@ function commitToReactiveState(ctx) {
                 // Update navigation context with referrer
                 if (ctx.updatedNavigationContext) {
                     setNavigationContext(ctx.updatedNavigationContext)
+
+                    // CRITICAL: Save the calculated navigationContext (with referrer) back to history.state
+                    // This ensures when user presses back button, the referrer is restored correctly
+                    if (typeof window !== 'undefined' && window.history.state) {
+                        try {
+                            // Serialize the context to handle Proxy objects in params
+                            let serializableContext = ctx.updatedNavigationContext
+                            try {
+                                // Try structured clone first
+                                structuredClone(ctx.updatedNavigationContext)
+                            } catch {
+                                // If it fails (e.g., Proxy objects), use JSON serialization
+                                const jsonString = JSON.stringify(ctx.updatedNavigationContext)
+                                serializableContext = JSON.parse(jsonString)
+                            }
+
+                            window.history.replaceState({
+                                ...window.history.state,
+                                __svelte_spa_router_navigation_context: serializableContext
+                            }, '')
+                        } catch (e) {
+                            console.warn('Failed to save navigationContext to history.state:', e)
+                        }
+                    }
                 }
+
+                // Debug log AFTER navigationContext is set
+                const finalReferrer = ctx.updatedNavigationContext?.referrer?.location || 'none'
+                const finalSeq = typeof window !== 'undefined' && window.history.state?.__navigationSequence || 0
+                console.log(`🔍 NAV: route="${ctx.location}" referrer="${finalReferrer}" seq=${finalSeq}`)
 
                 // Update current route tracking (unless catch-all)
                 if (!ctx.isCatchAll) {
@@ -663,8 +700,10 @@ function pipelineCalculateReferrer(ctx) {
         // No match - might inject referrer in 404 handler
         const includeReferrer = getIncludeReferrer()
         const hasReferrer = ctx.previousRoute.location !== null
+        const hasExistingReferrer = !!ctx.incomingContext?.referrer
 
-        if ((includeReferrer === 'notfound' || includeReferrer === 'always') && hasReferrer) {
+        // Only create new referrer if one doesn't already exist (from back/forward navigation)
+        if (!hasExistingReferrer && (includeReferrer === 'notfound' || includeReferrer === 'always') && hasReferrer) {
             return {
                 ...ctx,
                 updatedNavigationContext: {
@@ -688,36 +727,40 @@ function pipelineCalculateReferrer(ctx) {
     const includeReferrer = getIncludeReferrer()
     const isCatchAll = ctx.match.routeItem.path === '*'
     const hasReferrer = ctx.previousRoute.location !== null
+    const hasExistingReferrer = !!ctx.incomingContext?.referrer
 
     let updatedContext = ctx.incomingContext
 
-    if (isCatchAll && (includeReferrer === 'notfound' || includeReferrer === 'always') && hasReferrer) {
-        // Catch-all route: inject referrer with attemptedRoute
-        hierarchyLogger.debug('Catch-all route - Injecting referrer:', ctx.previousRoute.location)
-        updatedContext = {
-            ...updatedContext,
-            attemptedRoute: ctx.location,
-            attemptedQuerystring: ctx.querystring,
-            referrer: {
-                location: ctx.previousRoute.location,
-                querystring: ctx.previousRoute.querystring,
-                params: ctx.previousRoute.params,
-                routeName: ctx.previousRoute.routeName,
-                scrollX: ctx.previousRoute.scrollX,
-                scrollY: ctx.previousRoute.scrollY
+    // Only create new referrer if one doesn't already exist (from back/forward navigation)
+    if (!hasExistingReferrer) {
+        if (isCatchAll && (includeReferrer === 'notfound' || includeReferrer === 'always') && hasReferrer) {
+            // Catch-all route: inject referrer with attemptedRoute
+            hierarchyLogger.debug('Catch-all route - Injecting referrer:', ctx.previousRoute.location)
+            updatedContext = {
+                ...updatedContext,
+                attemptedRoute: ctx.location,
+                attemptedQuerystring: ctx.querystring,
+                referrer: {
+                    location: ctx.previousRoute.location,
+                    querystring: ctx.previousRoute.querystring,
+                    params: ctx.previousRoute.params,
+                    routeName: ctx.previousRoute.routeName,
+                    scrollX: ctx.previousRoute.scrollX,
+                    scrollY: ctx.previousRoute.scrollY
+                }
             }
-        }
-    } else if (!isCatchAll && includeReferrer === 'always' && hasReferrer) {
-        // Regular route: inject referrer if 'always' mode
-        updatedContext = {
-            ...updatedContext,
-            referrer: {
-                location: ctx.previousRoute.location,
-                querystring: ctx.previousRoute.querystring,
-                params: ctx.previousRoute.params,
-                routeName: ctx.previousRoute.routeName,
-                scrollX: ctx.previousRoute.scrollX,
-                scrollY: ctx.previousRoute.scrollY
+        } else if (!isCatchAll && includeReferrer === 'always' && hasReferrer) {
+            // Regular route: inject referrer if 'always' mode
+            updatedContext = {
+                ...updatedContext,
+                referrer: {
+                    location: ctx.previousRoute.location,
+                    querystring: ctx.previousRoute.querystring,
+                    params: ctx.previousRoute.params,
+                    routeName: ctx.previousRoute.routeName,
+                    scrollX: ctx.previousRoute.scrollX,
+                    scrollY: ctx.previousRoute.scrollY
+                }
             }
         }
     }
@@ -1126,6 +1169,23 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
 // ============================================================================
 
 /**
+ * Pre-effect to capture location BEFORE navigation
+ * This ensures previousRoute always has the correct "where we came from" value
+ */
+$effect.pre(() => {
+    const loc = location()
+    const qs = querystring()
+
+    // Update previous route state with current values BEFORE they change
+    // This captures "where we're leaving from" for referrer tracking
+    previousRoute = currentRoute
+    previousQuerystring = currentQuerystring
+    previousParams = currentParams
+    previousRouteName = currentRouteName
+    isPreviousRouteCatchAll = isCurrentRouteCatchAll
+})
+
+/**
  * Main routing effect - NOW USES PIPELINE!
  * Simplified: just read inputs and trigger pipeline
  */
@@ -1146,13 +1206,15 @@ $effect(() => {
     // Read navigationContext to get route name (untracked to prevent re-runs on context changes)
     const incomingContext = untrack(() => navigationContext() || {})
 
-    // Capture current route snapshot for referrer calculation
+    // Capture previous route snapshot for referrer calculation
+    // Uses previousRoute state which is updated AFTER navigation completes
+    // This ensures we get the correct "where we came from" even during popstate events
     const currentRouteSnapshot = {
-        location: currentRoute,
-        querystring: currentQuerystring,
-        params: currentParams,
-        routeName: currentRouteName,
-        isCatchAll: isCurrentRouteCatchAll,
+        location: previousRoute,
+        querystring: previousQuerystring,
+        params: previousParams,
+        routeName: previousRouteName,
+        isCatchAll: isPreviousRouteCatchAll,
         scrollX: typeof window !== 'undefined' ? window.scrollX : 0,
         scrollY: typeof window !== 'undefined' ? window.scrollY : 0
     }

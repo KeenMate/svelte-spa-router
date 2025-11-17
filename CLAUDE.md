@@ -174,7 +174,7 @@ The router is organized into several key modules:
 - Based on loglevel library (~1KB) with loglevel-plugin-prefix for timestamps
 - 12 hierarchical categories: ROUTER, ROUTER:NAVIGATION, ROUTER:SCROLL, ROUTER:GUARDS, ROUTER:CONDITIONS, ROUTER:HIERARCHY, ROUTER:PERMISSIONS, ROUTER:ROUTES, ROUTER:ZONES, ROUTER:METADATA, ROUTER:ERROR_HANDLER, ROUTER:FILTERS
 - Color-coded console output with timestamps: `[HH:MM:SS.mmm] [LEVEL] [CATEGORY]`
-- Public API: `enableLogging()`, `disableLogging()`, `setLogLevel()`, `enableCategory()`
+- Public API: `enableLogging()`, `disableLogging()`, `setLogLevel()`, `setCategoryLevel()`
 - Zero overhead when disabled (logs are no-ops at silent level)
 - Vendored dependencies in `src/lib/vendor/loglevel/` (consistent with @keenmate/web-multiselect)
 
@@ -198,11 +198,11 @@ if (import.meta.env.DEV) {
 }
 
 // Or enable specific categories only
-import { disableLogging, enableCategory } from '@keenmate/svelte-spa-router/logger'
+import { disableLogging, setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
 
 disableLogging()  // Disable all
-enableCategory('ROUTER:SCROLL', 'debug')  // Enable only scroll logs
-enableCategory('ROUTER:NAVIGATION', 'info')  // Enable navigation at info level
+setCategoryLevel('ROUTER:SCROLL', 'debug')  // Enable only scroll logs
+setCategoryLevel('ROUTER:NAVIGATION', 'info')  // Enable navigation at info level
 
 // Or set global level
 import { setLogLevel } from '@keenmate/svelte-spa-router/logger'

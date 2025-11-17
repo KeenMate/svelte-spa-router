@@ -5,7 +5,7 @@
  * Includes location, querystring, params, and route name
  */
 
-import { push, navigationContext, location, querystring } from '@keenmate/svelte-spa-router'
+import { goBack, navigationContext, location, querystring } from '@keenmate/svelte-spa-router'
 
 // Get navigation context (includes referrer when tracking is enabled)
 const ctx = $derived(navigationContext())
@@ -148,8 +148,8 @@ setIncludeReferrer('always')   // All routes (current mode)</code></pre>
                 </div>
 
                 {#if referrer.location !== '/'}
-                    <button onclick={() => push(referrer.location + (referrer.querystring ? '?' + referrer.querystring : ''))} class="btn-back">
-                        ← Go Back to Previous Route
+                    <button onclick={goBack} class="btn-back">
+                        ← Go Back to Previous Route (with scroll restoration)
                     </button>
                 {/if}
             </div>
