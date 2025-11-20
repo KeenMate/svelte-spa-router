@@ -1,0 +1,141 @@
+BASIC ROUTER SETUP
+==================
+
+CRITICAL: This is Svelte 5 router using RUNES, NOT stores
+- Use $state(), $derived(), $effect()
+- NO writable(), readable(), derived()
+- NO $: reactive declarations
+- NO $store syntax
+
+HASH MODE (default)
+-------------------
+URLs: http://example.com/#/path
+No server config needed
+
+// main.js
+import { mount } from 'svelte'
+import App from './App.svelte'
+
+mount(App, { target: document.getElementById('app') })
+
+// App.svelte
+<script>
+import Router from '@keenmate/svelte-spa-router'
+import Home from './Home.svelte'
+import About from './About.svelte'
+import NotFound from './NotFound.svelte'
+
+const routes = {
+    '/': Home,
+    '/about': About,
+    '/user/:id': UserProfile,
+    '/books/*': BookWildcard,
+    '*': NotFound  // Must be last
+}
+</script>
+
+<Router {routes} />
+
+HISTORY MODE (clean URLs)
+--------------------------
+URLs: http://example.com/path
+Requires server fallback to index.html
+
+// main.js
+import { mount } from 'svelte'
+import { setHashRoutingEnabled, setBasePath } from '@keenmate/svelte-spa-router'
+import App from './App.svelte'
+
+setHashRoutingEnabled(false)
+setBasePath('/')  // Or '/app' for subdirectory
+
+mount(App, { target: document.getElementById('app') })
+
+// App.svelte - same as hash mode
+
+SERVER CONFIG
+-------------
+History mode requires server fallback:
+
+// Vite (vite.config.js)
+export default {
+    server: {
+        historyApiFallback: true
+    }
+}
+
+// Express
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'))
+})
+
+// Nginx
+location / {
+    try_files $uri $uri/ /index.html;
+}
+
+ROUTE DEFINITION PATTERNS
+--------------------------
+Flat object:
+const routes = {
+    '/': Home,
+    '/about': About,
+    '*': NotFound
+}
+
+Map (for non-standard paths):
+const routes = new Map([
+    ['/', Home],
+    ['/about', About],
+    ['*', NotFound]
+])
+
+ROUTER PROPS
+------------
+<Router
+    {routes}
+    prefix="/app"                                  // For nested routers
+    restoreScrollState={true}                      // Default: true
+    onRouteLoading={(e) => console.log(e.detail)}  // Route starting
+    onRouteLoaded={(e) => console.log(e.detail)}   // Route loaded
+    onConditionsFailed={(e) => push('/unauthorized')}
+    onNotFound={(e) => console.log('404:', e.detail)}
+/>
+
+ROUTE COMPONENT PROPS
+---------------------
+Route components receive:
+
+<script>
+// Child component (e.g., UserProfile.svelte)
+let { routeParams = {} } = $props()
+</script>
+
+<p>User ID: {routeParams.id}</p>
+
+ACCESSING ROUTE STATE
+----------------------
+Import from main module or /utils:
+
+import { location, querystring, routeParams, navigationContext } from '@keenmate/svelte-spa-router'
+
+// Use as FUNCTIONS (not stores!)
+const path = $derived(location())
+const query = $derived(querystring())
+const params = $derived(routeParams())
+const navContext = $derived(navigationContext())
+
+CONFIGURATION OPTIONS
+---------------------
+// main.js - configure before mount
+import {
+    setHashRoutingEnabled,
+    setBasePath,
+    setParamReplacementPlaceholder,
+    setIncludeReferrer
+} from '@keenmate/svelte-spa-router'
+
+setHashRoutingEnabled(false)           // Enable history mode
+setBasePath('/app')                    // Base path for subdirectory
+setParamReplacementPlaceholder('N-A')  // Placeholder for missing params
+setIncludeReferrer('always')           // Track referrer: 'never', 'notfound', 'always'

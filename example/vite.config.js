@@ -1,9 +1,41 @@
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 
 // Read package.json for build-time constants
-const pkg = JSON.parse(readFileSync('../package.json', 'utf-8'))
+// Try multiple locations to support both local dev and Docker builds
+let pkg
+try {
+    // Local development: parent directory
+    if (existsSync('../package.json')) {
+        pkg = JSON.parse(readFileSync('../package.json', 'utf-8'))
+    }
+    // Docker build: /router-src directory
+    else if (existsSync('/router-src/package.json')) {
+        pkg = JSON.parse(readFileSync('/router-src/package.json', 'utf-8'))
+    }
+    // Fallback: use default values
+    else {
+        pkg = {
+            version: '5.1.0',
+            name: '@keenmate/svelte-spa-router',
+            author: 'KeenMate (https://keenmate.com)',
+            license: 'MIT',
+            repository: { url: 'https://github.com/keenmate/svelte-spa-router' },
+            homepage: 'https://github.com/keenmate/svelte-spa-router#readme'
+        }
+    }
+} catch (error) {
+    console.warn('Failed to read package.json, using fallback values:', error.message)
+    pkg = {
+        version: '5.1.0',
+        name: '@keenmate/svelte-spa-router',
+        author: 'KeenMate (https://keenmate.com)',
+        license: 'MIT',
+        repository: { url: 'https://github.com/keenmate/svelte-spa-router' },
+        homepage: 'https://github.com/keenmate/svelte-spa-router#readme'
+    }
+}
 
 export default defineConfig({
     plugins: [

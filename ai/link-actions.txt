@@ -1,0 +1,288 @@
+LINK ACTION & ACTIVE HIGHLIGHTING
+==================================
+
+LINK ACTION
+-----------
+Converts regular links to SPA navigation (no page reload)
+
+IMPORT
+------
+import { link } from '@keenmate/svelte-spa-router'
+
+BASIC USAGE
+-----------
+<a href="/about" use:link>About</a>
+<a href="/user/123" use:link>User 123</a>
+
+Behavior:
+- Intercepts click
+- Prevents page reload
+- Calls push() internally
+- Works with modifier keys (Ctrl+Click opens new tab)
+
+WITH PARAMETERS (4-element array)
+----------------------------------
+Array format: [route, params, query, navigationContext]
+
+<a href="#" use:link={['/user/:id', { id: 123 }]}>User 123</a>
+
+<a href="#" use:link={['/search', {}, { q: 'svelte', page: 2 }]}>Search</a>
+
+<a href="#" use:link={[
+    '/document/:id',
+    { id: 456 },
+    { tab: 'edit' },
+    { source: 'menu' }
+]}>Edit Document</a>
+
+WITH NAMED ROUTES
+-----------------
+<a href="#" use:link={['userProfile', { userId: 123 }]}>Profile</a>
+
+<a href="#" use:link={[
+    'documentDetail',
+    { docId: 456 },
+    { tab: 'preview' }
+]}>Preview</a>
+
+MODIFIER KEYS
+-------------
+Ctrl+Click (Windows/Linux) or Cmd+Click (Mac): Open in new tab
+Middle-click: Open in new tab
+Shift+Click: Open in new window
+
+Link action respects these, lets browser handle.
+
+TARGET ATTRIBUTE
+----------------
+Respects target attribute:
+
+<a href="/external" target="_blank" use:link>New Tab</a>
+<a href="/same" target="_self" use:link>Same Tab</a>
+
+HASH MODE VS HISTORY MODE
+--------------------------
+Hash mode: href="#/about"
+<a href="#/about" use:link>About</a>
+
+History mode: href="/about"
+<a href="/about" use:link>About</a>
+
+Link action adapts to configured routing mode.
+
+EXTERNAL LINKS
+--------------
+Don't use link action for external URLs:
+
+❌ <a href="https://example.com" use:link>External</a>
+✅ <a href="https://example.com">External</a>
+
+Link action only for internal navigation.
+
+DYNAMIC HREFS
+-------------
+<script>
+let userId = 123
+</script>
+
+<a href="/user/{userId}" use:link>User {userId}</a>
+
+Or with array format:
+<a href="#" use:link={['/user/:id', { id: userId }]}>User {userId}</a>
+
+ACTIVE LINK HIGHLIGHTING
+-------------------------
+Adds CSS class to active links
+
+IMPORT
+------
+import { active } from '@keenmate/svelte-spa-router/active'
+
+BASIC USAGE
+-----------
+<a href="/about" use:link use:active>About</a>
+<a href="/user/123" use:link use:active>User</a>
+
+When route matches, adds 'active' class.
+
+CUSTOM CLASS
+------------
+<a href="/about" use:link use:active={'current'}>About</a>
+
+Adds 'current' class when active.
+
+CSS STYLING
+-----------
+a.active {
+    font-weight: bold;
+    color: blue;
+}
+
+a.current {
+    background: yellow;
+}
+
+EXACT MATCHING
+--------------
+Default: Exact match only
+
+Route: /about
+Link: /about → active ✓
+Link: /about/team → not active ✗
+
+PREFIX MATCHING
+---------------
+Use asterisk for prefix matching:
+
+<a href="/docs/*" use:link use:active>Docs</a>
+
+Route: /docs → active ✓
+Route: /docs/guide → active ✓
+Route: /docs/api/reference → active ✓
+Route: /about → not active ✗
+
+MULTIPLE LINKS
+--------------
+<nav>
+    <a href="/" use:link use:active>Home</a>
+    <a href="/about" use:link use:active>About</a>
+    <a href="/docs/*" use:link use:active>Docs</a>
+    <a href="/contact" use:link use:active>Contact</a>
+</nav>
+
+Only matching link gets 'active' class.
+
+COMBINING LINK + ACTIVE + PARAMS
+---------------------------------
+<a
+    href="#"
+    use:link={['userProfile', { userId: 123 }]}
+    use:active
+>
+    My Profile
+</a>
+
+When on /user/123, link has 'active' class.
+
+NESTED ROUTES
+-------------
+Use prefix matching for parent links:
+
+<nav>
+    <a href="/admin/*" use:link use:active>Admin</a>
+    <a href="/admin/users" use:link use:active>Users</a>
+    <a href="/admin/settings" use:link use:active>Settings</a>
+</nav>
+
+Route: /admin/users
+- Admin: active (prefix match)
+- Users: active (exact match)
+- Settings: not active
+
+CUSTOM ACTIVE LOGIC
+-------------------
+For complex active states, use location() directly:
+
+<script>
+import { location } from '@keenmate/svelte-spa-router'
+
+const currentPath = $derived(location())
+const isAdminActive = $derived(currentPath.startsWith('/admin'))
+</script>
+
+<a
+    href="/admin"
+    use:link
+    class={isAdminActive ? 'active' : ''}
+>
+    Admin
+</a>
+
+ACCESSIBILITY
+-------------
+Add aria-current for screen readers:
+
+<script>
+import { location } from '@keenmate/svelte-spa-router'
+
+const currentPath = $derived(location())
+</script>
+
+<a
+    href="/about"
+    use:link
+    use:active
+    aria-current={currentPath === '/about' ? 'page' : undefined}
+>
+    About
+</a>
+
+MOBILE CONSIDERATIONS
+---------------------
+Touch events work with link action:
+- Tap: Navigate
+- Long press: Show context menu
+
+No special handling needed.
+
+NAMED ROUTES WITH ACTIVE
+-------------------------
+<script>
+import { navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const currentRouteName = $derived(navContext?.routeName)
+</script>
+
+<a
+    href="#"
+    use:link={['userProfile', { userId: 123 }]}
+    class={currentRouteName === 'userProfile' ? 'active' : ''}
+>
+    Profile
+</a>
+
+PERFORMANCE
+-----------
+Link action:
+- Minimal overhead
+- Event listener per link
+- No watchers or reactivity
+
+Active action:
+- Checks on every route change
+- Fast string comparison
+- No DOM queries
+
+COMMON PATTERNS
+---------------
+Navigation menu:
+<nav>
+    <a href="/" use:link use:active>Home</a>
+    <a href="/about" use:link use:active>About</a>
+    <a href="/docs/*" use:link use:active>Docs</a>
+</nav>
+
+Tabs:
+<div class="tabs">
+    <a href="/profile/info" use:link use:active={'tab-active'}>Info</a>
+    <a href="/profile/settings" use:link use:active={'tab-active'}>Settings</a>
+</div>
+
+Breadcrumbs:
+<nav class="breadcrumbs">
+    <a href="/" use:link>Home</a>
+    <a href="/docs/*" use:link use:active>Docs</a>
+    <a href="/docs/guide" use:link use:active>Guide</a>
+</nav>
+
+BEST PRACTICES
+--------------
+- Always use link action for internal navigation
+- Use active action for visual feedback
+- Prefix matching (*) for parent routes
+- Custom active logic for complex states
+- Keep href readable (even if using array format)
+- Don't use link action for external URLs
+- Test with keyboard navigation
+- Add aria-current for accessibility

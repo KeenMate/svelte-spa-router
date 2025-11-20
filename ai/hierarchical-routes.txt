@@ -1,0 +1,303 @@
+HIERARCHICAL ROUTES (INHERITANCE MODE)
+=======================================
+
+FEATURE: Optional opt-in for route inheritance
+DEFAULT: Disabled (flat routes, no inheritance)
+
+ENABLE
+------
+// main.js - before app mount
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+
+setHierarchicalRoutesEnabled(true)
+
+WHAT INHERITS
+-------------
+Child routes inherit from parent routes:
+- Breadcrumbs (concatenated)
+- Permissions (sequential AND logic)
+- Conditions (parent runs before child)
+- Authorization callbacks (parent before child)
+
+BREADCRUMB INHERITANCE
+----------------------
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/documents': createRoute({
+        component: Documents,
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Documents' }
+        ]
+    }),
+    '/documents/:id': createRoute({
+        component: DocumentDetail,
+        breadcrumbs: [
+            { label: 'Detail' }
+        ]
+        // Effective: [Home, Documents, Detail]
+    }),
+    '/documents/:id/logs': createRoute({
+        component: DocumentLogs,
+        breadcrumbs: [
+            { label: 'Logs' }
+        ]
+        // Effective: [Home, Documents, Detail, Logs]
+    })
+}
+
+PERMISSION INHERITANCE
+----------------------
+Like filesystem security - all ancestor checks must pass:
+
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+const routes = {
+    '/documents': createProtectedRoute({
+        component: Documents,
+        permissions: { any: ['read'] }
+    }),
+    '/documents/:id': createProtectedRoute({
+        component: DocumentDetail,
+        permissions: { any: ['documents.view'] }
+        // Must have: 'read' AND 'documents.view'
+    }),
+    '/documents/:id/edit': createProtectedRoute({
+        component: DocumentEdit,
+        permissions: { any: ['documents.edit'] }
+        // Must have: 'read' AND 'documents.view' AND 'documents.edit'
+    })
+}
+
+Execution: Fail-fast on first denial
+1. Check parent permission → must pass
+2. Check child permission → must pass
+3. Check grandchild permission → must pass
+
+CONDITION INHERITANCE
+---------------------
+Parent conditions run before child conditions:
+
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/admin': wrap({
+        component: AdminLayout,
+        conditions: [
+            async () => await isAuthenticated()
+        ]
+    }),
+    '/admin/users': wrap({
+        component: AdminUsers,
+        conditions: [
+            async () => await hasAdminRole()
+        ]
+        // Runs: isAuthenticated → hasAdminRole
+    }),
+    '/admin/users/:id': wrap({
+        component: AdminUserDetail,
+        conditions: [
+            async (detail) => {
+                return await canEditUser(detail.routeParams.id)
+            }
+        ]
+        // Runs: isAuthenticated → hasAdminRole → canEditUser
+    })
+}
+
+AUTHORIZATION INHERITANCE
+-------------------------
+Parent authorizationCallback runs before child:
+
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+const routes = {
+    '/projects/:projectId': createProtectedRoute({
+        component: ProjectLayout,
+        permissions: { any: ['projects.view'] },
+        authorizationCallback: async (detail) => {
+            return await canAccessProject(detail.routeParams.projectId)
+        }
+    }),
+    '/projects/:projectId/settings': createProtectedRoute({
+        component: ProjectSettings,
+        permissions: { any: ['projects.settings'] },
+        authorizationCallback: async (detail) => {
+            return await canEditProjectSettings(detail.routeParams.projectId)
+        }
+        // Runs: canAccessProject → canEditProjectSettings
+    })
+}
+
+PARENT DETECTION
+----------------
+Router detects parent by matching URL prefixes:
+- Parent: /documents
+- Child: /documents/:id
+- Grandchild: /documents/:id/logs
+
+Algorithm:
+1. Split URL by '/'
+2. Build progressively longer paths
+3. Match against route definitions
+4. Collect ancestors
+
+OPTING OUT OF INHERITANCE
+--------------------------
+Use inheritX: false flags to break chain:
+
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/documents': createRoute({
+        component: Documents,
+        breadcrumbs: [{ label: 'Documents' }],
+        permissions: { any: ['documents.read'] }
+    }),
+    '/documents/public/:id': createRoute({
+        component: PublicDocument,
+        breadcrumbs: [{ label: 'Public Document' }],
+        permissions: { any: ['guest'] },
+        inheritBreadcrumbs: false,  // Start fresh
+        inheritPermissions: false,  // Independent check
+        inheritConditions: false,   // Skip parent conditions
+        inheritAuthorization: false // Skip parent authorization
+    })
+}
+
+FLAGS
+-----
+inheritBreadcrumbs: false   // Don't concatenate parent breadcrumbs
+inheritPermissions: false   // Don't require parent permissions
+inheritConditions: false    // Don't run parent conditions
+inheritAuthorization: false // Don't run parent authorization callbacks
+
+All default to true when hierarchical mode enabled.
+
+WHEN TO USE
+-----------
+Use hierarchical mode when:
+- Deep route structures (3+ levels)
+- Child routes share parent requirements
+- Security model has nested restrictions
+- Breadcrumbs naturally cascade
+- DRY definitions preferred
+
+Use flat mode (default) when:
+- Routes mostly independent
+- No natural hierarchy
+- Explicit definitions preferred
+- Fine-grained control needed
+
+EXAMPLE: ADMIN SECTION
+----------------------
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+
+// main.js
+setHierarchicalRoutesEnabled(true)
+
+const routes = {
+    // Level 1: Admin section
+    '/admin': createProtectedRoute({
+        component: AdminLayout,
+        breadcrumbs: [{ label: 'Admin' }],
+        permissions: { any: ['admin'] }
+    }),
+
+    // Level 2: User management
+    '/admin/users': createProtectedRoute({
+        component: AdminUsers,
+        breadcrumbs: [{ label: 'Users' }],
+        permissions: { any: ['users.view'] }
+        // Needs: 'admin' AND 'users.view'
+        // Breadcrumbs: [Admin, Users]
+    }),
+
+    // Level 3: User detail
+    '/admin/users/:id': createProtectedRoute({
+        component: AdminUserDetail,
+        breadcrumbs: [{ label: 'User Detail' }],
+        permissions: { any: ['users.detail'] },
+        authorizationCallback: async (detail) => {
+            return await canViewUser(detail.routeParams.id)
+        }
+        // Needs: 'admin' AND 'users.view' AND 'users.detail'
+        // Breadcrumbs: [Admin, Users, User Detail]
+        // Authorization: canViewUser
+    }),
+
+    // Level 4: User permissions
+    '/admin/users/:id/permissions': createProtectedRoute({
+        component: UserPermissions,
+        breadcrumbs: [{ label: 'Permissions' }],
+        permissions: { any: ['users.permissions.edit'] }
+        // Needs: 'admin' AND 'users.view' AND 'users.detail' AND 'users.permissions.edit'
+        // Breadcrumbs: [Admin, Users, User Detail, Permissions]
+        // Authorization: canViewUser (inherited)
+    })
+}
+
+DEBUGGING
+---------
+Enable logging to see inheritance:
+
+// main.js
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+
+setCategoryLevel('ROUTER:HIERARCHY', 'debug')
+
+Logs show:
+- Parent detection
+- Inherited metadata
+- Condition execution order
+- Permission checks
+
+PERFORMANCE
+-----------
+- Parent detection cached per route
+- Conditions run sequentially (fail-fast)
+- Permissions checked in-memory (fast)
+- Authorization callbacks sequential (potentially slow)
+
+LIMITATIONS
+-----------
+- Only works with URL prefix matching
+- No support for wildcard parents
+- Can't inherit from multiple parents
+- Route order doesn't matter (uses URL structure)
+
+MIGRATION FROM FLAT
+-------------------
+Before (flat, no inheritance):
+const routes = {
+    '/documents': createRoute({
+        breadcrumbs: [{ label: 'Home' }, { label: 'Documents' }]
+    }),
+    '/documents/:id': createRoute({
+        breadcrumbs: [{ label: 'Home' }, { label: 'Documents' }, { label: 'Detail' }]
+    })
+}
+
+After (hierarchical):
+// main.js
+setHierarchicalRoutesEnabled(true)
+
+const routes = {
+    '/documents': createRoute({
+        breadcrumbs: [{ label: 'Home' }, { label: 'Documents' }]
+    }),
+    '/documents/:id': createRoute({
+        breadcrumbs: [{ label: 'Detail' }]  // Automatically inherits parent
+    })
+}
+
+TESTING
+-------
+Test with hierarchical mode on/off:
+- Verify inheritance works
+- Test opt-out flags
+- Check permission cascades
+- Validate breadcrumb order
+- Test fail-fast behavior

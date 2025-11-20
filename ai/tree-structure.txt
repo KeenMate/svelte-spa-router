@@ -1,0 +1,337 @@
+TREE/NESTED ROUTE STRUCTURE
+============================
+
+ALTERNATIVE API: createHierarchy() helper
+Transforms nested tree definitions into flat routes
+
+BASIC USAGE
+-----------
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
+const routes = createHierarchy({
+    '/documents': {
+        component: DocumentsLayout,
+        breadcrumbs: [{ label: 'Documents' }],
+        children: {
+            ':id': {
+                component: DocumentDetail,
+                breadcrumbs: [{ label: 'Detail' }],
+                children: {
+                    'logs': {
+                        component: DocumentLogs,
+                        breadcrumbs: [{ label: 'Logs' }]
+                    }
+                }
+            }
+        }
+    }
+})
+
+Transforms to flat routes:
+{
+    '/documents': (wrapped component),
+    '/documents/:id': (wrapped component),
+    '/documents/:id/logs': (wrapped component)
+}
+
+PATH CONCATENATION
+------------------
+Child paths automatically concatenated:
+
+Parent: '/users'
+Child: ':id'            → '/users/:id'
+Child: '/settings'      → '/users/settings' (leading slash stripped)
+Child: 'profile'        → '/users/profile'
+Child: '*'              → '/users/*' (wildcard)
+
+Multi-level:
+'/documents'            → /documents
+  ':id'                 → /documents/:id
+    'logs'              → /documents/:id/logs
+    'permissions'       → /documents/:id/permissions
+
+AUTOMATIC INHERITANCE
+---------------------
+In tree mode, routes ALWAYS inherit from parents:
+- Breadcrumbs concatenated
+- Permissions combined (AND logic)
+- Conditions sequential
+- Authorization callbacks sequential
+
+NO opt-out flags (inheritX: false) available in tree mode.
+For opt-out control, use flat route definitions.
+
+NAMED ROUTES
+------------
+Add 'name' property for programmatic navigation:
+
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+import { push } from '@keenmate/svelte-spa-router'
+
+const routes = createHierarchy({
+    '/admin': {
+        name: 'admin',
+        component: AdminLayout,
+        children: {
+            'users': {
+                name: 'adminUsers',
+                component: AdminUsers,
+                children: {
+                    ':id': {
+                        name: 'adminUserDetail',
+                        component: UserDetail
+                    }
+                }
+            }
+        }
+    }
+})
+
+// Navigate
+await push('adminUserDetail', { id: 123 })
+// Result: /admin/users/123
+
+Optional names: Routes without 'name' still created, just can't be navigated to by name.
+
+COMPLETE EXAMPLE
+----------------
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+
+// Enable hierarchical mode for inheritance
+setHierarchicalRoutesEnabled(true)
+
+const hierarchicalRoutes = createHierarchy({
+    '/admin': {
+        name: 'admin',
+        component: AdminLayout,
+        breadcrumbs: [{ label: 'Admin' }],
+        permissions: { any: ['admin'] },
+        children: {
+            'users': {
+                name: 'adminUsers',
+                component: AdminUsers,
+                breadcrumbs: [{ label: 'Users' }],
+                permissions: { any: ['users.view'] },
+                children: {
+                    ':id': {
+                        name: 'adminUserDetail',
+                        component: UserDetail,
+                        breadcrumbs: [{ label: 'User Detail' }],
+                        authorizationCallback: async (detail) => {
+                            return await canViewUser(detail.routeParams.id)
+                        },
+                        children: {
+                            'permissions': {
+                                component: UserPermissions,
+                                breadcrumbs: [{ label: 'Permissions' }],
+                                permissions: { any: ['users.permissions.edit'] }
+                            },
+                            'activity': {
+                                component: UserActivity,
+                                breadcrumbs: [{ label: 'Activity' }]
+                            }
+                        }
+                    }
+                }
+            },
+            'settings': {
+                name: 'adminSettings',
+                component: AdminSettings,
+                breadcrumbs: [{ label: 'Settings' }]
+            }
+        }
+    }
+})
+
+Results:
+/admin                        → AdminLayout
+/admin/users                  → AdminUsers
+/admin/users/:id              → UserDetail
+/admin/users/:id/permissions  → UserPermissions
+/admin/users/:id/activity     → UserActivity
+/admin/settings               → AdminSettings
+
+COMBINING WITH FLAT ROUTES
+---------------------------
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
+const hierarchicalRoutes = createHierarchy({
+    '/admin': {
+        component: AdminLayout,
+        children: {
+            'users': { component: AdminUsers }
+        }
+    }
+})
+
+const flatRoutes = {
+    '/': Home,
+    '/about': About
+}
+
+const routes = {
+    ...hierarchicalRoutes,
+    ...flatRoutes
+}
+
+ASYNC COMPONENTS
+----------------
+Use asyncComponent for code splitting:
+
+const routes = createHierarchy({
+    '/dashboard': {
+        asyncComponent: () => import('./Dashboard.svelte'),
+        loadingComponent: Loading,
+        children: {
+            'analytics': {
+                asyncComponent: () => import('./Analytics.svelte')
+            }
+        }
+    }
+})
+
+CONDITIONS
+----------
+Add conditions at any level:
+
+const routes = createHierarchy({
+    '/admin': {
+        component: AdminLayout,
+        conditions: [
+            async () => await isAuthenticated()
+        ],
+        children: {
+            'users': {
+                component: AdminUsers,
+                conditions: [
+                    async () => await hasAdminRole()
+                ]
+                // Both conditions run: isAuthenticated → hasAdminRole
+            }
+        }
+    }
+})
+
+PERMISSIONS
+-----------
+Add permissions at any level:
+
+const routes = createHierarchy({
+    '/documents': {
+        component: Documents,
+        permissions: { any: ['read'] },
+        children: {
+            ':id': {
+                component: DocumentDetail,
+                permissions: { any: ['documents.view'] }
+                // Needs: 'read' AND 'documents.view'
+            }
+        }
+    }
+})
+
+USER DATA
+---------
+Pass custom data to routes:
+
+const routes = createHierarchy({
+    '/admin': {
+        component: AdminLayout,
+        userData: {
+            section: 'admin',
+            requiresAuth: true
+        },
+        children: {
+            'users': {
+                component: AdminUsers,
+                userData: {
+                    feature: 'users'
+                }
+            }
+        }
+    }
+})
+
+WILDCARD ROUTES
+---------------
+const routes = createHierarchy({
+    '/books': {
+        component: BooksLayout,
+        children: {
+            '*': {
+                component: BookWildcard
+            }
+        }
+    }
+})
+
+Result: /books/* → BookWildcard
+
+WHEN TO USE
+-----------
+Use createHierarchy() when:
+- Deeply nested routes (3+ levels)
+- Child routes always inherit from parents
+- Route structure mirrors UI hierarchy
+- Concise definitions preferred
+
+Use flat route definitions when:
+- Shallow routes (1-2 levels)
+- Need opt-out control (inheritX: false)
+- Route structure doesn't match visual hierarchy
+- Explicit paths preferred
+
+LIMITATIONS
+-----------
+- No opt-out flags (inheritX: false not available)
+- Always inherits when hierarchical mode enabled
+- Can't define multiple parents
+- Route order determined by tree structure
+
+DEBUGGING
+---------
+Enable logging to see transformation:
+
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+
+setCategoryLevel('ROUTER:HIERARCHY', 'debug')
+
+Logs show:
+- Path concatenation
+- Route creation
+- Inheritance chain
+
+EXAMPLE: NO NAMES
+-----------------
+Routes without names for tab/UI navigation only:
+
+const routes = createHierarchy({
+    '/user': {
+        name: 'userProfile',
+        component: UserProfile,
+        children: {
+            'settings': {
+                // No name - accessed via tabs/UI
+                component: UserSettings
+            },
+            'activity': {
+                // No name
+                component: UserActivity
+            }
+        }
+    }
+})
+
+Navigate to parent: push('userProfile')
+Navigate to child: push('/user/settings') or via UI
+
+BEST PRACTICES
+--------------
+- Use 'name' only for programmatically navigated routes
+- Keep tree depth reasonable (max 4-5 levels)
+- Group related routes under same parent
+- Use consistent naming: adminUsers, adminUserDetail
+- Combine with flat routes for mixed structure
+- Enable hierarchical mode for inheritance to work
+- Test navigation with route names and paths

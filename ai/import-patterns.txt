@@ -1,0 +1,220 @@
+IMPORT PATTERNS
+===============
+
+CRITICAL: This is Svelte 5 router using RUNES, NOT stores
+NO /stores export path exists!
+
+CORRECT MAIN IMPORTS
+--------------------
+✅ import Router from '@keenmate/svelte-spa-router'
+✅ import { push, replace, pop, goBack } from '@keenmate/svelte-spa-router'
+✅ import { location, querystring, routeParams } from '@keenmate/svelte-spa-router'
+✅ import { navigationContext, link } from '@keenmate/svelte-spa-router'
+
+❌ import { routeParams } from '@keenmate/svelte-spa-router/stores'  // NO /stores path!
+❌ import { params } from '@keenmate/svelte-spa-router'  // Wrong name, use routeParams
+
+CORRECT USAGE (functions, not stores)
+--------------------------------------
+✅ const path = $derived(location())        // Call as function
+✅ const params = $derived(routeParams())   // Call as function
+✅ const query = $derived(querystring())    // Call as function
+
+❌ const path = $location                   // Not a store!
+❌ const params = $routeParams              // Not a store!
+❌ const query = $querystring               // Not a store!
+
+UTILS/CONFIG
+------------
+✅ import {
+    setHashRoutingEnabled,
+    setBasePath,
+    setIncludeReferrer,
+    setParamReplacementPlaceholder
+} from '@keenmate/svelte-spa-router'
+
+Alternative:
+✅ import { setHashRoutingEnabled } from '@keenmate/svelte-spa-router/utils'
+
+ROUTE WRAPPING
+--------------
+✅ import { wrap } from '@keenmate/svelte-spa-router/wrap'
+✅ import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+
+ACTIVE LINK
+-----------
+✅ import { active } from '@keenmate/svelte-spa-router/active'
+
+NAMED ROUTES
+------------
+✅ import { registerRoutes, routeUrl, hasRoute } from '@keenmate/svelte-spa-router/routes'
+
+PERMISSIONS
+-----------
+✅ import {
+    configurePermissions,
+    createProtectedRoute,
+    createProtectedRouteDefinition,
+    hasPermission
+} from '@keenmate/svelte-spa-router/helpers/permissions'
+
+NAVIGATION GUARDS
+-----------------
+✅ import { createNavigationGuard } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+
+HIERARCHY
+---------
+✅ import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+✅ import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+
+ERROR HANDLING
+--------------
+✅ import {
+    configureGlobalErrorHandler,
+    restart,
+    navigate,
+    showError
+} from '@keenmate/svelte-spa-router/helpers/error-handler'
+
+✅ import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler.svelte'
+✅ import ErrorDisplay from '@keenmate/svelte-spa-router/helpers/ErrorDisplay.svelte'
+
+URL HELPERS
+-----------
+✅ import { joinPaths } from '@keenmate/svelte-spa-router/helpers/url-helpers'
+
+QUERYSTRING
+-----------
+✅ import { parse, stringify } from '@keenmate/svelte-spa-router/helpers/querystring'
+
+LOGGING
+-------
+✅ import {
+    enableLogging,
+    disableLogging,
+    setLogLevel,
+    setCategoryLevel
+} from '@keenmate/svelte-spa-router/logger'
+
+CONSTANTS
+---------
+✅ import {
+    NAVIGATION_STARTED,
+    NAVIGATION_COMPLETED,
+    NAVIGATION_FAILED
+} from '@keenmate/svelte-spa-router/constants'
+
+ALL AVAILABLE EXPORT PATHS
+---------------------------
+@keenmate/svelte-spa-router                        // Main (Router, push, location, etc.)
+@keenmate/svelte-spa-router/utils                  // Alternative for utils
+@keenmate/svelte-spa-router/wrap                   // Route wrapping
+@keenmate/svelte-spa-router/active                 // Active link action
+@keenmate/svelte-spa-router/routes                 // Named routes
+@keenmate/svelte-spa-router/helpers/permissions    // Permission system
+@keenmate/svelte-spa-router/helpers/navigation-guard  // Navigation guards
+@keenmate/svelte-spa-router/helpers/hierarchy      // Hierarchical routes
+@keenmate/svelte-spa-router/helpers/error-handler  // Error handling
+@keenmate/svelte-spa-router/helpers/url-helpers    // URL utilities
+@keenmate/svelte-spa-router/helpers/querystring    // Query string parsing
+@keenmate/svelte-spa-router/logger                 // Debug logging
+@keenmate/svelte-spa-router/constants              // Navigation constants
+
+NO /stores PATH!
+@keenmate/svelte-spa-router/stores  // ❌ DOES NOT EXIST
+
+COMMON IMPORT ERRORS
+--------------------
+Error: "Missing './stores' specifier"
+Fix: Import from main module, not /stores
+
+❌ import { routeParams } from '@keenmate/svelte-spa-router/stores'
+✅ import { routeParams } from '@keenmate/svelte-spa-router'
+
+Error: "params is undefined"
+Fix: Use routeParams (name changed in v5)
+
+❌ import { params } from '@keenmate/svelte-spa-router'
+✅ import { routeParams } from '@keenmate/svelte-spa-router'
+
+Error: "location is not a function"
+Fix: Call as function, not store
+
+❌ const path = $location
+✅ const path = $derived(location())
+
+Error: "$routeParams is not defined"
+Fix: Use function call, not store syntax
+
+❌ const params = $routeParams
+✅ const params = $derived(routeParams())
+
+Error: "onrouteLoaded is not a prop"
+Fix: Use camelCase (v5 naming)
+
+❌ <Router onrouteLoaded={...} />
+✅ <Router onRouteLoaded={...} />
+
+MIGRATION FROM V3/V4
+--------------------
+Old (v3/v4):
+import { params } from 'svelte-spa-router/stores'
+$: userId = $params.id
+
+New (v5):
+import { routeParams } from '@keenmate/svelte-spa-router'
+const params = $derived(routeParams())
+const userId = $derived(params.id)
+
+Or in component:
+let { routeParams = {} } = $props()
+const userId = $derived(routeParams.id)
+
+TYPICAL APP IMPORTS
+-------------------
+// main.js
+import { mount } from 'svelte'
+import {
+    setHashRoutingEnabled,
+    setBasePath,
+    setIncludeReferrer
+} from '@keenmate/svelte-spa-router'
+import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
+import { configurePermissions } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { enableLogging } from '@keenmate/svelte-spa-router/logger'
+import App from './App.svelte'
+
+// App.svelte
+import Router from '@keenmate/svelte-spa-router'
+import { push } from '@keenmate/svelte-spa-router'
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+// Component
+import { link, active } from '@keenmate/svelte-spa-router/active'
+import { location, routeParams, navigationContext } from '@keenmate/svelte-spa-router'
+
+TYPESCRIPT TYPES
+----------------
+Types included, no separate @types needed:
+
+import type { Route, RouteDetail } from '@keenmate/svelte-spa-router'
+import type { NavigationContext } from '@keenmate/svelte-spa-router'
+
+TREE SHAKING
+------------
+Package.json includes:
+"sideEffects": ["**/*.svelte", "**/*.svelte.js"]
+
+Files with runes ($state, $derived) have side effects.
+Prevents incorrect tree-shaking by bundlers.
+
+BEST PRACTICES
+--------------
+- Import from main module when possible
+- Use specific helper paths for advanced features
+- Never import from /stores (doesn't exist)
+- Use routeParams, not params
+- Call functions (location()), don't use $ syntax
+- Import only what you need
+- Use TypeScript types for better DX

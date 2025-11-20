@@ -1,0 +1,149 @@
+NAMED ROUTES
+============
+
+PURPOSE
+-------
+Navigate using names instead of paths:
+- Refactor paths without changing navigation calls
+- Type-safe route names
+- Centralized route definitions
+
+REGISTRATION
+------------
+// main.js or routes.js
+import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
+
+registerRoutes({
+    'home': '/',
+    'about': '/about',
+    'userProfile': '/user/:userId',
+    'documentDetail': '/documents/:docId',
+    'bookChapter': '/books/:bookId/:chapterId'
+})
+
+NAVIGATION WITH NAMES
+---------------------
+import { push, replace } from '@keenmate/svelte-spa-router'
+
+// Single name (no params)
+await push('about')
+await push('home')
+
+// With params
+await push('userProfile', { userId: 123 })
+await push('documentDetail', { docId: 456 }, { tab: 'edit' })
+
+// With full signature
+await push('bookChapter',
+    { bookId: 1, chapterId: 5 },
+    { highlight: 'section-3' },
+    { source: 'toc' }
+)
+
+// Array format
+await push(['userProfile', { userId: 123 }, { tab: 'settings' }])
+
+// Object format
+await push({
+    route: 'documentDetail',
+    params: { docId: 789 },
+    query: { mode: 'preview' }
+})
+
+URL BUILDING
+------------
+Build URLs from route names:
+
+import { routeUrl } from '@keenmate/svelte-spa-router/routes'
+
+const url = routeUrl('userProfile', { userId: 123 })
+// Result: "/user/123"
+
+const urlWithQuery = routeUrl('documentDetail', { docId: 456 }, { tab: 'edit' })
+// Result: "/documents/456?tab=edit"
+
+Use for:
+- Href attributes
+- API calls
+- External links
+
+ACCESSING CURRENT ROUTE NAME
+-----------------------------
+import { navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const currentRouteName = $derived(navContext?.routeName)
+
+if (currentRouteName === 'userProfile') {
+    // Do something
+}
+
+LINK ACTION WITH NAMED ROUTES
+------------------------------
+import { link } from '@keenmate/svelte-spa-router'
+
+<a href="#" use:link={['userProfile', { userId: 123 }]}>Profile</a>
+
+<a href="#" use:link={[
+    'documentDetail',
+    { docId: 456 },
+    { tab: 'edit' },
+    { source: 'menu' }
+]}>Edit Document</a>
+
+HIERARCHICAL ROUTES WITH NAMES
+-------------------------------
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
+const routes = createHierarchy({
+    '/admin': {
+        name: 'admin',
+        component: AdminLayout,
+        children: {
+            'users': {
+                name: 'adminUsers',
+                component: AdminUsers,
+                children: {
+                    ':id': {
+                        name: 'adminUserDetail',
+                        component: UserDetail
+                    }
+                }
+            }
+        }
+    }
+})
+
+// Navigate
+await push('adminUserDetail', { id: 123 })
+// Result: /admin/users/123
+
+CHECKING ROUTE EXISTENCE
+-------------------------
+import { hasRoute } from '@keenmate/svelte-spa-router/routes'
+
+if (hasRoute('userProfile')) {
+    await push('userProfile', { userId: 123 })
+} else {
+    console.error('Route not registered')
+}
+
+ROUTE NAME IN REFERRER
+-----------------------
+import { navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+
+if (referrer?.routeName === 'documentList') {
+    // Came from document list
+}
+
+BEST PRACTICES
+--------------
+- Register routes in main.js before app mount
+- Use camelCase for route names: 'userProfile', 'documentDetail'
+- Match name to component/feature: 'adminUsers' → AdminUsers.svelte
+- Don't duplicate names
+- Optional: Add names only for routes you navigate to programmatically
+- Routes without names still work, just can't be navigated to by name

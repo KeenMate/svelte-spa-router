@@ -1,0 +1,233 @@
+PERMISSIONS SYSTEM
+==================
+
+SETUP
+-----
+// main.js - configure before app mount
+import { configurePermissions } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+configurePermissions({
+    getUserPermissions: async () => {
+        // Return array of permission strings
+        const user = await getCurrentUser()
+        return user.permissions  // ['read', 'write', 'admin.users']
+    }
+})
+
+BASIC PROTECTED ROUTE
+----------------------
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+const routes = {
+    '/admin': createProtectedRoute({
+        component: () => import('./Admin.svelte'),
+        permissions: { any: ['admin.read', 'admin.write'] },
+        loadingComponent: Loading
+    })
+}
+
+IMPORTANT: createProtectedRoute() returns wrapped component
+No additional wrap() needed!
+
+PERMISSION REQUIREMENTS
+------------------------
+ANY (OR logic):
+permissions: { any: ['read', 'write', 'admin'] }
+// User needs at least ONE of these permissions
+
+ALL (AND logic):
+permissions: { all: ['read', 'documents.edit'] }
+// User needs ALL of these permissions
+
+Combine:
+permissions: {
+    all: ['authenticated'],
+    any: ['read', 'write']
+}
+// Must have 'authenticated' AND at least one of read/write
+
+ROLE-BASED + RESOURCE-BASED
+----------------------------
+Conditions execute in order:
+1. Permissions check (fast - in-memory)
+2. authorizationCallback (slow - API/database)
+
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { push } from '@keenmate/svelte-spa-router'
+
+const routes = {
+    '/document/:id': createProtectedRoute({
+        component: () => import('./DocumentDetail.svelte'),
+        // Role-based: Check user role (fast)
+        permissions: { any: ['documents.read'] },
+        // Resource-based: Check document access (slow API call)
+        authorizationCallback: async (detail) => {
+            const docId = detail.routeParams.id
+            const hasAccess = await api.checkDocumentAccess(docId)
+
+            if (!hasAccess) {
+                await push('/unauthorized', {}, {}, {
+                    resource: 'document',
+                    id: docId
+                })
+                return false
+            }
+
+            return true
+        },
+        loadingComponent: Loading
+    })
+}
+
+Benefits:
+- Skip expensive API calls if user lacks basic permission
+- Layered security: role check → resource check
+- Fast failure for unprivileged users
+
+AUTHORIZATION CALLBACK DETAIL
+------------------------------
+authorizationCallback receives detail object:
+{
+    route: '/document/:id',
+    location: '/document/123',
+    querystring: 'tab=edit',
+    routeParams: { id: '123' },
+    userData: { /* from wrap() */ }
+}
+
+LOADING COMPONENT
+-----------------
+Shown while:
+- Permissions being fetched
+- Authorization callback running
+- Async component loading
+
+loadingComponent: Loading
+// OR
+loadingComponent: () => import('./Loading.svelte')
+
+NO REDIRECT (unauthorized page)
+--------------------------------
+Don't specify unauthorizedRoute, handle in callback:
+
+authorizationCallback: async (detail) => {
+    if (!authorized) {
+        await push('/unauthorized')
+        return false
+    }
+    return true
+}
+
+UI-LEVEL PERMISSION CHECK
+--------------------------
+import { hasPermission } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+const canEdit = $derived(await hasPermission({ any: ['edit', 'admin'] }))
+
+{#if canEdit}
+    <button>Edit</button>
+{/if}
+
+// Sync usage (if permissions already loaded)
+import { hasPermissionSync } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+const canDelete = hasPermissionSync({ any: ['delete', 'admin'] })
+
+ADVANCED: createProtectedRouteDefinition
+-----------------------------------------
+For use with wrap() when you need additional configuration:
+
+import { createProtectedRouteDefinition } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+const routeDef = createProtectedRouteDefinition({
+    permissions: { any: ['admin'] },
+    authorizationCallback: async (detail) => { /* ... */ }
+})
+
+const routes = {
+    '/admin': wrap({
+        asyncComponent: () => import('./Admin.svelte'),
+        conditions: [
+            ...routeDef.conditions,
+            // Add more conditions
+            async (detail) => { /* custom condition */ }
+        ],
+        userData: { adminOnly: true }
+    })
+}
+
+PERMISSION CACHING
+------------------
+Permissions fetched once and cached.
+Re-fetch on login/logout:
+
+import { configurePermissions } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+// On login
+await configurePermissions({
+    getUserPermissions: async () => {
+        return await fetchUserPermissions()
+    }
+})
+
+// On logout
+await configurePermissions({
+    getUserPermissions: async () => []
+})
+
+ERROR HANDLING
+--------------
+getUserPermissions errors:
+- Return empty array [] on error
+- Log error for debugging
+- User blocked from protected routes
+
+getUserPermissions: async () => {
+    try {
+        return await fetchPermissions()
+    } catch (error) {
+        console.error('Permission fetch failed:', error)
+        return []
+    }
+}
+
+HIERARCHICAL INHERITANCE
+-------------------------
+When hierarchical mode enabled:
+- Child routes inherit parent permissions
+- All ancestor checks must pass
+- Fail-fast on first denial
+
+// main.js
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+setHierarchicalRoutesEnabled(true)
+
+const routes = {
+    '/documents': createProtectedRoute({
+        component: Documents,
+        permissions: { any: ['read'] }
+    }),
+    '/documents/:id': createProtectedRoute({
+        component: DocumentDetail,
+        permissions: { any: ['documents.view'] }
+        // Effective: Must have 'read' AND 'documents.view'
+    })
+}
+
+Opt out of inheritance:
+createProtectedRoute({
+    component: PublicDocument,
+    permissions: { any: ['guest'] },
+    inheritPermissions: false  // Independent check
+})
+
+BEST PRACTICES
+--------------
+- Use granular permissions: 'documents.read', 'users.edit'
+- Keep getUserPermissions fast (cache on backend)
+- Use authorizationCallback for resource checks
+- Show loading component during checks
+- Handle unauthorized in authorizationCallback (push to error page)
+- Test with different permission sets
+- Log permission denials for audit

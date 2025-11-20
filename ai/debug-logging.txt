@@ -1,0 +1,309 @@
+DEBUG LOGGING
+=============
+
+BASED ON: loglevel library (~1KB)
+PURPOSE: Troubleshoot routing issues with category-based logging
+
+ENABLE ALL LOGGING
+------------------
+// main.js
+import { enableLogging } from '@keenmate/svelte-spa-router/logger'
+
+if (import.meta.env.DEV) {
+    enableLogging()  // Sets all categories to debug level
+}
+
+DISABLE ALL LOGGING
+-------------------
+import { disableLogging } from '@keenmate/svelte-spa-router/logger'
+
+disableLogging()  // Sets all categories to silent
+
+ENABLE SPECIFIC CATEGORIES
+---------------------------
+import { disableLogging, setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+
+// Disable all first
+disableLogging()
+
+// Enable only what you need
+setCategoryLevel('ROUTER:SCROLL', 'debug')
+setCategoryLevel('ROUTER:NAVIGATION', 'info')
+setCategoryLevel('ROUTER:PERMISSIONS', 'debug')
+
+GLOBAL LOG LEVEL
+----------------
+import { setLogLevel } from '@keenmate/svelte-spa-router/logger'
+
+setLogLevel('warn')   // Only warnings and errors
+setLogLevel('info')   // Info, warnings, and errors
+setLogLevel('debug')  // Everything
+setLogLevel('silent') // Nothing
+
+AVAILABLE CATEGORIES
+--------------------
+ROUTER                  - Core routing pipeline, route matching
+ROUTER:NAVIGATION       - push, pop, replace, goBack
+ROUTER:SCROLL           - Scroll restoration
+ROUTER:GUARDS           - Navigation guards
+ROUTER:CONDITIONS       - Route condition checks
+ROUTER:HIERARCHY        - Hierarchical route inheritance
+ROUTER:PERMISSIONS      - Permission checking
+ROUTER:ROUTES           - Named routes and URL building
+ROUTER:ZONES            - Multi-zone routing
+ROUTER:METADATA         - Breadcrumbs and route metadata
+ROUTER:ERROR_HANDLER    - Global error handling
+ROUTER:FILTERS          - Filter parsing
+
+LOG LEVELS
+----------
+silent - No logs
+error  - Only errors
+warn   - Warnings and errors
+info   - Info, warnings, errors
+debug  - Everything (including verbose debug logs)
+trace  - Most verbose (if available)
+
+OUTPUT FORMAT
+-------------
+[HH:MM:SS.mmm] [LEVEL] [CATEGORY] message
+
+Example:
+[14:23:45.123] [DEBUG] [ROUTER:NAVIGATION] Navigating to /user/123
+[14:23:45.150] [INFO] [ROUTER:SCROLL] Restoring scroll to position 500
+[14:23:45.200] [DEBUG] [ROUTER:CONDITIONS] Checking condition for /user/123
+[14:23:45.250] [DEBUG] [ROUTER:PERMISSIONS] User has permission: read
+
+COLOR CODING
+------------
+Debug: Blue
+Info: Green
+Warn: Orange
+Error: Red
+
+RUNTIME CONFIGURATION
+---------------------
+Configure from browser console:
+
+// Enable all logging
+window.components['svelte-spa-router'].logging.enableLogging()
+
+// Disable all
+window.components['svelte-spa-router'].logging.disableLogging()
+
+// Set global level
+window.components['svelte-spa-router'].logging.setLogLevel('debug')
+
+// Enable specific category
+window.components['svelte-spa-router'].logging.setCategoryLevel('ROUTER:NAVIGATION', 'debug')
+
+// List categories
+window.components['svelte-spa-router'].logging.getCategories()
+
+COMMON DEBUG SCENARIOS
+----------------------
+Navigation issues:
+setCategoryLevel('ROUTER:NAVIGATION', 'debug')
+
+Scroll not working:
+setCategoryLevel('ROUTER:SCROLL', 'debug')
+
+Permission denied:
+setCategoryLevel('ROUTER:PERMISSIONS', 'debug')
+
+Route not matching:
+setCategoryLevel('ROUTER', 'debug')
+
+Conditions failing:
+setCategoryLevel('ROUTER:CONDITIONS', 'debug')
+setCategoryLevel('ROUTER:GUARDS', 'debug')
+
+Hierarchical inheritance:
+setCategoryLevel('ROUTER:HIERARCHY', 'debug')
+
+Named routes:
+setCategoryLevel('ROUTER:ROUTES', 'debug')
+
+Error handling:
+setCategoryLevel('ROUTER:ERROR_HANDLER', 'debug')
+
+PRODUCTION LOGGING
+------------------
+Disable in production:
+
+if (import.meta.env.PROD) {
+    disableLogging()
+}
+
+Or log only errors:
+
+if (import.meta.env.PROD) {
+    setLogLevel('error')
+}
+
+CONDITIONAL LOGGING
+-------------------
+// Enable based on query param
+const urlParams = new URLSearchParams(window.location.search)
+if (urlParams.has('debug')) {
+    enableLogging()
+}
+
+// Enable based on localStorage
+if (localStorage.getItem('enableDebug')) {
+    enableLogging()
+}
+
+CATEGORY-SPECIFIC EXAMPLES
+---------------------------
+Core routing:
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+setCategoryLevel('ROUTER', 'debug')
+
+Logs:
+- Route matching
+- Component loading
+- Route resolution
+
+Navigation:
+setCategoryLevel('ROUTER:NAVIGATION', 'debug')
+
+Logs:
+- push() calls
+- replace() calls
+- goBack() execution
+- URL changes
+
+Scroll restoration:
+setCategoryLevel('ROUTER:SCROLL', 'debug')
+
+Logs:
+- Scroll position saving
+- Scroll position restoration
+- History state updates
+
+Guards:
+setCategoryLevel('ROUTER:GUARDS', 'debug')
+
+Logs:
+- Guard execution
+- Guard results
+- Navigation blocking
+
+Permissions:
+setCategoryLevel('ROUTER:PERMISSIONS', 'debug')
+
+Logs:
+- Permission checks
+- User permissions
+- Access granted/denied
+
+Hierarchy:
+setCategoryLevel('ROUTER:HIERARCHY', 'debug')
+
+Logs:
+- Parent detection
+- Inheritance chain
+- Metadata merging
+
+ZERO OVERHEAD
+-------------
+When disabled (silent level):
+- Logs are no-ops
+- No string formatting
+- No function calls
+- No performance impact
+
+VENDORED DEPENDENCIES
+---------------------
+loglevel and loglevel-plugin-prefix vendored in:
+src/lib/vendor/loglevel/
+
+No external dependencies required.
+
+CONFIGURATION WARNINGS
+----------------------
+Configuration errors (console.warn/console.error):
+- Always visible
+- Not controlled by log level
+- For setup/config issues
+
+Example:
+console.warn('Missing permission handler')
+console.error('Invalid route configuration')
+
+BEST PRACTICES
+--------------
+- Enable in development only
+- Disable in production (or error level only)
+- Use specific categories to reduce noise
+- Enable from console for runtime debugging
+- Check logs before reporting issues
+- Use info level for important events
+- Use debug level for verbose tracing
+- Use warn for non-critical issues
+- Use error for failures
+
+DEBUGGING WORKFLOW
+------------------
+1. Identify issue (navigation, scroll, permissions)
+2. Enable relevant category
+3. Reproduce issue
+4. Check logs in console
+5. Analyze log messages
+6. Fix issue
+7. Disable logging
+
+Example:
+// Issue: Route not loading
+setCategoryLevel('ROUTER', 'debug')
+setCategoryLevel('ROUTER:CONDITIONS', 'debug')
+
+// Reproduce: Navigate to route
+await push('/admin')
+
+// Check logs:
+// [14:23:45.123] [DEBUG] [ROUTER] Matching route: /admin
+// [14:23:45.150] [DEBUG] [ROUTER:CONDITIONS] Checking condition 1
+// [14:23:45.200] [ERROR] [ROUTER:CONDITIONS] Condition failed: missing auth
+
+// Fix: Add authentication
+
+TESTING WITH LOGGING
+--------------------
+Disable logging in tests:
+
+// vitest.setup.js
+import { disableLogging } from '@keenmate/svelte-spa-router/logger'
+
+beforeAll(() => {
+    disableLogging()
+})
+
+Or enable for specific tests:
+
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+
+test('navigation logs correctly', () => {
+    setCategoryLevel('ROUTER:NAVIGATION', 'debug')
+    // Test code
+})
+
+CUSTOM LOGGING
+--------------
+Use logger instances directly (advanced):
+
+import { routerLogger } from '@keenmate/svelte-spa-router/logger'
+
+routerLogger.debug('Custom debug message')
+routerLogger.info('Custom info message')
+
+Not recommended - use categories instead.
+
+LIMITATIONS
+-----------
+- Browser console only (no file output)
+- No log persistence
+- No structured logging
+- No remote logging
+- Color codes may not work in all consoles

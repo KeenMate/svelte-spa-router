@@ -1,0 +1,300 @@
+ROUTE GUARDS & CONDITIONS
+=========================
+
+BASIC GUARD
+-----------
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/admin': wrap({
+        component: AdminPanel,
+        conditions: [
+            (detail) => {
+                const user = getCurrentUser()
+                return user.isAdmin
+            }
+        ]
+    })
+}
+
+Return true: Allow navigation
+Return false: Block navigation (triggers onConditionsFailed)
+
+ASYNC GUARD
+-----------
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/dashboard': wrap({
+        asyncComponent: () => import('./Dashboard.svelte'),
+        conditions: [
+            async (detail) => {
+                const user = await checkAuth()
+                return user.isAuthenticated
+            }
+        ]
+    })
+}
+
+DETAIL OBJECT
+-------------
+Conditions receive detail object:
+{
+    route: '/user/:id',              // Route pattern
+    location: '/user/123',           // Actual URL path
+    querystring: 'tab=profile',      // Query string
+    routeParams: { id: '123' },      // Extracted params
+    userData: { /* custom data */ }  // From wrap()
+}
+
+MULTIPLE CONDITIONS
+-------------------
+Conditions execute in order, all must return true:
+
+conditions: [
+    async (detail) => {
+        return await isAuthenticated()
+    },
+    async (detail) => {
+        return await hasValidSubscription()
+    },
+    (detail) => {
+        const userId = detail.routeParams.id
+        return userId === getCurrentUser().id
+    }
+]
+
+If any returns false, navigation blocked.
+
+REDIRECT ON FAILURE
+-------------------
+import { push } from '@keenmate/svelte-spa-router'
+
+conditions: [
+    async (detail) => {
+        const authed = await checkAuth()
+        if (!authed) {
+            await push('/login')
+            return false
+        }
+        return true
+    }
+]
+
+OR handle globally:
+
+<Router
+    {routes}
+    onConditionsFailed={(e) => {
+        console.log('Blocked:', e.detail)
+        push('/unauthorized')
+    }}
+/>
+
+PASSING DATA TO ROUTE
+----------------------
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/dashboard': wrap({
+        component: Dashboard,
+        conditions: [
+            async (detail) => {
+                const user = await fetchUser()
+                detail.userData.currentUser = user
+                return !!user
+            }
+        ],
+        userData: {
+            requiresAuth: true
+        }
+    })
+}
+
+// Dashboard.svelte receives userData as prop
+let { userData = {} } = $props()
+const currentUser = userData.currentUser
+
+LOADING COMPONENT
+-----------------
+Show loading while async conditions run:
+
+wrap({
+    asyncComponent: () => import('./Dashboard.svelte'),
+    loadingComponent: Loading,
+    conditions: [
+        async (detail) => {
+            await delay(1000)  // Simulating check
+            return true
+        }
+    ]
+})
+
+COMMON GUARD PATTERNS
+---------------------
+Authentication:
+conditions: [
+    async () => {
+        const token = localStorage.getItem('token')
+        if (!token) {
+            await push('/login')
+            return false
+        }
+        return await validateToken(token)
+    }
+]
+
+Role check:
+conditions: [
+    (detail) => {
+        const user = getCurrentUser()
+        if (!user.roles.includes('admin')) {
+            push('/forbidden')
+            return false
+        }
+        return true
+    }
+]
+
+Resource ownership:
+conditions: [
+    async (detail) => {
+        const docId = detail.routeParams.id
+        const doc = await fetchDocument(docId)
+
+        if (doc.ownerId !== getCurrentUser().id) {
+            await push('/not-found')
+            return false
+        }
+
+        detail.userData.document = doc
+        return true
+    }
+]
+
+Feature flag:
+conditions: [
+    (detail) => {
+        if (!isFeatureEnabled('newDashboard')) {
+            push('/old-dashboard')
+            return false
+        }
+        return true
+    }
+]
+
+Subscription check:
+conditions: [
+    async (detail) => {
+        const sub = await fetchSubscription()
+        if (!sub.isActive) {
+            await push('/upgrade')
+            return false
+        }
+        return true
+    }
+]
+
+COMBINING WITH PERMISSIONS
+---------------------------
+import { createProtectedRouteDefinition } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+const protectedDef = createProtectedRouteDefinition({
+    permissions: { any: ['admin'] }
+})
+
+const routes = {
+    '/admin-settings': wrap({
+        component: AdminSettings,
+        conditions: [
+            ...protectedDef.conditions,  // Permission check first
+            async (detail) => {
+                // Additional custom check
+                return await checkAdminLevel(detail)
+            }
+        ]
+    })
+}
+
+ERROR HANDLING IN CONDITIONS
+-----------------------------
+Handle errors gracefully:
+
+conditions: [
+    async (detail) => {
+        try {
+            const result = await checkAuth()
+            return result.valid
+        } catch (error) {
+            console.error('Auth check failed:', error)
+            await push('/error')
+            return false
+        }
+    }
+]
+
+HIERARCHICAL CONDITIONS
+-----------------------
+When hierarchical mode enabled, conditions inherit:
+
+// main.js
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+setHierarchicalRoutesEnabled(true)
+
+const routes = {
+    '/documents': wrap({
+        component: Documents,
+        conditions: [
+            async () => await isAuthenticated()
+        ]
+    }),
+    '/documents/:id': wrap({
+        component: DocumentDetail,
+        conditions: [
+            async (detail) => {
+                return await canViewDocument(detail.routeParams.id)
+            }
+        ]
+        // Both conditions run: isAuthenticated AND canViewDocument
+    })
+}
+
+Opt out:
+wrap({
+    component: PublicDoc,
+    conditions: [(detail) => true],
+    inheritConditions: false
+})
+
+CONDITION EXECUTION ORDER
+--------------------------
+1. Parent conditions (if hierarchical mode)
+2. Permission checks (if using createProtectedRoute)
+3. Authorization callback (if provided)
+4. Custom conditions (in array order)
+
+First false stops execution.
+
+DEBUGGING CONDITIONS
+--------------------
+Enable logging:
+
+// main.js
+import { enableLogging } from '@keenmate/svelte-spa-router/logger'
+enableLogging()
+
+// Or specific category
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+setCategoryLevel('ROUTER:CONDITIONS', 'debug')
+
+BEST PRACTICES
+--------------
+- Order conditions fast → slow
+- Handle errors gracefully
+- Redirect before returning false
+- Store fetched data in detail.userData
+- Use async only when needed
+- Avoid heavy computations
+- Log condition failures
+- Test all paths (success, failure, error)

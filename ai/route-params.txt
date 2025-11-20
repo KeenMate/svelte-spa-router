@@ -1,0 +1,187 @@
+ROUTE PARAMETERS
+================
+
+ROUTE PATTERNS
+--------------
+'/user/:id'                    // Single param
+'/user/:userId/post/:postId'   // Multiple params
+'/books/*'                     // Wildcard (catches /books/anything/here)
+'/files/:path*'                // Named wildcard (captures rest of path)
+
+ACCESSING IN COMPONENTS (preferred)
+------------------------------------
+Route components receive params as props:
+
+<script>
+// UserProfile.svelte
+let { routeParams = {} } = $props()
+</script>
+
+<p>User ID: {routeParams.id}</p>
+<p>Post ID: {routeParams.postId}</p>
+
+ACCESSING GLOBALLY
+------------------
+import { routeParams } from '@keenmate/svelte-spa-router'
+
+const params = $derived(routeParams())
+
+// CRITICAL: Call as FUNCTION, not store!
+// ✅ const params = $derived(routeParams())
+// ❌ const params = $routeParams
+
+<p>User: {params.id}</p>
+
+WILDCARD PARAMETERS
+-------------------
+Route: '/books/*'
+URL: /books/scifi/dune
+Wild: 'scifi/dune'
+
+Route: '/files/:path*'
+URL: /files/docs/2024/report.pdf
+params.path: 'docs/2024/report.pdf'
+
+PASSING PARAMETERS
+------------------
+// During navigation
+import { push } from '@keenmate/svelte-spa-router'
+
+await push('/user/:id', { id: 123 })
+await push('userProfile', { userId: 456 })
+
+// Link action
+import { link } from '@keenmate/svelte-spa-router'
+
+<a href="#" use:link={['/user/:id', { id: 123 }]}>User 123</a>
+
+MISSING PARAMETERS (strict mode)
+---------------------------------
+Default behavior: Replace missing params with placeholder
+
+// main.js
+import { setParamReplacementPlaceholder } from '@keenmate/svelte-spa-router'
+setParamReplacementPlaceholder('N-A')
+
+// Route: /user/:userId/:section
+await push('/user/:userId/:section', { userId: 123 })
+// Result: /user/123/N-A
+
+// onNotFound callback triggered for debugging
+<Router
+    {routes}
+    onNotFound={(e) => console.warn('Missing param:', e.detail)}
+/>
+
+Why strict replacement?
+- Predictable URLs
+- Easy to spot missing data in dev
+- onNotFound tracks issues
+
+PARAMS IN ROUTE CONDITIONS
+---------------------------
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+'/document/:id': wrap({
+    asyncComponent: () => import('./Document.svelte'),
+    conditions: [
+        async (detail) => {
+            const docId = detail.routeParams.id
+            return await canAccessDocument(docId)
+        }
+    ]
+})
+
+PARAMS IN AUTHORIZATION
+-----------------------
+import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+'/document/:id': createProtectedRoute({
+    component: () => import('./Document.svelte'),
+    permissions: { any: ['documents.read'] },
+    authorizationCallback: async (detail) => {
+        const docId = detail.routeParams.id
+        return await checkDocumentAccess(docId)
+    }
+})
+
+ACCESSING IN GUARDS
+-------------------
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+'/user/:userId': wrap({
+    component: UserProfile,
+    conditions: [
+        (detail) => {
+            const userId = detail.routeParams.userId
+            const currentUserId = getCurrentUser().id
+
+            if (userId !== currentUserId) {
+                push('/unauthorized')
+                return false
+            }
+            return true
+        }
+    ]
+})
+
+NUMERIC PARAMETERS
+------------------
+Parameters are always strings, convert if needed:
+
+const userId = $derived(parseInt(routeParams().id, 10))
+const page = $derived(parseInt(routeParams().page, 10) || 1)
+
+OPTIONAL PARAMETERS
+-------------------
+No native support, use wildcards or query strings:
+
+Option 1: Query string (preferred)
+Route: '/search'
+URL: /search?category=books&page=2
+
+Option 2: Wildcard
+Route: '/user/:id/*'
+URL: /user/123/settings (settings is optional)
+
+PARAMETER VALIDATION
+--------------------
+Validate in component or conditions:
+
+<script>
+let { routeParams = {} } = $props()
+
+const userId = $derived(routeParams.id)
+const isValid = $derived(/^\d+$/.test(userId))
+
+$effect(() => {
+    if (!isValid) {
+        push('/invalid-user')
+    }
+})
+</script>
+
+Or in conditions:
+conditions: [
+    (detail) => {
+        const id = detail.routeParams.id
+        if (!/^\d+$/.test(id)) {
+            push('/invalid-id')
+            return false
+        }
+        return true
+    }
+]
+
+PARAMS IN REFERRER
+------------------
+import { navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+const previousParams = $derived(referrer?.params)
+
+// Access previous route's params
+if (referrer?.params?.category) {
+    // Came from category page
+}

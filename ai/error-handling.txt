@@ -1,0 +1,329 @@
+GLOBAL ERROR HANDLING
+=====================
+
+SETUP
+-----
+// main.js
+import { mount } from 'svelte'
+import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
+import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler.svelte'
+import App from './App.svelte'
+
+configureGlobalErrorHandler({
+    strategy: 'navigateSafe',
+    fallbackRoute: '/',
+    maxRestarts: 3
+})
+
+mount(GlobalErrorHandler, {
+    target: document.getElementById('app'),
+    props: { component: App }
+})
+
+STRATEGIES
+----------
+navigateSafe (default):
+- Navigate to fallbackRoute on error
+- Safe recovery without reload
+- Best for most apps
+
+restart:
+- Full page reload
+- Clears all state
+- Use for unrecoverable errors
+
+showError:
+- Display error UI
+- User can choose action
+- Good for development
+
+custom:
+- Your own recovery function
+- Full control
+
+CONFIGURATION
+-------------
+configureGlobalErrorHandler({
+    strategy: 'navigateSafe',
+    fallbackRoute: '/',
+    maxRestarts: 3,
+    errorFilter: /network|timeout/i,
+    customRecovery: async (error) => {
+        // Your recovery logic
+        await logError(error)
+        await push('/')
+    }
+})
+
+OPTIONS
+-------
+strategy: 'navigateSafe' | 'restart' | 'showError' | 'custom'
+fallbackRoute: string (default: '/')
+maxRestarts: number (default: 3)
+errorFilter: RegExp | string (match errors to handle)
+customRecovery: async (error) => void
+
+RESTART LOOP PREVENTION
+-----------------------
+Tracks restart count in sessionStorage:
+- Restart count incremented on each restart
+- Cleared after successful navigation
+- Max 3 restarts by default
+- Shows error UI after max reached
+
+import { canRestart, getRestartCount } from '@keenmate/svelte-spa-router/helpers/error-handler'
+
+if (canRestart()) {
+    await restart()
+} else {
+    console.error('Max restarts reached')
+}
+
+HELPER FUNCTIONS
+----------------
+import {
+    restart,
+    navigate,
+    showError,
+    canRestart,
+    getRestartCount
+} from '@keenmate/svelte-spa-router/helpers/error-handler'
+
+restart(): Promise<void>
+- Full page reload
+- Increments restart count
+
+navigate(route: string): Promise<void>
+- Navigate to route safely
+
+showError(error: Error): void
+- Display error UI
+
+canRestart(): boolean
+- Check if restart allowed
+
+getRestartCount(): number
+- Current restart count
+
+ERROR FILTERING
+---------------
+Handle specific errors only:
+
+// By regex
+configureGlobalErrorHandler({
+    strategy: 'navigateSafe',
+    errorFilter: /network|timeout|api/i
+})
+
+// By string (case-insensitive)
+configureGlobalErrorHandler({
+    strategy: 'navigateSafe',
+    errorFilter: 'network error'
+})
+
+Unmatched errors use default browser handling.
+
+CUSTOM RECOVERY
+---------------
+configureGlobalErrorHandler({
+    strategy: 'custom',
+    customRecovery: async (error) => {
+        // Log to service
+        await logErrorToService(error)
+
+        // Try to recover
+        if (error.message.includes('auth')) {
+            await push('/login')
+        } else if (error.message.includes('network')) {
+            await showToast('Network error, retrying...')
+            await retryLastRequest()
+        } else {
+            await push('/')
+        }
+    }
+})
+
+COMPONENT USAGE
+---------------
+// App.svelte (root)
+import { mount } from 'svelte'
+import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler.svelte'
+import App from './App.svelte'
+
+mount(GlobalErrorHandler, {
+    target: document.getElementById('app'),
+    props: {
+        component: App  // Your root component
+    }
+})
+
+GlobalErrorHandler catches all unhandled errors from children.
+
+DEFAULT ERROR UI
+----------------
+Uses ErrorDisplay.svelte:
+- Full-page error display
+- Shows error message
+- Stack trace (dev mode only)
+- Actions: Go Home, Reload, Continue
+
+DEFAULT ERROR COMPONENT
+-----------------------
+import ErrorDisplay from '@keenmate/svelte-spa-router/helpers/ErrorDisplay.svelte'
+
+Features:
+- Beautiful centered layout
+- Error details
+- Recovery actions
+- Restart count warning
+
+CUSTOM ERROR COMPONENT
+----------------------
+Pass your own error component:
+
+// CustomError.svelte
+<script>
+let { error = null, onContinue = () => {}, onReload = () => {} } = $props()
+</script>
+
+<div class="error">
+    <h1>Oops! {error.message}</h1>
+    <button onclick={onContinue}>Continue</button>
+    <button onclick={onReload}>Reload</button>
+</div>
+
+// App.svelte
+<GlobalErrorHandler
+    component={App}
+    errorComponent={CustomError}
+/>
+
+ERROR COMPONENT PROPS
+---------------------
+{
+    error: Error,
+    onContinue: () => void,
+    onReload: () => void,
+    onGoHome: () => void
+}
+
+TOAST NOTIFICATIONS
+-------------------
+Show non-blocking error toasts:
+
+configureGlobalErrorHandler({
+    strategy: 'navigateSafe',
+    fallbackRoute: '/',
+    showToast: true  // Enable toast notifications
+})
+
+Requires toast library (not included).
+
+DEVELOPMENT VS PRODUCTION
+--------------------------
+Different strategies per environment:
+
+if (import.meta.env.DEV) {
+    configureGlobalErrorHandler({
+        strategy: 'showError'  // Show full error UI in dev
+    })
+} else {
+    configureGlobalErrorHandler({
+        strategy: 'navigateSafe',  // Navigate away in prod
+        fallbackRoute: '/'
+    })
+}
+
+LOGGING ERRORS
+--------------
+configureGlobalErrorHandler({
+    strategy: 'navigateSafe',
+    customRecovery: async (error) => {
+        // Log before recovering
+        await fetch('/api/log-error', {
+            method: 'POST',
+            body: JSON.stringify({
+                message: error.message,
+                stack: error.stack,
+                url: window.location.href
+            })
+        })
+
+        await navigate('/')
+    }
+})
+
+COMBINING WITH ROUTE CONDITIONS
+--------------------------------
+Route conditions can trigger global error handler:
+
+import { wrap } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/protected': wrap({
+        component: Protected,
+        conditions: [
+            async (detail) => {
+                const valid = await checkAuth()
+                if (!valid) {
+                    throw new Error('Unauthorized access')
+                }
+                return true
+            }
+        ]
+    })
+}
+
+Error caught by GlobalErrorHandler, recovery strategy applied.
+
+TESTING ERROR HANDLING
+----------------------
+// Trigger error manually
+<button onclick={() => { throw new Error('Test error') }}>
+    Test Error
+</button>
+
+// Or in async function
+async function triggerError() {
+    throw new Error('Async error')
+}
+
+PERFORMANCE
+-----------
+- No overhead when no errors
+- Single event listener (window.addEventListener)
+- SessionStorage for restart tracking
+- Minimal DOM changes
+
+BEST PRACTICES
+--------------
+- Configure before app mount
+- Use navigateSafe for most cases
+- Set appropriate maxRestarts
+- Filter errors if needed
+- Log errors in production
+- Test recovery strategies
+- Provide custom error UI for branding
+- Clear restart count on successful navigation
+- Use showError strategy in development
+
+DEBUGGING
+---------
+Enable error handler logging:
+
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+
+setCategoryLevel('ROUTER:ERROR_HANDLER', 'debug')
+
+Logs show:
+- Error captured
+- Strategy selected
+- Recovery executed
+- Restart count
+
+LIMITATIONS
+-----------
+- Only catches unhandled errors
+- Won't catch syntax errors in initial load
+- Requires GlobalErrorHandler component as root
+- SessionStorage required for restart tracking

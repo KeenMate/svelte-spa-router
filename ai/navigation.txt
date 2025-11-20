@@ -1,0 +1,140 @@
+NAVIGATION FUNCTIONS
+====================
+
+IMPORT
+------
+import { push, replace, pop, goBack } from '@keenmate/svelte-spa-router'
+
+PUSH (navigate with history entry)
+-----------------------------------
+Single string (path or named route):
+await push('/about')
+await push('userProfile')  // Named route (if registered)
+
+Multi-parameter signature:
+push(route, routeParams, queryString, navigationContext)
+
+await push('/user/:id', { id: 123 })
+await push('/user/:id', { id: 123 }, { tab: 'settings' })
+await push('/user/:id', { id: 123 }, { tab: 'settings' }, { source: 'menu' })
+
+Named route with params:
+await push('userProfile', { userId: 123 }, { tab: 'settings' })
+
+Array format [route, params, query, context]:
+await push(['/user/:id', { id: 123 }, { tab: 'settings' }, { source: 'nav' }])
+
+Object format:
+await push({
+    route: 'userProfile',
+    params: { userId: 123 },
+    query: { tab: 'settings' },
+    navigationContext: { source: 'toolbar' }
+})
+
+REPLACE (navigate without history entry)
+-----------------------------------------
+Same signatures as push():
+await replace('/about')
+await replace('userProfile', { userId: 123 })
+await replace(['/user/:id', { id: 456 }, { tab: 'profile' }])
+
+Use replace() when:
+- Redirecting after login (don't want login page in history)
+- Replacing invalid URL with corrected version
+- Implementing step wizards (don't want each step in history)
+
+POP (go back one entry)
+-----------------------
+await pop()
+
+Equivalent to browser back button.
+Does NOT restore scroll position automatically.
+
+GOBACK (navigate to referrer with scroll restoration)
+------------------------------------------------------
+await goBack()
+
+Benefits:
+- Automatically navigates to referrer (if tracked)
+- Restores scroll position from referrer
+- Safe fallback if no referrer (navigates to '/')
+
+Requirements:
+- setIncludeReferrer('always') or setIncludeReferrer('notfound')
+- Referrer tracking enabled before navigation
+
+Example:
+// main.js
+import { setIncludeReferrer } from '@keenmate/svelte-spa-router'
+setIncludeReferrer('always')
+
+// Component
+<script>
+import { goBack } from '@keenmate/svelte-spa-router'
+
+function handleBack() {
+    goBack()  // Navigates to referrer + restores scroll
+}
+</script>
+
+<button onclick={handleBack}>Go Back</button>
+
+CRITICAL: Use goBack() for "back" buttons, NOT manual push(referrer.location)
+Manual push() does NOT restore scroll position!
+
+NAVIGATION CONTEXT (passing hidden data)
+-----------------------------------------
+Pass data between routes without showing in URL:
+
+// Source page
+await push('/document/:id', { id: 123 }, {}, {
+    source: 'search',
+    previousFilters: {...}
+})
+
+// Target page
+<script>
+import { navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const source = $derived(navContext?.source)
+const filters = $derived(navContext?.previousFilters)
+</script>
+
+Navigation context cleared on:
+- Manual URL typing
+- Browser refresh
+- External navigation
+
+QUERY STRING HANDLING
+----------------------
+// Push with query string
+await push('/search', {}, { q: 'svelte', page: 2 })
+// Result: /search?q=svelte&page=2
+
+// Access query string
+import { querystring } from '@keenmate/svelte-spa-router'
+const qs = $derived(querystring())  // "q=svelte&page=2"
+
+// Parse query string
+import { parse } from '@keenmate/svelte-spa-router/helpers/querystring'
+const parsed = parse(querystring())  // { q: 'svelte', page: '2' }
+
+AWAIT NAVIGATION
+----------------
+Navigation is async, await in tests:
+
+import { tick } from 'svelte'
+
+await push('/about')
+await tick()  // Let effects run
+
+ROUTE RESOLUTION
+----------------
+Route parameter starts with '/': exact path
+Otherwise: named route lookup
+
+await push('/about')          // Exact path
+await push('about')           // Named route (if registered)
+await push('userProfile', {}) // Named route with params

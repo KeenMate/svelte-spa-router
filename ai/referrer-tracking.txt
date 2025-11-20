@@ -1,0 +1,338 @@
+REFERRER TRACKING
+=================
+
+FEATURE: Track previous route for "Go Back" functionality
+Like WinForms navigation with automatic scroll restoration
+
+ENABLE
+------
+// main.js - configure before app mount
+import { setIncludeReferrer } from '@keenmate/svelte-spa-router'
+
+setIncludeReferrer('always')
+
+MODES
+-----
+'never' (default):
+- No referrer tracking
+- navigationContext.referrer always undefined
+
+'notfound':
+- Track referrer only on 404 routes
+- Useful for "return to previous page" on error pages
+
+'always':
+- Track referrer on all navigations
+- Recommended for full "Go Back" support
+
+REFERRER STRUCTURE
+------------------
+Referrer stored in navigationContext:
+{
+    location: '/documents',
+    querystring: 'tab=all',
+    params: {},
+    routeName: 'documentList'
+}
+
+ACCESSING REFERRER
+------------------
+import { navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+
+if (referrer) {
+    console.log('Came from:', referrer.location)
+    console.log('Route name:', referrer.routeName)
+    console.log('Params:', referrer.params)
+}
+
+GOBACK HELPER (recommended)
+----------------------------
+Automatic scroll restoration + referrer navigation:
+
+import { goBack } from '@keenmate/svelte-spa-router'
+
+function handleGoBack() {
+    goBack()  // Navigates to referrer with scroll restoration
+}
+
+<button onclick={handleGoBack}>Go Back</button>
+
+Benefits:
+- Automatically navigates to referrer
+- Restores scroll position from referrer
+- Safe fallback if no referrer (navigates to '/')
+- Simpler than manual implementation
+
+CRITICAL: Always use goBack() for "back" buttons
+Manual push(referrer.location) does NOT restore scroll!
+
+MANUAL NAVIGATION (not recommended)
+------------------------------------
+If you need custom behavior:
+
+import { push, navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+
+async function handleBack() {
+    if (referrer) {
+        await push(referrer.location, referrer.params, referrer.querystring)
+    } else {
+        await push('/')
+    }
+}
+
+WARNING: Manual push() does NOT restore scroll position!
+
+GO BACK BUTTON
+--------------
+<script>
+import { goBack, navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const hasReferrer = $derived(!!navContext?.referrer)
+</script>
+
+<button onclick={goBack} disabled={!hasReferrer}>
+    {hasReferrer ? 'Go Back' : 'No History'}
+</button>
+
+CONDITIONAL BACK LOGIC
+----------------------
+<script>
+import { goBack, navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+
+function handleBack() {
+    if (referrer?.routeName === 'documentList') {
+        // Came from document list, go back
+        goBack()
+    } else {
+        // Came from elsewhere, go to list
+        push('documentList')
+    }
+}
+</script>
+
+<button onclick={handleBack}>Back to List</button>
+
+404 PAGE WITH REFERRER
+----------------------
+// main.js
+setIncludeReferrer('notfound')
+
+// NotFound.svelte
+<script>
+import { goBack, navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+</script>
+
+<div>
+    <h1>404 - Page Not Found</h1>
+    {#if referrer}
+        <button onclick={goBack}>Go Back</button>
+    {:else}
+        <a href="/" use:link>Go Home</a>
+    {/if}
+</div>
+
+REFERRER WITH REPLACE
+----------------------
+replace() preserves referrer from previous push():
+
+await push('/list')           // Referrer: null
+await push('/detail/123')     // Referrer: /list
+await replace('/detail/456')  // Referrer: /list (preserved!)
+
+Useful for:
+- Redirects (don't lose original referrer)
+- URL corrections
+- Step wizards
+
+REFERRER CLEARED ON
+--------------------
+- Manual URL typing
+- Browser refresh
+- External navigation
+- Direct URL access
+
+Not cleared on:
+- push() navigation
+- replace() navigation
+- goBack() navigation
+
+NAVIGATION CONTEXT
+------------------
+Referrer is part of navigation context:
+
+const navContext = $derived(navigationContext())
+
+{
+    location: '/current',
+    querystring: 'tab=edit',
+    routeParams: { id: '123' },
+    routeName: 'documentDetail',
+    referrer: {
+        location: '/list',
+        querystring: '',
+        params: {},
+        routeName: 'documentList'
+    }
+}
+
+BREADCRUMB INTEGRATION
+----------------------
+Use referrer for dynamic breadcrumbs:
+
+<script>
+import { navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+</script>
+
+<nav class="breadcrumbs">
+    {#if referrer}
+        <a href={referrer.location} use:link>{referrer.routeName || 'Back'}</a>
+        <span>/</span>
+    {/if}
+    <span>Current Page</span>
+</nav>
+
+SCROLL RESTORATION
+------------------
+goBack() automatically restores scroll position:
+
+// User scrolls to position 500 on /list
+// User clicks link to /detail/123
+// User clicks "Go Back"
+// goBack() navigates to /list AND scrolls to position 500
+
+Scroll position stored in browser history state.
+
+MANUAL SCROLL RESTORATION (not recommended)
+--------------------------------------------
+If you need custom scroll behavior:
+
+import { push, navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+
+async function handleBack() {
+    if (referrer) {
+        // Manual navigation (no scroll restoration!)
+        await push(referrer.location)
+
+        // Try to restore scroll manually (unreliable)
+        const scrollY = history.state?.scrollY || 0
+        window.scrollTo(0, scrollY)
+    }
+}
+
+WARNING: Unreliable, use goBack() instead!
+
+TESTING REFERRER
+----------------
+// Test navigation flow
+await push('/list')
+await push('/detail/123')
+
+// Check referrer
+const navContext = navigationContext()
+expect(navContext.referrer.location).toBe('/list')
+
+// Test goBack
+await goBack()
+expect(location()).toBe('/list')
+
+PERFORMANCE
+-----------
+- Referrer stored in history state
+- No memory overhead
+- No watchers or subscriptions
+- Cleared on browser events
+
+COMMON PATTERNS
+---------------
+Detail page with back button:
+<script>
+import { goBack } from '@keenmate/svelte-spa-router'
+</script>
+
+<div>
+    <button onclick={goBack}>← Back</button>
+    <h1>Document Detail</h1>
+</div>
+
+Modal with return:
+<script>
+import { goBack, navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const hasReferrer = $derived(!!navContext?.referrer)
+
+function handleClose() {
+    if (hasReferrer) {
+        goBack()
+    } else {
+        push('/')
+    }
+}
+</script>
+
+Error page with retry:
+<script>
+import { goBack, navigationContext } from '@keenmate/svelte-spa-router'
+
+const navContext = $derived(navigationContext())
+const referrer = $derived(navContext?.referrer)
+</script>
+
+<div>
+    <h1>Error Loading Page</h1>
+    {#if referrer}
+        <button onclick={goBack}>Go Back</button>
+    {/if}
+    <button onclick={() => window.location.reload()}>Retry</button>
+</div>
+
+BEST PRACTICES
+--------------
+- Use goBack() for "back" buttons (scroll restoration)
+- Enable 'always' mode for full app navigation
+- Enable 'notfound' mode for error pages only
+- Check referrer exists before using
+- Provide fallback if no referrer (home page)
+- Don't rely on referrer for critical logic
+- Test with direct URL access
+- Use for UX, not security
+- Combine with breadcrumbs for context
+
+DEBUGGING
+---------
+Enable navigation logging:
+
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+
+setCategoryLevel('ROUTER:NAVIGATION', 'debug')
+
+Logs show:
+- Referrer tracking
+- goBack() execution
+- Scroll restoration
+
+LIMITATIONS
+-----------
+- Referrer cleared on refresh
+- Only tracks one level (not full history stack)
+- Scroll restoration requires browser support
+- Can't restore scroll on external navigation
