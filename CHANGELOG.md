@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- **AI Assistant Documentation** - Added 14 concise text files in `./ai` folder optimized for AI assistants
+  - Plain text format (no markdown) with bullet-style structure for efficient AI parsing
+  - Files organized by feature: basic-setup, navigation, named-routes, route-params, permissions, guards-conditions, hierarchical-routes, tree-structure, link-actions, error-handling, referrer-tracking, debug-logging, import-patterns, utilities
+  - Includes correct/incorrect usage patterns (✅/❌) for common mistakes
+  - Code examples designed for copy-paste usage
+  - Complements CLAUDE.md by providing quick-reference documentation
+  - Aimed at helping AI coding assistants (like Claude, Cursor, Copilot) quickly understand router functionality
+
 ## [5.1.0] - 2025-11-20 ✅ Published
 
 ### Added
