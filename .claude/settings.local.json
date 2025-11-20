@@ -9,7 +9,9 @@
       "Bash(cat:*)",
       "Bash(timeout 10 npm run dev:*)",
       "Bash(npm test:*)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Bash(npm run dev:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

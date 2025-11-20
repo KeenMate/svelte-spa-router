@@ -233,6 +233,45 @@ setLogLevel('warn')  // Only show warnings and errors
 - Critical errors that need immediate attention
 - Production-only telemetry (use proper logging service instead)
 
+### Global Window API
+
+The router exposes a global API at `window.components['svelte-spa-router']` for runtime debugging and introspection.
+
+**Available in browser console:**
+```javascript
+// Check version
+window.components['svelte-spa-router'].version()  // "5.0.0"
+
+// View package metadata
+window.components['svelte-spa-router'].config
+// { name, version, author, license, repository, homepage }
+
+// Enable all debug logging
+window.components['svelte-spa-router'].logging.enableLogging()
+
+// Disable all logging
+window.components['svelte-spa-router'].logging.disableLogging()
+
+// Set global log level
+window.components['svelte-spa-router'].logging.setLogLevel('debug')
+
+// Enable specific category
+window.components['svelte-spa-router'].logging.setCategoryLevel('ROUTER:NAVIGATION', 'debug')
+
+// List all logging categories
+window.components['svelte-spa-router'].logging.getCategories()
+// ["ROUTER", "ROUTER:NAVIGATION", "ROUTER:SCROLL", ...]
+```
+
+**Benefits:**
+- Runtime debugging without code changes
+- Version checking in production
+- Toggle logging from browser console
+- TypeScript autocompletion support
+- SSR-safe (only initializes in browser)
+
+**Implementation:** Global API is initialized in `src/lib/index.js` using namespace-safe pattern (`window.components` shared across all component libraries).
+
 **Critical:** This project uses Svelte 5 runes, NOT Svelte stores. Never use `writable()`, `readable()`, `derived()`, or `$subscribe()`.
 
 **Reactive State Pattern:**

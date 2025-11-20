@@ -51,7 +51,15 @@ export default [
         $derived: 'readonly',
         $effect: 'readonly',
         $props: 'readonly',
-        $inspect: 'readonly'
+        $inspect: 'readonly',
+
+        // Build-time constants (injected by Vite/Rollup during build)
+        __VERSION__: 'readonly',
+        __PACKAGE_NAME__: 'readonly',
+        __AUTHOR__: 'readonly',
+        __LICENSE__: 'readonly',
+        __REPOSITORY__: 'readonly',
+        __HOMEPAGE__: 'readonly'
       }
     },
     rules: {

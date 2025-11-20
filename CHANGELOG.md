@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.0.0] - 2025-01-17
+## [5.1.0] - 2025-11-20 ✅ Published
+
+### Added
+- **Global Window API:** Added runtime debugging and introspection via `window.components['svelte-spa-router']`
+  - `version()` - Get library version at runtime
+  - `config` - Access package metadata (name, version, author, license, repository, homepage)
+  - `logging.enableLogging()` - Enable all debug logging from browser console
+  - `logging.disableLogging()` - Disable all logging from browser console
+  - `logging.setLogLevel(level)` - Set global log level from browser console
+  - `logging.setCategoryLevel(category, level)` - Control specific logging categories from browser console
+  - `logging.getCategories()` - List all available logging categories
+  - TypeScript support with full autocompletion for global API
+  - SSR-safe implementation (only initializes in browser)
+  - Namespace-safe pattern using `window.components` (shared across all component libraries)
+  - Enables debugging production issues without code changes or rebuilding
+  - Example: `window.components['svelte-spa-router'].logging.setCategoryLevel('ROUTER:NAVIGATION', 'debug')`
+
+## [5.0.0] - 2025-01-17 ✅ Published
 
 ### Changed
 - **Code Quality:** Major ESLint cleanup - reduced linting issues from 161 to 11 (93% reduction)
