@@ -1,0 +1,420 @@
+BREADCRUMBS
+===========
+
+WHAT ARE BREADCRUMBS
+--------------------
+Navigation trail showing current page's position in site hierarchy:
+Home > Documents > Invoice_Q4.pdf > Logs
+
+BASIC BREADCRUMB DEFINITION
+----------------------------
+Define breadcrumbs in route configuration:
+
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/': createRoute({
+        component: Home,
+        breadcrumbs: [
+            { label: 'Home', path: '/' }
+        ]
+    }),
+    '/documents': createRoute({
+        component: Documents,
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Documents', path: '/documents' }
+        ]
+    }),
+    '/documents/:id': createRoute({
+        component: DocumentDetail,
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Documents', path: '/documents' },
+            { label: 'Document Detail' }  // No path = current page (not clickable)
+        ]
+    })
+}
+
+BREADCRUMB STRUCTURE
+--------------------
+Each breadcrumb object:
+{
+    label: 'Display text',    // Required
+    path: '/route/path',      // Optional - omit for current page
+    id: 'uniqueId'            // Optional - for dynamic updates
+}
+
+ACCESSING IN COMPONENTS
+------------------------
+Import from route-metadata helper:
+
+<script>
+import { routeBreadcrumbs } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+const breadcrumbs = $derived(routeBreadcrumbs())
+</script>
+
+<!-- Display breadcrumbs -->
+{#each breadcrumbs as crumb, i}
+    {#if crumb.path}
+        <a href={crumb.path}>{crumb.label}</a>
+    {:else}
+        <span>{crumb.label}</span>
+    {/if}
+    {#if i < breadcrumbs.length - 1}
+        <span> > </span>
+    {/if}
+{/each}
+
+BREADCRUMB COMPONENT EXAMPLE
+-----------------------------
+Create reusable breadcrumb component:
+
+<!-- Breadcrumbs.svelte -->
+<script>
+import { routeBreadcrumbs } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+import { link } from '@keenmate/svelte-spa-router'
+
+const breadcrumbs = $derived(routeBreadcrumbs())
+</script>
+
+<nav class="breadcrumbs">
+    {#each breadcrumbs as crumb, i}
+        {#if crumb.path}
+            <a href={crumb.path} use:link>{crumb.label}</a>
+        {:else}
+            <span class="current">{crumb.label}</span>
+        {/if}
+        {#if i < breadcrumbs.length - 1}
+            <span class="separator"> / </span>
+        {/if}
+    {/each}
+</nav>
+
+<style>
+    .breadcrumbs {
+        padding: 1rem;
+        font-size: 0.875rem;
+    }
+    .breadcrumbs a {
+        color: #0066cc;
+        text-decoration: none;
+    }
+    .breadcrumbs a:hover {
+        text-decoration: underline;
+    }
+    .current {
+        color: #666;
+    }
+    .separator {
+        margin: 0 0.5rem;
+        color: #999;
+    }
+</style>
+
+DYNAMIC BREADCRUMBS (after data loads)
+---------------------------------------
+Use IDs to update breadcrumbs after fetching data:
+
+// Route definition
+'/documents/:id': createRoute({
+    component: DocumentDetail,
+    breadcrumbs: [
+        { label: 'Home', path: '/' },
+        { label: 'Documents', path: '/documents' },
+        { id: 'documentName', label: 'Loading...', path: '/documents/:id' }
+    ]
+})
+
+// Component code
+<script>
+import { onMount } from 'svelte'
+import { updateBreadcrumb } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+let { routeParams = {} } = $props()
+
+onMount(async () => {
+    const doc = await fetchDocument(routeParams.id)
+
+    // Update the breadcrumb with real data
+    updateBreadcrumb('documentName', {
+        label: doc.filename,
+        path: `/documents/${routeParams.id}`
+    })
+})
+</script>
+
+BREADCRUMBS WITH ROUTE PARAMS
+------------------------------
+Build paths dynamically in route definitions:
+
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/user/:userId/posts/:postId': createRoute({
+        component: PostDetail,
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Users', path: '/users' },
+            { id: 'userName', label: 'User', path: '/user/:userId' },
+            { label: 'Posts', path: '/user/:userId/posts' },
+            { id: 'postTitle', label: 'Post' }
+        ]
+    })
+}
+
+// In component, update both breadcrumbs:
+onMount(async () => {
+    const user = await fetchUser(routeParams.userId)
+    const post = await fetchPost(routeParams.postId)
+
+    updateBreadcrumb('userName', {
+        label: user.name,
+        path: `/user/${routeParams.userId}`
+    })
+
+    updateBreadcrumb('postTitle', {
+        label: post.title,
+        path: `/user/${routeParams.userId}/posts/${routeParams.postId}`
+    })
+})
+
+HIERARCHICAL BREADCRUMBS (with inheritance)
+--------------------------------------------
+When hierarchical mode enabled, breadcrumbs concatenate:
+
+// main.js
+import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+setHierarchicalRoutesEnabled(true)
+
+// Route definitions
+const routes = {
+    '/documents': createRoute({
+        component: Documents,
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Documents' }
+        ]
+    }),
+    '/documents/:id': createRoute({
+        component: DocumentDetail,
+        breadcrumbs: [
+            { label: 'Detail' }
+        ]
+        // Effective: [Home, Documents, Detail]
+    }),
+    '/documents/:id/logs': createRoute({
+        component: DocumentLogs,
+        breadcrumbs: [
+            { label: 'Logs' }
+        ]
+        // Effective: [Home, Documents, Detail, Logs]
+    })
+}
+
+OPTING OUT OF INHERITANCE
+--------------------------
+Use inheritBreadcrumbs: false to start fresh:
+
+'/documents/public/:id': createRoute({
+    component: PublicDocument,
+    breadcrumbs: [
+        { label: 'Home', path: '/' },
+        { label: 'Public Documents' }
+    ],
+    inheritBreadcrumbs: false  // Don't inherit from /documents
+})
+
+TREE STRUCTURE (automatic inheritance)
+---------------------------------------
+With createHierarchy(), breadcrumbs always inherit:
+
+import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
+
+const routes = createHierarchy({
+    '/admin': {
+        component: AdminLayout,
+        breadcrumbs: [{ label: 'Admin' }],
+        children: {
+            'users': {
+                component: AdminUsers,
+                breadcrumbs: [{ label: 'Users' }],
+                // Effective: [Admin, Users]
+                children: {
+                    ':id': {
+                        component: UserDetail,
+                        breadcrumbs: [{ label: 'User Detail' }]
+                        // Effective: [Admin, Users, User Detail]
+                    }
+                }
+            }
+        }
+    }
+})
+
+BREADCRUMBS WITH NAVIGATION
+----------------------------
+Use breadcrumb paths for navigation:
+
+<script>
+import { routeBreadcrumbs } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+import { push } from '@keenmate/svelte-spa-router'
+
+const breadcrumbs = $derived(routeBreadcrumbs())
+
+function navigateTo(crumb) {
+    if (crumb.path) {
+        push(crumb.path)
+    }
+}
+</script>
+
+{#each breadcrumbs as crumb}
+    {#if crumb.path}
+        <button onclick={() => navigateTo(crumb)}>{crumb.label}</button>
+    {:else}
+        <span>{crumb.label}</span>
+    {/if}
+{/each}
+
+UPDATING ROUTE TITLE WITH BREADCRUMBS
+--------------------------------------
+Update both title and breadcrumbs together:
+
+import { updateTitle, updateBreadcrumb } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+onMount(async () => {
+    const doc = await fetchDocument(routeParams.id)
+
+    // Update page title
+    updateTitle(doc.filename)
+
+    // Update breadcrumb
+    updateBreadcrumb('documentName', {
+        label: doc.filename,
+        path: `/documents/${routeParams.id}`
+    })
+})
+
+BREADCRUMBS WITH LOADING STATE
+-------------------------------
+Show loading indicator while breadcrumbs update:
+
+<script>
+import { routeBreadcrumbs, routeIsLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+const breadcrumbs = $derived(routeBreadcrumbs())
+const loading = $derived(routeIsLoading())
+</script>
+
+<nav class="breadcrumbs">
+    {#if loading}
+        <span>Loading...</span>
+    {:else}
+        {#each breadcrumbs as crumb}
+            {#if crumb.path}
+                <a href={crumb.path}>{crumb.label}</a>
+            {:else}
+                <span>{crumb.label}</span>
+            {/if}
+        {/each}
+    {/if}
+</nav>
+
+CUSTOM BREADCRUMB METADATA
+---------------------------
+Add custom data to breadcrumbs:
+
+breadcrumbs: [
+    {
+        label: 'Documents',
+        path: '/documents',
+        icon: 'folder',
+        color: 'blue'
+    },
+    {
+        label: 'Detail',
+        icon: 'file',
+        color: 'green'
+    }
+]
+
+// In component
+{#each breadcrumbs as crumb}
+    <span class="icon {crumb.icon}"></span>
+    <a href={crumb.path} style="color: {crumb.color}">{crumb.label}</a>
+{/each}
+
+BREADCRUMBS WITHOUT ROUTES
+---------------------------
+Update breadcrumbs programmatically without route config:
+
+import { updateRouteMetadata } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+onMount(async () => {
+    const data = await fetchData()
+
+    // Set breadcrumbs manually
+    updateRouteMetadata({
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Search Results' },
+            { label: `Results for "${data.query}"` }
+        ]
+    })
+})
+
+DEBUGGING BREADCRUMBS
+---------------------
+Enable logging to see breadcrumb composition:
+
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+
+setCategoryLevel('ROUTER:METADATA', 'debug')
+
+Logs show:
+- Breadcrumb inheritance chain
+- Manual updates via updateBreadcrumb()
+- Cache clearing on route changes
+
+BEST PRACTICES
+--------------
+✅ Use IDs for breadcrumbs that need dynamic updates
+✅ Omit 'path' for current page (last breadcrumb)
+✅ Keep breadcrumb labels concise (2-3 words max)
+✅ Use hierarchical mode to avoid repetition
+✅ Update breadcrumbs after data loads (not before)
+✅ Clear loading state after updates
+
+❌ Don't include query params in breadcrumb paths
+❌ Don't hardcode full URLs - use relative paths
+❌ Don't update breadcrumbs in $effect() without guards
+❌ Don't forget to enable hierarchical mode if using inheritance
+
+COMMON PATTERNS
+---------------
+
+Pattern 1: Static breadcrumbs
+breadcrumbs: [
+    { label: 'Home', path: '/' },
+    { label: 'About' }
+]
+
+Pattern 2: Dynamic single segment
+breadcrumbs: [
+    { label: 'Home', path: '/' },
+    { label: 'Users', path: '/users' },
+    { id: 'userName', label: 'Loading...' }
+]
+
+Pattern 3: Hierarchical DRY
+'/docs': { breadcrumbs: [{ label: 'Home' }, { label: 'Docs' }] }
+'/docs/:id': { breadcrumbs: [{ label: 'Detail' }] }  // Inherits Home, Docs
+
+Pattern 4: Resource-based
+breadcrumbs: [
+    { label: 'Projects', path: '/projects' },
+    { id: 'projectName', label: 'Project' },
+    { id: 'taskName', label: 'Task' }
+]
