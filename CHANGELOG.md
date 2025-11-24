@@ -8,13 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Documentation
-- **AI Assistant Documentation** - Added 14 concise text files in `./ai` folder optimized for AI assistants
+- **AI Assistant Documentation** - Added 15 concise text files in `./ai` folder optimized for AI assistants
   - Plain text format (no markdown) with bullet-style structure for efficient AI parsing
-  - Files organized by feature: basic-setup, navigation, named-routes, route-params, permissions, guards-conditions, hierarchical-routes, tree-structure, link-actions, error-handling, referrer-tracking, debug-logging, import-patterns, utilities
+  - Files organized by feature: basic-setup, navigation, named-routes, route-params, permissions, guards-conditions, hierarchical-routes, tree-structure, link-actions, error-handling, referrer-tracking, debug-logging, import-patterns, utilities, breadcrumbs
   - Includes correct/incorrect usage patterns (✅/❌) for common mistakes
   - Code examples designed for copy-paste usage
   - Complements CLAUDE.md by providing quick-reference documentation
   - Aimed at helping AI coding assistants (like Claude, Cursor, Copilot) quickly understand router functionality
+- **Breadcrumbs Documentation** - Added comprehensive `ai/breadcrumbs.txt` covering breadcrumb navigation system
+  - Basic breadcrumb definition and structure
+  - Accessing breadcrumbs in components via `routeBreadcrumbs()` helper
+  - Breadcrumb component examples with navigation and styling
+  - Dynamic breadcrumb updates using `updateBreadcrumb(id, updates)` after data loads
+  - Integration with route parameters for dynamic segments
+  - Hierarchical breadcrumb inheritance with automatic concatenation
+  - Tree structure support with `createHierarchy()`
+  - Best practices and common patterns
+  - Debugging with ROUTER:METADATA logging category
 
 ## [5.1.0] - 2025-11-20 ✅ Published
 
