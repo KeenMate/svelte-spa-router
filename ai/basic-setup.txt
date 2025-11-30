@@ -139,3 +139,41 @@ setHashRoutingEnabled(false)           // Enable history mode
 setBasePath('/app')                    // Base path for subdirectory
 setParamReplacementPlaceholder('N-A')  // Placeholder for missing params
 setIncludeReferrer('always')           // Track referrer: 'never', 'notfound', 'always'
+
+ENABLING NAMED ROUTES
+---------------------
+IMPORTANT: Named route navigation (push('routeName', params)) requires
+explicit registration. Route names defined elsewhere are just metadata
+until registered with registerRoutes().
+
+// main.js - register before mount
+import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
+
+registerRoutes({
+    'home': '/',
+    'userProfile': '/user/:userId',
+    'documentDetail': '/documents/:docId'
+})
+
+// Now you can navigate by name:
+await push('userProfile', { userId: 123 })  // → /user/123
+
+Common pattern with page definitions:
+// pages.ts
+export const pages = [
+    { name: 'home', url: '/', component: Home },
+    { name: 'userProfile', url: '/user/:userId', component: UserProfile }
+]
+
+// main.js
+import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
+import { pages } from './pages'
+
+registerRoutes(
+    Object.fromEntries(pages.map(p => [p.name, p.url]))
+)
+
+ERROR: "Route X not found in registry. Registered routes: []"
+- This means registerRoutes() was never called
+- Named routes require explicit registration in main.js
+- See named-routes.txt for full documentation

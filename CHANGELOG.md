@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.1] - 2025-11-30
+
+### Fixed
+- **Breadcrumbs preserved on querystring changes** - Fixed breadcrumbs resetting to "Loading..." when only the querystring changes (e.g., tab navigation)
+  - Issue: Changing tabs via `replace('/items/1', {}, { tab: 'settings' })` would reset dynamically updated breadcrumbs back to their initial "Loading..." state
+  - Root cause: `updateRouteMetadata()` was resetting the entire route context on any navigation, including querystring-only changes
+  - Solution: Detect when only querystring changed (same location + params) and preserve current breadcrumbs instead of resetting
+  - Also applies cached breadcrumb updates when the route context is updated
+
+### Added
+- **TabsDemo example** - New example demonstrating correct pattern for tabs with querystring state
+  - Shows how to use `replace()` instead of `push()` for tab changes
+  - Demonstrates dynamic breadcrumbs that persist across tab switches
+  - Located at `example/src/routes/TabsDemo.svelte`
+
+### Documentation
+- **AI Documentation Index** - Added comprehensive `ai/INDEX.txt` file for quick keyword lookup
+  - Organized by topic sections: Getting Started, Imports, Navigation, Named Routes, etc.
+  - Includes file descriptions, reading order recommendations, and cross-references
+  - Quick problem solving guide mapping common errors to solutions
+  - Examples organized by use case (Simple SPA, Admin Dashboard, E-commerce, etc.)
+- **Breadcrumbs with Tabs** - Added "TABS WITH QUERY STRING" section to `ai/breadcrumbs.txt`
+  - Documents the pattern for tabs that use querystring for state
+  - Explains why `replace()` is necessary to preserve breadcrumbs
+  - Includes complete code example
+- **Named Routes in Basic Setup** - Added "ENABLING NAMED ROUTES" section to `ai/basic-setup.txt`
+  - Documents that `registerRoutes()` must be called for named route navigation to work
+  - Shows common pattern with page definitions array
+  - Explains the "Route X not found in registry" error and how to fix it
+
 ## [Unreleased]
 
 ### Documentation

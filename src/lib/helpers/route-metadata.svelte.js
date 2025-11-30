@@ -42,8 +42,11 @@ let updatedBreadcrumbsCache = new Map()
  * @param {Object} params - route params
  */
 export function updateRouteMetadata(routeContext = {}, location = '', querystring = '', params = {}) {
-    // Create a unique key for this route (location + querystring + params)
-    const routeKey = `${location}|${querystring}|${JSON.stringify(params)}`
+    // Create a key for the route path (without querystring) to detect actual route changes
+    const locationKey = `${location}|${JSON.stringify(params)}`
+
+    // Create full key including querystring for logging
+    const fullRouteKey = `${location}|${querystring}|${JSON.stringify(params)}`
 
     // Extract base path (e.g., /documents/1 → /documents, /documents/1/logs → /documents/1)
     // This is a simple heuristic: get path up to the last segment
@@ -56,12 +59,45 @@ export function updateRouteMetadata(routeContext = {}, location = '', querystrin
         clearBreadcrumbCache()
     }
 
-    // Only update if route actually changed
-    if (currentRouteKey !== routeKey) {
-        currentRouterouteContext = routeContext
-        currentRouteKey = routeKey
-        currentBasePath = basePath
-        metadataLogger.debug('[updateRouteMetadata] Route changed to:', routeKey)
+    // Check if only querystring changed (same location and params)
+    const onlyQuerystringChanged = currentRouteKey && currentRouteKey.startsWith(locationKey.split('|')[0] + '|')
+        && currentRouteKey.includes('|' + JSON.stringify(params))
+        && currentRouteKey !== fullRouteKey
+
+    // Only update context if the actual route (location + params) changed, not just querystring
+    if (currentRouteKey !== fullRouteKey) {
+        if (onlyQuerystringChanged) {
+            // Querystring-only change: preserve breadcrumbs, just update the key
+            metadataLogger.debug('[updateRouteMetadata] Querystring changed, preserving breadcrumbs')
+            currentRouteKey = fullRouteKey
+        } else {
+            // Actual route change: update context but apply cached breadcrumb updates
+            let finalContext = { ...routeContext }
+
+            // Apply any cached breadcrumb updates to the new context
+            if (routeContext.breadcrumbs && updatedBreadcrumbsCache.size > 0) {
+                const breadcrumbs = [...routeContext.breadcrumbs]
+                let appliedUpdates = false
+
+                for (const [id, updates] of updatedBreadcrumbsCache) {
+                    const index = breadcrumbs.findIndex(crumb => crumb.id === id)
+                    if (index !== -1) {
+                        breadcrumbs[index] = { ...breadcrumbs[index], ...updates }
+                        appliedUpdates = true
+                        metadataLogger.debug('[updateRouteMetadata] Applied cached update for:', id)
+                    }
+                }
+
+                if (appliedUpdates) {
+                    finalContext = { ...finalContext, breadcrumbs }
+                }
+            }
+
+            currentRouterouteContext = finalContext
+            currentRouteKey = fullRouteKey
+            currentBasePath = basePath
+            metadataLogger.debug('[updateRouteMetadata] Route changed to:', fullRouteKey)
+        }
     } else {
         metadataLogger.debug('[updateRouteMetadata] Same route, ignoring update')
     }

@@ -595,11 +595,6 @@ function commitToReactiveState(ctx) {
                     }
                 }
 
-                // Debug log AFTER navigationContext is set
-                const finalReferrer = ctx.updatedNavigationContext?.referrer?.location || 'none'
-                const finalSeq = typeof window !== 'undefined' && window.history.state?.__navigationSequence || 0
-                console.log(`🔍 NAV: route="${ctx.location}" referrer="${finalReferrer}" seq=${finalSeq}`)
-
                 // Update current route tracking (unless catch-all)
                 if (!ctx.isCatchAll) {
                     currentRoute = ctx.location

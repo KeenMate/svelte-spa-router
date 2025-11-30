@@ -44,6 +44,7 @@ import NotFoundDemo from './routes/NotFoundDemo.svelte'
 import NavigationContextDemo from './routes/NavigationContextDemo.svelte'
 import AuthorizationDemo from './routes/AuthorizationDemo.svelte'
 import ReferrerDemo from './routes/ReferrerDemo.svelte'
+import TabsDemo from './routes/TabsDemo.svelte'
 import Loading from './components/Loading.svelte'
 
 // Configure permissions system
@@ -139,6 +140,21 @@ const routes = {
     '/navigation-context-demo': NavigationContextDemo,
     '/authorization-demo': AuthorizationDemo,
     '/referrer-demo': ReferrerDemo,
+
+    // TABS WITH QUERYSTRING EXAMPLE
+    // Demonstrates how to use tabs with query string state while preserving breadcrumbs
+    // Key: Use replace() instead of push() for tab changes to avoid breadcrumb reset
+    '/tabs/:id': wrap({
+        component: TabsDemo,
+        loadingComponent: Loading,
+        shouldDisplayLoadingOnRouteLoad: true,
+        title: 'Tabs Demo',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Demos', path: '/metadata-demo' },
+            { id: 'itemName', label: 'Loading...' }
+        ]
+    }),
 
     // HIERARCHICAL ROUTES EXAMPLE
     // With hierarchical mode enabled (see main.js), these routes demonstrate automatic inheritance
@@ -336,6 +352,7 @@ function handleToggleUser() {
             <a href="/not-found-demo" use:link use:active>404 Demo</a>
             <a href="/navigation-context-demo" use:link use:active>Nav Context</a>
             <a href="/referrer-demo" use:link use:active>Referrer</a>
+            <a href="/tabs/1" use:link use:active>Tabs</a>
             <a href="/authorization-demo" use:link use:active>Authorization</a>
             <a href="/multi-zone-demo" use:link use:active>Zones</a>
             <a href="/admin" use:link use:active>Admin</a>

@@ -378,6 +378,54 @@ Logs show:
 - Manual updates via updateBreadcrumb()
 - Cache clearing on route changes
 
+TABS WITH QUERY STRING
+-----------------------
+When using tabs that update the query string, breadcrumbs can reset to "Loading..."
+because the router sees it as a route change.
+
+SOLUTION: Use replace() instead of push() for tab changes:
+
+// Route definition
+'/items/:id': createRoute({
+    component: ItemDetail,
+    breadcrumbs: [
+        { label: 'Home', path: '/' },
+        { label: 'Items', path: '/items' },
+        { id: 'itemName', label: 'Loading...' }
+    ]
+})
+
+// Component code
+<script>
+import { replace, location } from '@keenmate/svelte-spa-router'
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { updateBreadcrumb } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+let { routeParams = {} } = $props()
+
+const qsParams = $derived(query())
+const selectedTab = $derived(qsParams.tab || 'overview')
+
+// CRITICAL: Use replace() to change tabs without resetting breadcrumbs
+function handleTabChange(tabId) {
+    if (tabId !== selectedTab) {
+        replace(`/items/${routeParams.id}`, {}, { tab: tabId })
+    }
+}
+
+onMount(async () => {
+    const data = await fetchItem(routeParams.id)
+    updateBreadcrumb('itemName', { label: data.name })
+})
+</script>
+
+WHY replace() WORKS:
+- replace() updates URL without adding history entry
+- The router preserves breadcrumbs when only querystring changes
+- User can still use browser back button (goes to previous page, not previous tab)
+
+See example: example/src/routes/TabsDemo.svelte
+
 BEST PRACTICES
 --------------
 ✅ Use IDs for breadcrumbs that need dynamic updates
@@ -386,11 +434,13 @@ BEST PRACTICES
 ✅ Use hierarchical mode to avoid repetition
 ✅ Update breadcrumbs after data loads (not before)
 ✅ Clear loading state after updates
+✅ Use replace() for tab/filter changes to preserve breadcrumbs
 
 ❌ Don't include query params in breadcrumb paths
 ❌ Don't hardcode full URLs - use relative paths
 ❌ Don't update breadcrumbs in $effect() without guards
 ❌ Don't forget to enable hierarchical mode if using inheritance
+❌ Don't use push() for tab changes (causes breadcrumb reset)
 
 COMMON PATTERNS
 ---------------
