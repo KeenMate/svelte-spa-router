@@ -10,6 +10,12 @@ else
 	DETECTED_OS := $(shell uname -s)
 endif
 
+# Set shell for Windows to avoid /bin/bash issues
+ifeq ($(DETECTED_OS),Windows)
+	SHELL := cmd.exe
+	.SHELLFLAGS := /c
+endif
+
 # Package manager
 NPM := npm
 

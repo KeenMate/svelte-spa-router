@@ -1,0 +1,412 @@
+SVELTE-SPA-ROUTER AI REFERENCE INDEX
+=====================================
+
+QUICK KEYWORD LOOKUP
+--------------------
+Find the right file by keyword, feature, or use case.
+
+FORMAT: keyword → filename
+Multiple keywords per line indicate same file.
+
+GETTING STARTED
+---------------
+installation, setup, npm → basic-setup.txt
+hash mode, history mode, routing mode → basic-setup.txt
+main.js, app.svelte → basic-setup.txt
+Router component, routes object → basic-setup.txt
+svelte 5, runes, $state, $derived → basic-setup.txt
+setHashRoutingEnabled, setBasePath → basic-setup.txt
+
+IMPORTS & COMMON ERRORS
+-----------------------
+import, require, es modules → import-patterns.txt
+/stores error, stores not found → import-patterns.txt
+routeParams vs params → import-patterns.txt
+$routeParams error, store syntax error → import-patterns.txt
+migration, v3, v4, v5 upgrade → import-patterns.txt
+export paths, package exports → import-patterns.txt
+typescript types → import-patterns.txt
+
+NAVIGATION
+----------
+push, replace, pop, goBack → navigation.txt
+navigate programmatically → navigation.txt
+single parameter, multi parameter → navigation.txt
+array format, object format → navigation.txt
+navigationContext, hidden data → navigation.txt
+await navigation, async nav → navigation.txt
+
+NAMED ROUTES
+------------
+registerRoutes, route registration → named-routes.txt
+named route navigation, push by name → named-routes.txt
+routeUrl, URL building → named-routes.txt
+hasRoute, route existence check → named-routes.txt
+"Route not found in registry" error → named-routes.txt, basic-setup.txt
+
+ROUTE PARAMETERS
+----------------
+route params, :id, :userId → route-params.txt
+routeParams, $props() → route-params.txt
+wildcard, *, catch-all → route-params.txt
+missing params, N-A placeholder → route-params.txt
+params in conditions → route-params.txt
+numeric params, string conversion → route-params.txt
+
+PERMISSIONS & AUTHORIZATION
+---------------------------
+permissions, RBAC, role-based → permissions.txt
+configurePermissions, getUserPermissions → permissions.txt
+createProtectedRoute → permissions.txt
+authorizationCallback, resource-based → permissions.txt
+hasPermission, permission check → permissions.txt
+any, all, permission requirements → permissions.txt
+
+ROUTE GUARDS & CONDITIONS
+-------------------------
+guards, conditions, route protection → guards-conditions.txt
+wrap(), asyncComponent → guards-conditions.txt
+async guards, authentication check → guards-conditions.txt
+redirect on failure, onConditionsFailed → guards-conditions.txt
+loadingComponent, loading state → guards-conditions.txt
+userData, passing data to route → guards-conditions.txt
+
+HIERARCHICAL ROUTES (INHERITANCE)
+---------------------------------
+hierarchical mode, inheritance → hierarchical-routes.txt
+setHierarchicalRoutesEnabled → hierarchical-routes.txt
+breadcrumb inheritance → hierarchical-routes.txt
+permission inheritance → hierarchical-routes.txt
+condition inheritance → hierarchical-routes.txt
+inheritBreadcrumbs, inheritPermissions → hierarchical-routes.txt
+parent-child routes → hierarchical-routes.txt
+
+TREE/NESTED STRUCTURE
+---------------------
+createHierarchy, nested routes → tree-structure.txt
+children property, tree definition → tree-structure.txt
+path concatenation → tree-structure.txt
+automatic inheritance → tree-structure.txt
+combining flat and tree routes → tree-structure.txt
+
+LINKS & ACTIVE STATE
+--------------------
+link action, use:link → link-actions.txt
+active action, use:active → link-actions.txt
+active class, highlighted link → link-actions.txt
+modifier keys, ctrl+click, cmd+click → link-actions.txt
+prefix matching, nested active → link-actions.txt
+href, spa navigation → link-actions.txt
+
+ERROR HANDLING
+--------------
+GlobalErrorHandler, error boundary → error-handling.txt
+configureGlobalErrorHandler → error-handling.txt
+recovery strategy, navigateSafe, restart → error-handling.txt
+ErrorDisplay, error component → error-handling.txt
+maxRestarts, restart loop → error-handling.txt
+customRecovery, error callback → error-handling.txt
+
+REFERRER & BACK NAVIGATION
+--------------------------
+referrer, previous route → referrer-tracking.txt
+goBack(), back button → referrer-tracking.txt
+setIncludeReferrer → referrer-tracking.txt
+scroll restoration → referrer-tracking.txt
+404 page, not found referrer → referrer-tracking.txt
+
+BREADCRUMBS
+-----------
+breadcrumbs, navigation trail → breadcrumbs.txt
+routeBreadcrumbs → breadcrumbs.txt
+updateBreadcrumb, dynamic breadcrumbs → breadcrumbs.txt
+breadcrumb inheritance → breadcrumbs.txt
+hierarchical breadcrumbs → breadcrumbs.txt
+
+DEBUG LOGGING
+-------------
+logging, debug, enableLogging → debug-logging.txt
+disableLogging, setLogLevel → debug-logging.txt
+setCategoryLevel, log categories → debug-logging.txt
+ROUTER:NAVIGATION, ROUTER:SCROLL → debug-logging.txt
+loglevel, console output → debug-logging.txt
+window.components, runtime logging → debug-logging.txt
+
+URL & QUERYSTRING UTILITIES
+---------------------------
+querystring, parse, stringify → utilities.txt
+joinPaths, URL helpers → utilities.txt
+loc(), full location object → utilities.txt
+query parameters, search params → utilities.txt
+URL encoding, special characters → utilities.txt
+
+ROUTER EVENTS
+-------------
+onRouteLoading, onRouteLoaded → basic-setup.txt
+onConditionsFailed → basic-setup.txt, guards-conditions.txt
+onNotFound → basic-setup.txt
+
+ROUTER PROPS
+------------
+routes, prefix, restoreScrollState → basic-setup.txt
+router configuration → basic-setup.txt
+
+FILE DESCRIPTIONS
+-----------------
+basic-setup.txt
+  Foundation: Installation, hash/history modes, route definitions, events
+  Start here for: Getting started, first-time setup
+
+navigation.txt
+  Navigation: push, replace, pop, goBack, navigation context
+  Start here for: Programmatic navigation, passing data between routes
+
+named-routes.txt
+  Route naming: Registration, named navigation, URL building
+  Start here for: Using route names instead of paths
+
+route-params.txt
+  Parameters: Route patterns, :params, wildcards, parameter access
+  Start here for: Dynamic routes, extracting URL parameters
+
+permissions.txt
+  Security: Permission system, protected routes, authorization callbacks
+  Start here for: Role-based access control, resource authorization
+
+guards-conditions.txt
+  Route protection: Guards, conditions, async checks, redirects
+  Start here for: Authentication checks, conditional routing
+
+hierarchical-routes.txt
+  Inheritance: Hierarchical mode, breadcrumb/permission/condition inheritance
+  Start here for: DRY route definitions with parent-child relationships
+
+tree-structure.txt
+  Nested definition: createHierarchy(), tree-style route definitions
+  Start here for: Alternative syntax for deeply nested routes
+
+link-actions.txt
+  Links: link action, active highlighting, modifier key support
+  Start here for: SPA links, navigation menus, active states
+
+error-handling.txt
+  Error recovery: GlobalErrorHandler, recovery strategies, error UI
+  Start here for: Catching unhandled errors, user-friendly error pages
+
+referrer-tracking.txt
+  Back navigation: Referrer tracking, goBack(), scroll restoration
+  Start here for: "Go Back" buttons, returning to previous route
+
+debug-logging.txt
+  Debugging: Category-based logging, enable/disable, runtime config
+  Start here for: Troubleshooting routing issues
+
+import-patterns.txt
+  Imports: Correct import paths, common errors, migration guide
+  Start here for: Import errors, upgrading from v3/v4
+
+utilities.txt
+  Helpers: Query string parsing, URL joining, location utilities
+  Start here for: Working with query parameters, URL manipulation
+
+breadcrumbs.txt
+  Navigation trail: Breadcrumb definitions, dynamic updates, inheritance
+  Start here for: Showing current location in site hierarchy
+
+READING ORDER RECOMMENDATIONS
+------------------------------
+Complete beginner:
+1. basic-setup.txt
+2. navigation.txt
+3. route-params.txt
+4. link-actions.txt
+
+Protected routes (authentication):
+1. basic-setup.txt
+2. guards-conditions.txt
+3. permissions.txt
+4. navigation.txt
+
+Large application with hierarchy:
+1. basic-setup.txt
+2. hierarchical-routes.txt (or tree-structure.txt)
+3. permissions.txt
+4. breadcrumbs.txt
+
+Migration from v3/v4:
+1. import-patterns.txt
+2. basic-setup.txt
+3. navigation.txt
+
+Debugging issues:
+1. import-patterns.txt (check imports first)
+2. debug-logging.txt
+3. (relevant feature file)
+
+CROSS-REFERENCES
+----------------
+Features spanning multiple files:
+
+Named Routes
+  → basic-setup.txt (enabling named routes in main.js)
+  → named-routes.txt (full named routes API)
+  → navigation.txt (navigating with names)
+
+Permissions
+  → permissions.txt (permission system setup)
+  → guards-conditions.txt (combining with conditions)
+  → hierarchical-routes.txt (permission inheritance)
+
+Breadcrumbs
+  → breadcrumbs.txt (breadcrumb definitions)
+  → hierarchical-routes.txt (breadcrumb inheritance)
+  → tree-structure.txt (breadcrumbs in tree structure)
+
+Route Protection
+  → guards-conditions.txt (route conditions)
+  → permissions.txt (permission-based protection)
+  → hierarchical-routes.txt (inherited protection)
+
+Back Navigation
+  → referrer-tracking.txt (referrer system)
+  → navigation.txt (goBack function)
+  → utilities.txt (scroll position)
+
+Hierarchy
+  → hierarchical-routes.txt (inheritance mode)
+  → tree-structure.txt (createHierarchy helper)
+  → breadcrumbs.txt (breadcrumb inheritance)
+
+QUICK PROBLEM SOLVING
+----------------------
+Problem: "Missing './stores' specifier" error
+→ import-patterns.txt (no /stores path exists, use main module)
+
+Problem: "Route X not found in registry. Registered routes: []"
+→ named-routes.txt (call registerRoutes() in main.js)
+→ basic-setup.txt (ENABLING NAMED ROUTES section)
+
+Problem: routeParams is undefined
+→ import-patterns.txt (use routeParams not params)
+
+Problem: $routeParams is not defined
+→ import-patterns.txt (call as function, not store syntax)
+
+Problem: Navigation not working
+→ navigation.txt (check push/replace usage)
+→ debug-logging.txt (enable ROUTER:NAVIGATION logs)
+
+Problem: Route not matching
+→ route-params.txt (check route pattern)
+→ debug-logging.txt (enable ROUTER logs)
+
+Problem: Permissions not checking
+→ permissions.txt (check configurePermissions setup)
+→ debug-logging.txt (enable ROUTER:PERMISSIONS logs)
+
+Problem: Conditions not running
+→ guards-conditions.txt (check wrap() usage)
+→ debug-logging.txt (enable ROUTER:CONDITIONS logs)
+
+Problem: Scroll not restoring
+→ referrer-tracking.txt (use goBack() not manual push)
+→ basic-setup.txt (restoreScrollState prop)
+
+Problem: Active link not highlighting
+→ link-actions.txt (check use:active usage)
+→ link-actions.txt (prefix matching for nested routes)
+
+Problem: Breadcrumbs not inheriting
+→ hierarchical-routes.txt (enable hierarchical mode)
+→ breadcrumbs.txt (check inheritBreadcrumbs flag)
+
+Problem: Back button not working
+→ referrer-tracking.txt (setIncludeReferrer setup)
+→ navigation.txt (goBack function)
+
+Problem: Error not caught
+→ error-handling.txt (GlobalErrorHandler setup)
+→ error-handling.txt (check strategy configuration)
+
+Problem: Query params not parsing
+→ utilities.txt (use parse() function)
+
+EXAMPLES BY USE CASE
+--------------------
+Simple SPA with navigation:
+→ basic-setup.txt (setup)
+→ navigation.txt (programmatic nav)
+→ link-actions.txt (link action)
+
+Admin dashboard with permissions:
+→ basic-setup.txt (setup)
+→ permissions.txt (role-based access)
+→ guards-conditions.txt (auth checks)
+→ hierarchical-routes.txt (inheritance)
+
+E-commerce with breadcrumbs:
+→ basic-setup.txt (setup)
+→ breadcrumbs.txt (navigation trail)
+→ tree-structure.txt (nested categories)
+→ route-params.txt (product IDs)
+
+Multi-tenant application:
+→ basic-setup.txt (setup)
+→ permissions.txt (resource authorization)
+→ guards-conditions.txt (tenant checks)
+→ named-routes.txt (named navigation)
+
+Error-resilient application:
+→ basic-setup.txt (setup)
+→ error-handling.txt (error recovery)
+→ referrer-tracking.txt (back navigation)
+
+Search/filter application:
+→ basic-setup.txt (setup)
+→ utilities.txt (querystring handling)
+→ navigation.txt (query params in navigation)
+
+CONFIGURATION OPTIONS
+---------------------
+main.js configuration functions:
+→ setHashRoutingEnabled() - basic-setup.txt
+→ setBasePath() - basic-setup.txt
+→ setIncludeReferrer() - referrer-tracking.txt
+→ setParamReplacementPlaceholder() - route-params.txt
+→ setHierarchicalRoutesEnabled() - hierarchical-routes.txt
+→ configurePermissions() - permissions.txt
+→ configureGlobalErrorHandler() - error-handling.txt
+→ registerRoutes() - named-routes.txt
+→ enableLogging() - debug-logging.txt
+
+SVELTE 5 REMINDERS
+------------------
+CRITICAL: This router uses RUNES, not stores!
+
+✅ CORRECT:
+const path = $derived(location())
+const params = $derived(routeParams())
+let { routeParams = {} } = $props()
+
+❌ WRONG:
+const path = $location
+const params = $routeParams
+import from '@keenmate/svelte-spa-router/stores'
+
+SUPPORT & RESOURCES
+-------------------
+Full API documentation:
+→ ../CLAUDE.md (comprehensive reference)
+
+Source code examples:
+→ ../example/ (hash mode demo)
+→ ../example-history/ (history mode demo)
+
+Package documentation:
+→ ../README.md
+
+Changelog:
+→ ../CHANGELOG.md
+
+Issues & feedback:
+→ https://github.com/keenmate/svelte-spa-router

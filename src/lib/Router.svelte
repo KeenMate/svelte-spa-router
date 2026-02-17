@@ -1312,8 +1312,20 @@ $effect(() => {
         {/if}
     {/if}
 
-    <!-- Real component (hidden while loading, visible after hideLoading() called) -->
-    <div style:display={isWaitingForData ? 'none' : 'block'}>
+    <!-- Real component -->
+    {#if loadingComponent}
+        <!-- Routes with loading: wrapper needed to hide component while loading spinner shows -->
+        <div style:display={isWaitingForData ? 'none' : 'contents'}>
+            {#if componentParams}
+                {@const Comp = component}
+                <Comp routeParams={componentParams} {...componentProps} />
+            {:else}
+                {@const Comp = component}
+                <Comp {...componentProps} />
+            {/if}
+        </div>
+    {:else}
+        <!-- Routes without loading: render directly, no wrapper div -->
         {#if componentParams}
             {@const Comp = component}
             <Comp routeParams={componentParams} {...componentProps} />
@@ -1321,5 +1333,5 @@ $effect(() => {
             {@const Comp = component}
             <Comp {...componentProps} />
         {/if}
-    </div>
+    {/if}
 {/if}
