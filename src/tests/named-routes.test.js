@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { push, replace, location } from '../lib/utils.svelte.js'
-import { registerRoutes, clearRoutes, defineRoutes, hasRoute, buildUrl } from '../lib/routes.svelte.js'
+import { registerRoutes, clearRoutes, defineRoutes, hasRoute } from '../lib/routes.svelte.js'
 
 describe('Named Routes Navigation', () => {
   beforeEach(() => {

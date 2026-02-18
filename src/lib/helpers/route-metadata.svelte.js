@@ -32,7 +32,7 @@ let currentBasePath = null // Track base path to clear cache on major route chan
  * Cache for manually updated breadcrumbs
  * Maps breadcrumb ID to updated breadcrumb data
  */
-let updatedBreadcrumbsCache = new Map()
+const updatedBreadcrumbsCache = new Map()
 
 /**
  * Update route metadata (called by Router or user code)

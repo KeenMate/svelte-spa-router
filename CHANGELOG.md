@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.2.0-rc01] - 2026-02-18
 
 ### Fixed
 - **`routeContext()` function missing / mangled name** (Issue #3) — The exported function was named `routerouteContext()` instead of `routeContext()` due to a find-replace accident during the `userData` → `routeContext` rename. The README also referenced the old name `routeUserData()`.
@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Created `src/lib/vendor/loglevel/index.d.ts` and `prefix.d.ts`
   - Removed `@ts-ignore` comments from `logger.ts`
   - `svelte-check` now passes with 0 errors and 0 warnings
+
+- **Missing TypeScript declarations for GlobalErrorHandler and ErrorDisplay** (Issue #4) — `Cannot find module '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler' or its corresponding type declarations`
+  - Created `GlobalErrorHandler.svelte.d.ts` with `GlobalErrorHandlerProps` and `ErrorComponentProps` interfaces
+  - Created `ErrorDisplay.svelte.d.ts` with `ErrorDisplayProps` interface
+  - Added `types` field to `./helpers/GlobalErrorHandler` export in `package.json`
+  - Added new `./helpers/ErrorDisplay` export to `package.json` (was not exported at all)
+
+- **Missing TypeScript declarations for `setHierarchicalRoutesEnabled` and `setIncludeReferrer`** (Issue #5) — `Module has no exported member 'setHierarchicalRoutesEnabled'`
+  - Added `setHierarchicalRoutesEnabled()`, `getHierarchicalRoutesEnabled()`, `setIncludeReferrer()`, and `getIncludeReferrer()` declarations to `utils.d.ts`
+  - Removed phantom `active.svelte.js` re-export from `index.d.ts` (type declared an export that didn't exist at runtime)
 
 ### Added
 - **`defineRoutes()` — Type-safe route definitions** (Issue #2) - Single source of truth for routes, navigation, and URL building

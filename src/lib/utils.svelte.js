@@ -380,29 +380,6 @@ function navigate(location, shouldReplace = false, context = null) {
             // Manually trigger hashchange event
             window.dispatchEvent(new HashChangeEvent('hashchange'))
         } else {
-            // Try to save context in history state for back/forward support
-            let processedNavigationContext = context
-            let shouldSaveContext = true
-
-            try {
-                // First try structured clone
-                if (context !== null) {
-                    structuredClone(context)
-                }
-            } catch {
-                // If structured clone fails, try JSON serialization
-                try {
-                    if (context !== null) {
-                        const jsonString = JSON.stringify(context)
-                        processedNavigationContext = JSON.parse(jsonString)
-                    }
-                } catch (jsonError) {
-                    // If JSON also fails, don't save context
-                    console.warn('Navigation context data cannot be stored in history (not serializable). Navigation context will not persist on back/forward navigation.', jsonError)
-                    shouldSaveContext = false
-                }
-            }
-
             try {
                 // Save CURRENT context (with referrer) to current history entry before navigating
                 const currentContext = navigationContextState
@@ -616,7 +593,7 @@ export async function push(location, param2, param3, param4, param5) {
     }
 
     // Build URL from route if needed
-    let href = opts.route
+    const href = opts.route
         ? buildUrl(opts.route, opts.params, opts.query)
         : opts.href
 
@@ -729,7 +706,7 @@ export async function replace(location, param2, param3, param4, param5) {
     }
 
     // Build URL from route if needed
-    let href = opts.route
+    const href = opts.route
         ? buildUrl(opts.route, opts.params, opts.query)
         : opts.href
 

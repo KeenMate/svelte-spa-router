@@ -441,8 +441,8 @@ describe('Permissions Helper', () => {
       expect(def.inheritBreadcrumbs).toBe(false)
     })
 
-    it('should produce a valid input for wrap()', () => {
-      const { wrap } = require('../lib/wrap.js')
+    it('should produce a valid input for wrap()', async () => {
+      const { wrap } = await import('../lib/wrap.js')
 
       const def = createProtectedRouteDefinition({
         component: () => import('../lib/Router.svelte'),

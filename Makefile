@@ -59,8 +59,8 @@ help: ## Show this help message
 	@echo "  install                 Install dependencies"
 	@echo "  lint                    Run linter"
 	@echo "  package                 Package for npm publication"
-	@echo "  publish                 Publish package to npm"
-	@echo "  publish-dry             Dry run of npm publish (test without publishing)"
+	@echo "  publish                 Publish package to npm (use TAG=rc for pre-releases)"
+	@echo "  publish-dry             Dry run of npm publish (use TAG=rc for pre-releases)"
 	@echo "  setup                   Alias for install"
 	@echo "  test                    Run tests"
 	@echo "  version                 Display current version"
@@ -237,7 +237,7 @@ package: build ## Package for npm publication
 	@echo ""
 	@echo "Package created successfully!"
 
-publish-dry: ## Dry run of npm publish (test without publishing)
+publish-dry: ## Dry run of npm publish (test without publishing). Use TAG=rc for pre-releases.
 	@echo "Cleaning old package files and dist folders..."
 ifeq ($(DETECTED_OS),Windows)
 	@if exist *.tgz del /f /q *.tgz
@@ -248,11 +248,11 @@ else
 endif
 	@$(MAKE) build
 	@echo "Running npm publish --dry-run..."
-	$(NPM) publish --dry-run
+	$(NPM) publish --dry-run $(if $(TAG),--tag $(TAG),)
 	@echo ""
 	@echo "Dry-run complete - Review the output above"
 
-publish: ## Publish package to npm
+publish: ## Publish package to npm. Use TAG=rc for pre-releases (e.g., make publish TAG=rc)
 	@echo "Cleaning old package files and dist folders..."
 ifeq ($(DETECTED_OS),Windows)
 	@if exist *.tgz del /f /q *.tgz
@@ -262,6 +262,11 @@ else
 	@rm -rf dist
 endif
 	@echo "WARNING: This will publish the package to npm registry!"
+ifdef TAG
+	@echo "npm dist-tag: $(TAG)"
+else
+	@echo "npm dist-tag: latest (default)"
+endif
 ifeq ($(DETECTED_OS),Windows)
 	@echo Press Ctrl+C to cancel, or any key to continue...
 	@pause >nul
@@ -271,7 +276,7 @@ else
 endif
 	@$(MAKE) build
 	@echo "Publishing to npm..."
-	$(NPM) publish
+	$(NPM) publish $(if $(TAG),--tag $(TAG),)
 	@echo ""
 	@echo "Package published successfully!"
 
