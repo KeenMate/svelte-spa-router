@@ -101,10 +101,15 @@ export function wrap(args) {
             }
         }
 
+        // Merge title and breadcrumbs into routeContext
+        const zoneRouteContext = { ...(args.routeContext || {}) }
+        if (args.title) zoneRouteContext.title = args.title
+        if (args.breadcrumbs) zoneRouteContext.breadcrumbs = args.breadcrumbs
+
         // Return zone-based route object
         return {
             zones: asyncZones,
-            routeContext: args.routeContext,
+            routeContext: Object.keys(zoneRouteContext).length > 0 ? zoneRouteContext : undefined,
             conditions: (args.conditions && args.conditions.length) ? args.conditions : undefined,
             props: (args.props && Object.keys(args.props).length) ? args.props : {},
             shouldDisplayLoadingOnRouteLoad: args.shouldDisplayLoadingOnRouteLoad || false,
@@ -151,11 +156,16 @@ export function wrap(args) {
         args.asyncComponent.loadingParams = args.loadingParams || undefined
     }
 
+    // Merge title and breadcrumbs into routeContext
+    const mergedRouteContext = { ...(args.routeContext || {}) }
+    if (args.title) mergedRouteContext.title = args.title
+    if (args.breadcrumbs) mergedRouteContext.breadcrumbs = args.breadcrumbs
+
     // Returns an object that contains all the functions to execute too
     // The _sveltesparouter flag is to confirm the object was created by this router
     const obj = {
         component: args.asyncComponent,
-        routeContext: args.routeContext,
+        routeContext: Object.keys(mergedRouteContext).length > 0 ? mergedRouteContext : undefined,
         conditions: (args.conditions && args.conditions.length) ? args.conditions : undefined,
         props: (args.props && Object.keys(args.props).length) ? args.props : {},
         shouldDisplayLoadingOnRouteLoad: args.shouldDisplayLoadingOnRouteLoad || false,

@@ -46,6 +46,8 @@ import AuthorizationDemo from './routes/AuthorizationDemo.svelte'
 import ReferrerDemo from './routes/ReferrerDemo.svelte'
 import TabsDemo from './routes/TabsDemo.svelte'
 import DefineRoutesDemo from './routes/DefineRoutesDemo.svelte'
+import RouteContextDemo from './routes/RouteContextDemo.svelte'
+import RouteContextTarget from './routes/RouteContextTarget.svelte'
 import Loading from './components/Loading.svelte'
 
 // Configure permissions system
@@ -142,6 +144,34 @@ const routes = {
     '/authorization-demo': AuthorizationDemo,
     '/referrer-demo': ReferrerDemo,
     '/define-routes-demo': DefineRoutesDemo,
+    '/route-context-demo': wrap({
+        component: RouteContextDemo,
+        title: 'Route Context Demo',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Route Context Demo' }
+        ],
+        routeContext: {
+            section: 'demos',
+            customField: 'Hello from routeContext!',
+            featureFlag: true
+        }
+    }),
+    '/route-context-target': wrap({
+        component: RouteContextTarget,
+        title: 'Route Context Target',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Route Context Demo', path: '/route-context-demo' },
+            { label: 'Target Page' }
+        ],
+        routeContext: {
+            section: 'examples',
+            pageType: 'target',
+            showSidebar: false,
+            maxItems: 25
+        }
+    }),
 
     // TABS WITH QUERYSTRING EXAMPLE
     // Demonstrates how to use tabs with query string state while preserving breadcrumbs
@@ -365,6 +395,7 @@ function handleToggleUser() {
                 <span class="nav-trigger">Routing ▾</span>
                 <div class="nav-dropdown">
                     <a href="/define-routes-demo" use:link use:active>defineRoutes</a>
+                    <a href="/route-context-demo" use:link use:active>Route Context</a>
                     <a href="/metadata-demo" use:link use:active>Metadata</a>
                     <a href="/loading-demo" use:link use:active>Loading</a>
                     <a href="/multi-zone-demo" use:link use:active>Zones</a>

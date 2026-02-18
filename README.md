@@ -1171,11 +1171,11 @@ Access current route metadata reactively:
 
 ```svelte
 <script>
-import { routeTitle, routeBreadcrumbs, routeUserData } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+import { routeTitle, routeBreadcrumbs, routeContext } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 
 const title = $derived(routeTitle())
 const breadcrumbs = $derived(routeBreadcrumbs())
-const userData = $derived(routeUserData())
+const context = $derived(routeContext())
 </script>
 
 <h1>{title || 'Default Title'}</h1>
@@ -1209,7 +1209,7 @@ import {
     // Reactive metadata access
     routeTitle,            // Get current title
     routeBreadcrumbs,      // Get current breadcrumbs
-    routeUserData          // Get full userData object
+    routeContext            // Get full route context object
 } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 ```
 
@@ -1959,7 +1959,7 @@ import {
   updateRouteMetadata,
   routeTitle,
   routeBreadcrumbs,
-  routeUserData
+  routeContext
 } from '@keenmate/svelte-spa-router/helpers/route-metadata'
 ```
 

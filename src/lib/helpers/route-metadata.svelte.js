@@ -11,9 +11,9 @@ import { metadataLogger } from '../logger.ts'
  * Current route metadata state
  * Single source of truth - other values derive from this
  */
-let currentRouterouteContext = $state({})
-let currentRouteTitle = $derived(currentRouterouteContext.title || '')
-let currentRouteBreadcrumbs = $derived(currentRouterouteContext.breadcrumbs || [])
+let currentRouteContext = $state({})
+let currentRouteTitle = $derived(currentRouteContext.title || '')
+let currentRouteBreadcrumbs = $derived(currentRouteContext.breadcrumbs || [])
 
 /**
  * Loading control state
@@ -93,7 +93,7 @@ export function updateRouteMetadata(routeContext = {}, location = '', querystrin
                 }
             }
 
-            currentRouterouteContext = finalContext
+            currentRouteContext = finalContext
             currentRouteKey = fullRouteKey
             currentBasePath = basePath
             metadataLogger.debug('[updateRouteMetadata] Route changed to:', fullRouteKey)
@@ -139,14 +139,14 @@ export function routeBreadcrumbs() {
  *
  * @example
  * ```javascript
- * import { routerouteContext } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+ * import { routeContext } from '@keenmate/svelte-spa-router/helpers/route-metadata'
  *
- * const routeContext = $derived(routerouteContext())
+ * const routeContext = $derived(routeContext())
  * const customData = $derived(routeContext.myCustomField)
  * ```
  */
-export function routerouteContext() {
-    return currentRouterouteContext
+export function routeContext() {
+    return currentRouteContext
 }
 
 /**
@@ -181,7 +181,7 @@ export function updateBreadcrumb(id, updates) {
     metadataLogger.debug('[updateBreadcrumb] Cached update for id:', id, 'updates:', updates)
 
     // Get snapshot to work with plain values (not proxies)
-    const currentContext = $state.snapshot(currentRouterouteContext)
+    const currentContext = $state.snapshot(currentRouteContext)
     const breadcrumbs = [...(currentContext.breadcrumbs || [])]
     const index = breadcrumbs.findIndex(crumb => crumb.id === id)
     metadataLogger.debug('[updateBreadcrumb] Found at index:', index)
@@ -192,7 +192,7 @@ export function updateBreadcrumb(id, updates) {
             ...updates
         }
         metadataLogger.debug('[updateBreadcrumb] Updated breadcrumb to:', breadcrumbs[index])
-        currentRouterouteContext = {
+        currentRouteContext = {
             ...currentContext,
             breadcrumbs
         }
@@ -235,8 +235,8 @@ export function clearBreadcrumbCache() {
  * ```
  */
 export function updateTitle(title) {
-    currentRouterouteContext = {
-        ...currentRouterouteContext,
+    currentRouteContext = {
+        ...currentRouteContext,
         title
     }
     // Title updates don't affect breadcrumbs flag

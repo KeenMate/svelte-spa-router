@@ -1293,11 +1293,11 @@ $effect(() => {
         {@const Comp = zoneComponentData.component}
         {@const zoneParams = zoneComponentData.params}
         {@const zoneProps = zoneComponentData.props}
-        {@const zonerouteContext = zoneComponentData.routeContext}
+        {@const zoneRouteContext = zoneComponentData.routeContext}
         {#if zoneParams}
-            <Comp routeParams={zoneParams} routeContext={zonerouteContext} {...zoneProps} />
+            <Comp routeParams={zoneParams} routeContext={zoneRouteContext} {...zoneProps} />
         {:else}
-            <Comp routeContext={zonerouteContext} {...zoneProps} />
+            <Comp routeContext={zoneRouteContext} {...zoneProps} />
         {/if}
     {/if}
 {:else if component}

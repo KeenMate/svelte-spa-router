@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **`routeContext()` function missing / mangled name** (Issue #3) — The exported function was named `routerouteContext()` instead of `routeContext()` due to a find-replace accident during the `userData` → `routeContext` rename. The README also referenced the old name `routeUserData()`.
+  - Renamed `routerouteContext()` → `routeContext()` in `route-metadata.svelte.js` (function + all internal variable references)
+  - Updated `route-metadata.d.ts` type declaration to match
+  - Fixed README.md: `routeUserData` → `routeContext` in all import examples and API reference
+
+- **`wrap()` not merging title/breadcrumbs into routeContext** (Issue #3) — `routeTitle()` and `routeBreadcrumbs()` returned empty values for routes defined with `wrap({ title, breadcrumbs })` because `wrap()` never merged these into `routeContext`. The Router's `pipelineComputeMetadata()` only reads from `routeItem.routeContext`, so title and breadcrumbs were silently lost.
+  - Fixed in both single-component and zones code paths in `wrap.js`
+  - `createRouteDefinition()` already had the merge logic — only `wrap()` was missing it
+
+- **Logger TypeScript errors** — Added `.d.ts` type declarations for vendored loglevel libraries
+  - Created `src/lib/vendor/loglevel/index.d.ts` and `prefix.d.ts`
+  - Removed `@ts-ignore` comments from `logger.ts`
+  - `svelte-check` now passes with 0 errors and 0 warnings
+
+### Added
+- **`defineRoutes()` — Type-safe route definitions** (Issue #2) - Single source of truth for routes, navigation, and URL building
+  - Returns `routes` (for `<Router>`), `nav` (navigation helpers), and `paths` (URL builders)
+  - Full TypeScript support with IDE autocomplete on route names and parameters
+  - Extracts `:param` names from path patterns at the type level — catches typos at compile time
+  - `nav.X.push(params)` / `nav.X.replace(params)` — programmatic navigation with autocomplete
+  - `nav.X.link(params)` — returns object for `use:link` action
+  - `paths.X(params)` — builds URL string for `href` attributes
+  - Smart optimization: sync components without options skip `wrap()` overhead
+  - Async components and routes with options automatically use `createRoute()`
+  - Automatically calls `registerRoutes()` — no separate registration step needed
+  - Supports all existing route options: `conditions`, `breadcrumbs`, `permissions`, `loadingComponent`, `props`, `title`, etc.
+  - Example:
+    ```javascript
+    import { defineRoutes } from '@keenmate/svelte-spa-router/routes'
+
+    const { routes, nav, paths } = defineRoutes({
+      home: { path: '/', component: Home },
+      user: { path: '/user/:id', component: () => import('./User.svelte') }
+    })
+
+    // <Router {routes} />
+    // nav.user.push({ id: 123 })       — autocomplete on 'id'
+    // <a href={paths.user({ id: 123 })} use:link>
+    ```
+
+- **Route Context Demo pages** — Example pages demonstrating `routeContext()`, `routeTitle()`, and `routeBreadcrumbs()` with live output
+  - `example/src/routes/RouteContextDemo.svelte` — explains routeContext, shows live values, code examples
+  - `example/src/routes/RouteContextTarget.svelte` — target page reached via button, displays its own routeContext
+  - Both wired into App.svelte with nav link in Routing dropdown
+
+- **Comprehensive test suite** — Expanded from ~156 to 347 passing tests across 16 test files (0 skipped)
+  - **New test files:**
+    - `route-metadata.test.js` (26 tests) — `updateRouteMetadata`, `routeContext()`, `routeTitle()`, `routeBreadcrumbs()`, `updateBreadcrumb()`, `updateTitle()`, `clearBreadcrumbCache()`, loading state functions
+    - `navigation-guard.test.js` (22 tests) — `NavigationCancelledError`, `registerBeforeLeave()`, `runBeforeLeaveGuards()`, `createDirtyCheckGuard()`
+    - `error-handler.test.js` (23 tests) — `configureGlobalErrorHandler()`, error state, `shouldIgnoreError()`, restart loop prevention, `createErrorInfo()`, `createRecoveryHelpers()`
+    - `filters.test.js` (18 tests) — `configureFilters()`, `filters()` flat/structured modes, `updateFilters()`, custom parse/stringify round-trip
+    - `querystring-shared.test.js` (7 tests) — `configureQuerystring()`, `query()` with arrayFormat/arrays config
+    - `zones-and-scroll.test.js` (12 tests) — `getZoneComponent()`, `setZoneComponents()`, `restoreScroll()`
+    - `logger.test.js` (13 tests) — `enableLogging()`, `disableLogging()`, `setLogLevel()`, `setCategoryLevel()` for all 12 categories, `logStructured()`
+  - **Extended test files:**
+    - `wrap.test.js` (9 → 42 tests) — zones mode, inheritance flags, `createRouteDefinition()`, `createRoute()`, sync component wrapping, condition normalization, validation errors
+    - `navigation.test.js` (10 → 27 tests) — `goBack()`, `loc()`, `routeParams()`/`setParams()`, `navigationContext()`/`setNavigationContext()`, array/object/multi-param push formats, `setIncludeReferrer()`, `setParamReplacementPlaceholder()`
+    - `permissions.test.js` (13 → 33 tests) — `createProtectedRouteDefinition()`, `authorizationCallback` execution order/fail-fast, `getUnauthorizedBehavior/Route/Component/Handler()`, `hasExplicitHandler()`, `all:` permission requirement
+  - **Removed 34 `it.skip` stubs** that required Svelte component rendering or real browser DOM (deleted 3 empty test files: Router.test.js, hierarchical-routes.test.js, link-action.test.js; trimmed active-action.test.js and querystring-helpers.test.js)
+
+### Documentation
+- **defineRoutes() example page** — Added interactive demo page to example app (`example/src/routes/DefineRoutesDemo.svelte`)
+  - Covers basic usage, navigation helpers, path builders, and supported route options
+  - Includes interactive playground with real-time output
+  - Shows before/after comparison with manual route definitions
+- **Example app navbar rework** — Replaced flat navigation with grouped dropdown menus
+  - 5 dropdown groups: Navigation, URL & Data, Routing, Errors, Security
+  - CSS hover-based dropdowns (no JavaScript state management)
+- **AI Assistant Documentation** - Added 15 concise text files in `./ai` folder optimized for AI assistants
+  - Plain text format (no markdown) with bullet-style structure for efficient AI parsing
+  - Files organized by feature: basic-setup, navigation, named-routes, route-params, permissions, guards-conditions, hierarchical-routes, tree-structure, link-actions, error-handling, referrer-tracking, debug-logging, import-patterns, utilities, breadcrumbs
+  - Includes correct/incorrect usage patterns (✅/❌) for common mistakes
+  - Code examples designed for copy-paste usage
+  - Complements CLAUDE.md by providing quick-reference documentation
+  - Aimed at helping AI coding assistants (like Claude, Cursor, Copilot) quickly understand router functionality
+- **Breadcrumbs Documentation** - Added comprehensive `ai/breadcrumbs.txt` covering breadcrumb navigation system
+  - Basic breadcrumb definition and structure
+  - Accessing breadcrumbs in components via `routeBreadcrumbs()` helper
+  - Breadcrumb component examples with navigation and styling
+  - Dynamic breadcrumb updates using `updateBreadcrumb(id, updates)` after data loads
+  - Integration with route parameters for dynamic segments
+  - Hierarchical breadcrumb inheritance with automatic concatenation
+  - Tree structure support with `createHierarchy()`
+  - Best practices and common patterns
+  - Debugging with ROUTER:METADATA logging category
+
 ## [5.1.1] - 2025-11-30
 
 ### Fixed
@@ -34,66 +123,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Documents that `registerRoutes()` must be called for named route navigation to work
   - Shows common pattern with page definitions array
   - Explains the "Route X not found in registry" error and how to fix it
-
-## [Unreleased]
-
-### Added
-- **`defineRoutes()` — Type-safe route definitions** (Issue #2) - Single source of truth for routes, navigation, and URL building
-  - Returns `routes` (for `<Router>`), `nav` (navigation helpers), and `paths` (URL builders)
-  - Full TypeScript support with IDE autocomplete on route names and parameters
-  - Extracts `:param` names from path patterns at the type level — catches typos at compile time
-  - `nav.X.push(params)` / `nav.X.replace(params)` — programmatic navigation with autocomplete
-  - `nav.X.link(params)` — returns object for `use:link` action
-  - `paths.X(params)` — builds URL string for `href` attributes
-  - Smart optimization: sync components without options skip `wrap()` overhead
-  - Async components and routes with options automatically use `createRoute()`
-  - Automatically calls `registerRoutes()` — no separate registration step needed
-  - Supports all existing route options: `conditions`, `breadcrumbs`, `permissions`, `loadingComponent`, `props`, `title`, etc.
-  - Example:
-    ```javascript
-    import { defineRoutes } from '@keenmate/svelte-spa-router/routes'
-
-    const { routes, nav, paths } = defineRoutes({
-      home: { path: '/', component: Home },
-      user: { path: '/user/:id', component: () => import('./User.svelte') }
-    })
-
-    // <Router {routes} />
-    // nav.user.push({ id: 123 })       — autocomplete on 'id'
-    // <a href={paths.user({ id: 123 })} use:link>
-    ```
-
-### Fixed
-- **Logger TypeScript errors** — Added `.d.ts` type declarations for vendored loglevel libraries
-  - Created `src/lib/vendor/loglevel/index.d.ts` and `prefix.d.ts`
-  - Removed `@ts-ignore` comments from `logger.ts`
-  - `svelte-check` now passes with 0 errors and 0 warnings
-
-### Documentation
-- **defineRoutes() example page** — Added interactive demo page to example app (`example/src/routes/DefineRoutesDemo.svelte`)
-  - Covers basic usage, navigation helpers, path builders, and supported route options
-  - Includes interactive playground with real-time output
-  - Shows before/after comparison with manual route definitions
-- **Example app navbar rework** — Replaced flat navigation with grouped dropdown menus
-  - 5 dropdown groups: Navigation, URL & Data, Routing, Errors, Security
-  - CSS hover-based dropdowns (no JavaScript state management)
-- **AI Assistant Documentation** - Added 15 concise text files in `./ai` folder optimized for AI assistants
-  - Plain text format (no markdown) with bullet-style structure for efficient AI parsing
-  - Files organized by feature: basic-setup, navigation, named-routes, route-params, permissions, guards-conditions, hierarchical-routes, tree-structure, link-actions, error-handling, referrer-tracking, debug-logging, import-patterns, utilities, breadcrumbs
-  - Includes correct/incorrect usage patterns (✅/❌) for common mistakes
-  - Code examples designed for copy-paste usage
-  - Complements CLAUDE.md by providing quick-reference documentation
-  - Aimed at helping AI coding assistants (like Claude, Cursor, Copilot) quickly understand router functionality
-- **Breadcrumbs Documentation** - Added comprehensive `ai/breadcrumbs.txt` covering breadcrumb navigation system
-  - Basic breadcrumb definition and structure
-  - Accessing breadcrumbs in components via `routeBreadcrumbs()` helper
-  - Breadcrumb component examples with navigation and styling
-  - Dynamic breadcrumb updates using `updateBreadcrumb(id, updates)` after data loads
-  - Integration with route parameters for dynamic segments
-  - Hierarchical breadcrumb inheritance with automatic concatenation
-  - Tree structure support with `createHierarchy()`
-  - Best practices and common patterns
-  - Debugging with ROUTER:METADATA logging category
 
 ## [5.1.0] - 2025-11-20 ✅ Published
 

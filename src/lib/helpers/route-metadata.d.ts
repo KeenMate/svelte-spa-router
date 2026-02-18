@@ -68,14 +68,14 @@ export function routeBreadcrumbs(): BreadcrumbItem[];
  *
  * @example
  * ```typescript
- * import { routerouteContext } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+ * import { routeContext } from '@keenmate/svelte-spa-router/helpers/route-metadata'
  *
  * // In a component
- * const routeContext = $derived(routerouteContext())
+ * const routeContext = $derived(routeContext())
  * const customField = routeContext.myCustomField
  * ```
  */
-export function routerouteContext(): Record<string, any>;
+export function routeContext(): Record<string, any>;
 
 /**
  * Hide the loading screen

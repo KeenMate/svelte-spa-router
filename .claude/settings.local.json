@@ -18,7 +18,14 @@
       "Bash(make build-hash:*)",
       "Bash(npm install:*)",
       "Bash(npx vite build)",
-      "Bash(npx svelte-check:*)"
+      "Bash(npx svelte-check:*)",
+      "Bash(npx vitest:*)",
+      "Bash(dir:*)",
+      "Bash(bash -c:*)",
+      "Bash(echo:*)",
+      "Bash(test:*)",
+      "Bash(printenv:*)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []

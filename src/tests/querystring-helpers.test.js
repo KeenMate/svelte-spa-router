@@ -369,23 +369,6 @@ describe('Querystring Helpers', () => {
             })
         })
 
-        // NOTE: Skipped due to state isolation issues between tests
-        it.skip('should return empty object when no querystring', () => {
-            window.history.replaceState({}, '', '/test')
-
-            const result = getParsedQuerystring()
-
-            expect(result).toEqual({})
-        })
-
-        // NOTE: Skipped due to state isolation issues between tests
-        it.skip('should handle array parameters', () => {
-            window.history.replaceState({}, '', '/test?tags=foo&tags=bar')
-
-            const result = getParsedQuerystring()
-
-            expect(result.tags).toEqual(['foo', 'bar'])
-        })
     })
 
     describe('createQuerystringHelpers', () => {
