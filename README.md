@@ -1810,12 +1810,12 @@ const routes = {
 
 Define routes in a hierarchical tree structure as an alternative to flat definitions. Child paths are automatically concatenated to parent paths, and routes inherit metadata from parents.
 
-**Enable hierarchical mode first:**
+**Enable hierarchical mode first** (disabled by default — routes are flat with no inheritance):
 ```javascript
 // main.js - before mounting app
 import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
 
-setHierarchicalRoutesEnabled(true)
+setHierarchicalRoutesEnabled(true)  // default: false
 ```
 
 **Define routes using tree structure:**
@@ -1909,7 +1909,7 @@ import { createHierarchy } from '@keenmate/svelte-spa-router/helpers/hierarchy'
 import active from '@keenmate/svelte-spa-router/active'
 
 // Configuration
-import { setHashRoutingEnabled, setBasePath, setParamReplacementPlaceholder, setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+import { setHashRoutingEnabled, setBasePath, setParamReplacementPlaceholder, setHierarchicalRoutesEnabled, setIncludeReferrer } from '@keenmate/svelte-spa-router'
 
 // Querystring helpers (shared reactive state)
 import { configureQuerystring, query } from '@keenmate/svelte-spa-router/helpers/querystring'
