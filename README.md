@@ -11,6 +11,7 @@ Main features:
 
 - **Dual-mode routing**: Supports both hash-based (`#/path`) and history API (`/path`) routing
 - Built with **Svelte 5 runes** for better reactivity and performance
+- **Type-safe routes**: `defineRoutes()` — single source of truth with IDE autocomplete on route names and params
 - **TypeScript-first**: Full generic support for `routeParams()`, `query()`, and `filters()` with intellisense
 - **Flexible Navigation**: Multi-parameter signatures, named routes, navigation context (WinForms-like data passing)
 - **Referrer Tracking**: Automatic previous route tracking with configurable modes ('never', 'notfound', 'always')
@@ -84,6 +85,9 @@ let { routeParams = {} } = $props()
 ### Route Configuration
 
 ```javascript
+// Type-safe route definitions (recommended!)
+import { defineRoutes } from '@keenmate/svelte-spa-router/routes'
+
 // Wrap routes with loading/conditions
 import { wrap } from '@keenmate/svelte-spa-router/wrap'
 
@@ -450,6 +454,96 @@ const routes = {
     '*': NotFound,
 }
 ```
+
+### Define routes with type safety (Recommended)
+
+Use `defineRoutes()` for a single source of truth that gives you IDE autocomplete on route names and parameters, preventing typos at compile time:
+
+```javascript
+// src/routes.js (or routes.ts for TypeScript)
+import { defineRoutes } from '@keenmate/svelte-spa-router/routes'
+import Home from './routes/Home.svelte'
+
+const { routes, nav, paths } = defineRoutes({
+  home: {
+    path: '/',
+    component: Home
+  },
+  about: {
+    path: '/about',
+    component: () => import('./routes/About.svelte')
+  },
+  user: {
+    path: '/user/:id',
+    component: () => import('./routes/User.svelte'),
+    conditions: [checkAuth],
+    breadcrumbs: [{ label: 'Users' }, { id: 'user', label: 'User' }]
+  },
+  settings: {
+    path: '/settings',
+    component: () => import('./routes/Settings.svelte'),
+    permissions: { any: ['settings.read'] }
+  }
+})
+
+export { routes, nav, paths }
+```
+
+**Use in App.svelte:**
+
+```svelte
+<script>
+import Router from '@keenmate/svelte-spa-router'
+import { link } from '@keenmate/svelte-spa-router'
+import { routes, nav, paths } from './routes'
+</script>
+
+<!-- Pass routes to Router -->
+<Router {routes} />
+
+<!-- Links with autocomplete on route names + params -->
+<a href={paths.user({ id: 123 })} use:link>User 123</a>
+<a href={paths.about()} use:link>About</a>
+
+<!-- Programmatic navigation -->
+<button onclick={() => nav.user.push({ id: 42 })}>Go to User 42</button>
+<button onclick={() => nav.settings.replace()}>Settings</button>
+
+<!-- For use:link action -->
+<a use:link={nav.user.link({ id: 99 })}>User 99</a>
+```
+
+**What `defineRoutes()` returns:**
+
+| Property | Description |
+|----------|-------------|
+| `routes` | Standard routes object for `<Router {routes} />` |
+| `nav.X.push(params?, query?, ctx?)` | Navigate to route X (calls `push()` internally) |
+| `nav.X.replace(params?, query?, ctx?)` | Replace with route X (calls `replace()` internally) |
+| `nav.X.link(params?, query?)` | Returns object for `use:link` action |
+| `nav.X.path` | Raw path pattern (e.g. `'/user/:id'`) |
+| `paths.X(params?, query?)` | Build URL string for `href` attributes |
+
+**TypeScript support:**
+
+In TypeScript, `defineRoutes()` extracts `:param` names from path patterns at the type level:
+
+```typescript
+const { nav, paths } = defineRoutes({
+  user: { path: '/user/:id', component: UserPage }
+})
+
+nav.user.push({ id: 123 })       // ✅ TypeScript knows 'id' is required
+nav.user.push({ userId: 123 })   // ❌ Type error — 'userId' doesn't exist
+nav.user.push()                   // ✅ OK — params are optional at runtime
+paths.user({ id: 123 })          // ✅ Returns '/user/123'
+```
+
+**Supported route options:**
+
+Each route in `defineRoutes()` accepts `path`, `component`, and all existing `createRoute()` / `wrap()` options: `loadingComponent`, `loadingParams`, `conditions`, `props`, `routeContext`, `title`, `breadcrumbs`, `shouldDisplayLoadingOnRouteLoad`, `permissions`, `authorizationCallback`, and inheritance flags (`inheritBreadcrumbs`, `inheritPermissions`, etc.).
+
+> **Note:** `defineRoutes()` automatically calls `registerRoutes()` internally — no separate registration step is needed. Named routes work immediately with `push()`, `replace()`, and `buildUrl()`.
 
 ### Include the router
 
@@ -1800,7 +1894,7 @@ import Router from '@keenmate/svelte-spa-router'
 import { push, replace, pop, goBack, location, querystring, routeParams, navigationContext } from '@keenmate/svelte-spa-router'
 
 // Named routes (for use with push/replace/link)
-import { registerRoutes, buildUrl } from '@keenmate/svelte-spa-router/routes'
+import { registerRoutes, buildUrl, defineRoutes } from '@keenmate/svelte-spa-router/routes'
 
 // Route creation (recommended - no wrap() needed!)
 import { createRoute, createRouteDefinition } from '@keenmate/svelte-spa-router/wrap'

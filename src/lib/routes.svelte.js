@@ -7,7 +7,8 @@
  * 3. Use named routes in the link action
  */
 
-import { getParamReplacementPlaceholder } from './utils.svelte.js'
+import { getParamReplacementPlaceholder, push as navPush, replace as navReplace } from './utils.svelte.js'
+import { createRoute } from './wrap.js'
 
 // Route registry - maps route names to path patterns
 let routeRegistry = $state({})
@@ -129,4 +130,78 @@ export function hasRoute(name) {
  */
 export function getRouteByName(name) {
     return routeRegistry[name]
+}
+
+/**
+ * Define routes as a single source of truth, returning the routes object
+ * for <Router>, navigation helpers with autocomplete, and path builders.
+ *
+ * @param {Object.<string, {path: string, component: any, [key: string]: any}>} definitions - Route definitions keyed by name
+ * @returns {{routes: Object, nav: Object, paths: Object}} Routes object, navigation helpers, and path builders
+ *
+ * @example
+ * ```javascript
+ * const { routes, nav, paths } = defineRoutes({
+ *   home: { path: '/', component: Home },
+ *   user: { path: '/user/:id', component: () => import('./User.svelte') },
+ *   about: { path: '/about', component: () => import('./About.svelte'), conditions: [checkAuth] }
+ * })
+ *
+ * // Use routes with Router
+ * <Router {routes} />
+ *
+ * // Navigate with autocomplete
+ * nav.user.push({ id: 123 })
+ * nav.home.replace()
+ *
+ * // Build URLs for links
+ * <a href={paths.user({ id: 123 })} use:link>User 123</a>
+ *
+ * // For use:link action
+ * <a use:link={nav.user.link({ id: 123 })}>User 123</a>
+ * ```
+ */
+export function defineRoutes(definitions) {
+    const routes = {}
+    const routeMap = {}
+    const nav = {}
+    const paths = {}
+
+    for (const [name, config] of Object.entries(definitions)) {
+        const { path, component, ...options } = config
+
+        // Build routes object for <Router>
+        const hasOptions = Object.keys(options).length > 0
+        const isAsync = typeof component === 'function' && component.length === 0
+
+        if (!hasOptions && !isAsync) {
+            // Simple sync component — use directly (no wrap overhead)
+            routes[path] = component
+        } else {
+            // Has options or async component — use createRoute()
+            routes[path] = createRoute({ component, ...options })
+        }
+
+        // Track for named route registration
+        routeMap[name] = path
+
+        // Build nav helper
+        nav[name] = {
+            push: (params, query, navigationContext) =>
+                navPush(name, params, query, navigationContext),
+            replace: (params, query, navigationContext) =>
+                navReplace(name, params, query, navigationContext),
+            link: (params, query) =>
+                ({ route: name, params, query }),
+            path
+        }
+
+        // Build path helper
+        paths[name] = (params, query) => buildUrl(name, params, query)
+    }
+
+    // Register all named routes
+    registerRoutes(routeMap)
+
+    return { routes, nav, paths }
 }

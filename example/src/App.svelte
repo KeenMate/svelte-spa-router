@@ -45,6 +45,7 @@ import NavigationContextDemo from './routes/NavigationContextDemo.svelte'
 import AuthorizationDemo from './routes/AuthorizationDemo.svelte'
 import ReferrerDemo from './routes/ReferrerDemo.svelte'
 import TabsDemo from './routes/TabsDemo.svelte'
+import DefineRoutesDemo from './routes/DefineRoutesDemo.svelte'
 import Loading from './components/Loading.svelte'
 
 // Configure permissions system
@@ -140,6 +141,7 @@ const routes = {
     '/navigation-context-demo': NavigationContextDemo,
     '/authorization-demo': AuthorizationDemo,
     '/referrer-demo': ReferrerDemo,
+    '/define-routes-demo': DefineRoutesDemo,
 
     // TABS WITH QUERYSTRING EXAMPLE
     // Demonstrates how to use tabs with query string state while preserving breadcrumbs
@@ -341,23 +343,49 @@ function handleToggleUser() {
         <h1>@keenmate/svelte-spa-router Example</h1>
         <nav>
             <a href="/" use:link use:active>Home</a>
-            <a href="/links-demo" use:link use:active>Links</a>
-            <a href="/querystring-demo" use:link use:active>Querystring</a>
-            <a href="/filters-demo" use:link use:active>Filters</a>
-            <a href="/route-data-demo" use:link use:active>Route Data</a>
-            <a href="/navigation-guard-demo" use:link use:active>Nav Guard</a>
-            <a href="/metadata-demo" use:link use:active>Metadata</a>
-            <a href="/loading-demo" use:link use:active>Loading</a>
-            <a href="/error-handling-demo" use:link use:active>Errors</a>
-            <a href="/not-found-demo" use:link use:active>404 Demo</a>
-            <a href="/navigation-context-demo" use:link use:active>Nav Context</a>
-            <a href="/referrer-demo" use:link use:active>Referrer</a>
-            <a href="/tabs/1" use:link use:active>Tabs</a>
-            <a href="/authorization-demo" use:link use:active>Authorization</a>
-            <a href="/multi-zone-demo" use:link use:active>Zones</a>
-            <a href="/admin" use:link use:active>Admin</a>
-            <a href="/admin-tree" use:link use:active>Admin (Tree)</a>
-            <a href="/settings" use:link use:active>Settings</a>
+            <div class="nav-group">
+                <span class="nav-trigger">Navigation ▾</span>
+                <div class="nav-dropdown">
+                    <a href="/links-demo" use:link use:active>Links</a>
+                    <a href="/navigation-guard-demo" use:link use:active>Nav Guard</a>
+                    <a href="/navigation-context-demo" use:link use:active>Nav Context</a>
+                    <a href="/referrer-demo" use:link use:active>Referrer</a>
+                </div>
+            </div>
+            <div class="nav-group">
+                <span class="nav-trigger">URL & Data ▾</span>
+                <div class="nav-dropdown">
+                    <a href="/querystring-demo" use:link use:active>Querystring</a>
+                    <a href="/filters-demo" use:link use:active>Filters</a>
+                    <a href="/route-data-demo" use:link use:active>Route Data</a>
+                    <a href="/tabs/1" use:link use:active>Tabs</a>
+                </div>
+            </div>
+            <div class="nav-group">
+                <span class="nav-trigger">Routing ▾</span>
+                <div class="nav-dropdown">
+                    <a href="/define-routes-demo" use:link use:active>defineRoutes</a>
+                    <a href="/metadata-demo" use:link use:active>Metadata</a>
+                    <a href="/loading-demo" use:link use:active>Loading</a>
+                    <a href="/multi-zone-demo" use:link use:active>Zones</a>
+                </div>
+            </div>
+            <div class="nav-group">
+                <span class="nav-trigger">Errors ▾</span>
+                <div class="nav-dropdown">
+                    <a href="/error-handling-demo" use:link use:active>Error Handling</a>
+                    <a href="/not-found-demo" use:link use:active>404 Demo</a>
+                </div>
+            </div>
+            <div class="nav-group">
+                <span class="nav-trigger">Security ▾</span>
+                <div class="nav-dropdown">
+                    <a href="/authorization-demo" use:link use:active>Authorization</a>
+                    <a href="/admin" use:link use:active>Admin</a>
+                    <a href="/admin-tree" use:link use:active>Admin (Tree)</a>
+                    <a href="/settings" use:link use:active>Settings</a>
+                </div>
+            </div>
         </nav>
         <div class="user-controls">
             <button onclick={handleToggleUser} class="toggle-btn" title="Switch user">
@@ -445,8 +473,82 @@ function handleToggleUser() {
 
     nav {
         display: flex;
-        gap: 1rem;
+        gap: 0.25rem;
         flex: 1;
+        align-items: center;
+    }
+
+    nav > a {
+        color: white;
+        text-decoration: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    nav > a:hover {
+        background: rgba(255,255,255,0.1);
+    }
+
+    nav :global(a.active) {
+        background: rgba(255,255,255,0.2);
+        font-weight: bold;
+    }
+
+    /* Dropdown nav groups */
+    .nav-group {
+        position: relative;
+    }
+
+    .nav-trigger {
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: default;
+        user-select: none;
+        font-size: 0.9rem;
+        transition: background 0.2s;
+        display: inline-block;
+    }
+
+    .nav-group:hover .nav-trigger {
+        background: rgba(255,255,255,0.15);
+    }
+
+    .nav-dropdown {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: #1e40af;
+        border-radius: 0 0 6px 6px;
+        min-width: 170px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        z-index: 200;
+        padding: 0.25rem 0;
+    }
+
+    .nav-group:hover .nav-dropdown {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .nav-dropdown a {
+        color: white;
+        text-decoration: none;
+        padding: 0.5rem 1rem;
+        transition: background 0.15s;
+        white-space: nowrap;
+        font-size: 0.9rem;
+    }
+
+    .nav-dropdown a:hover {
+        background: rgba(255,255,255,0.1);
+    }
+
+    .nav-dropdown :global(a.active) {
+        background: rgba(255,255,255,0.2);
+        font-weight: bold;
     }
 
     .user-controls {
@@ -488,23 +590,6 @@ function handleToggleUser() {
         padding: 0.5rem 1rem;
         background: rgba(0, 0, 0, 0.2);
         border-radius: 4px;
-    }
-
-    nav a {
-        color: white;
-        text-decoration: none;
-        padding: 0.5rem 1rem;
-        border-radius: 4px;
-        transition: background 0.2s;
-    }
-
-    nav a:hover {
-        background: rgba(255,255,255,0.1);
-    }
-
-    nav :global(a.active) {
-        background: rgba(255,255,255,0.2);
-        font-weight: bold;
     }
 
     main {

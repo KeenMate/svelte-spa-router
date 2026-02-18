@@ -37,7 +37,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`defineRoutes()` — Type-safe route definitions** (Issue #2) - Single source of truth for routes, navigation, and URL building
+  - Returns `routes` (for `<Router>`), `nav` (navigation helpers), and `paths` (URL builders)
+  - Full TypeScript support with IDE autocomplete on route names and parameters
+  - Extracts `:param` names from path patterns at the type level — catches typos at compile time
+  - `nav.X.push(params)` / `nav.X.replace(params)` — programmatic navigation with autocomplete
+  - `nav.X.link(params)` — returns object for `use:link` action
+  - `paths.X(params)` — builds URL string for `href` attributes
+  - Smart optimization: sync components without options skip `wrap()` overhead
+  - Async components and routes with options automatically use `createRoute()`
+  - Automatically calls `registerRoutes()` — no separate registration step needed
+  - Supports all existing route options: `conditions`, `breadcrumbs`, `permissions`, `loadingComponent`, `props`, `title`, etc.
+  - Example:
+    ```javascript
+    import { defineRoutes } from '@keenmate/svelte-spa-router/routes'
+
+    const { routes, nav, paths } = defineRoutes({
+      home: { path: '/', component: Home },
+      user: { path: '/user/:id', component: () => import('./User.svelte') }
+    })
+
+    // <Router {routes} />
+    // nav.user.push({ id: 123 })       — autocomplete on 'id'
+    // <a href={paths.user({ id: 123 })} use:link>
+    ```
+
+### Fixed
+- **Logger TypeScript errors** — Added `.d.ts` type declarations for vendored loglevel libraries
+  - Created `src/lib/vendor/loglevel/index.d.ts` and `prefix.d.ts`
+  - Removed `@ts-ignore` comments from `logger.ts`
+  - `svelte-check` now passes with 0 errors and 0 warnings
+
 ### Documentation
+- **defineRoutes() example page** — Added interactive demo page to example app (`example/src/routes/DefineRoutesDemo.svelte`)
+  - Covers basic usage, navigation helpers, path builders, and supported route options
+  - Includes interactive playground with real-time output
+  - Shows before/after comparison with manual route definitions
+- **Example app navbar rework** — Replaced flat navigation with grouped dropdown menus
+  - 5 dropdown groups: Navigation, URL & Data, Routing, Errors, Security
+  - CSS hover-based dropdowns (no JavaScript state management)
 - **AI Assistant Documentation** - Added 15 concise text files in `./ai` folder optimized for AI assistants
   - Plain text format (no markdown) with bullet-style structure for efficient AI parsing
   - Files organized by feature: basic-setup, navigation, named-routes, route-params, permissions, guards-conditions, hierarchical-routes, tree-structure, link-actions, error-handling, referrer-tracking, debug-logging, import-patterns, utilities, breadcrumbs

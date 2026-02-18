@@ -36,9 +36,7 @@
  */
 
 // Import vendored libraries via ES module wrappers
-// @ts-ignore - Vendored library without type definitions
 import log from './vendor/loglevel/index.js';
-// @ts-ignore - Vendored library without type definitions
 import prefix from './vendor/loglevel/prefix.js';
 
 // Define color scheme

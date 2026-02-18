@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { push, replace, location } from '../lib/utils.svelte.js'
-import { registerRoutes, clearRoutes } from '../lib/routes.svelte.js'
+import { registerRoutes, clearRoutes, defineRoutes, hasRoute, buildUrl } from '../lib/routes.svelte.js'
 
 describe('Named Routes Navigation', () => {
   beforeEach(() => {
@@ -186,6 +186,305 @@ describe('Named Routes Navigation', () => {
       push('user', { id: '111' })
       await new Promise(resolve => setTimeout(resolve, 50))
       expect(window.history.length).toBe(historyLength + 1)
+    })
+  })
+})
+
+describe('defineRoutes', () => {
+  // Mock components
+  const HomeComponent = { name: 'Home' }
+  const AboutComponent = { name: 'About' }
+  const asyncUserComponent = () => Promise.resolve({ default: { name: 'User' } })
+  const asyncContactsComponent = () => Promise.resolve({ default: { name: 'Contacts' } })
+  const checkAuth = () => true
+
+  beforeEach(() => {
+    window.location.hash = '#/'
+    window.history.replaceState(null, '', '#/')
+    clearRoutes()
+  })
+
+  afterEach(() => {
+    clearRoutes()
+  })
+
+  describe('route generation', () => {
+    it('should generate routes object with correct path-to-component mapping', () => {
+      const { routes } = defineRoutes({
+        home: { path: '/', component: HomeComponent },
+        about: { path: '/about', component: AboutComponent }
+      })
+
+      expect(routes['/']).toBe(HomeComponent)
+      expect(routes['/about']).toBe(AboutComponent)
+    })
+
+    it('should use component directly for simple sync components (no wrap overhead)', () => {
+      const { routes } = defineRoutes({
+        home: { path: '/', component: HomeComponent }
+      })
+
+      // Simple sync component without options should NOT be wrapped
+      expect(routes['/']).toBe(HomeComponent)
+      expect(routes['/']._sveltesparouter).toBeUndefined()
+    })
+
+    it('should wrap async components', () => {
+      const { routes } = defineRoutes({
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      // Async component should be wrapped
+      expect(routes['/user/:id']._sveltesparouter).toBe(true)
+    })
+
+    it('should wrap sync components that have options', () => {
+      const { routes } = defineRoutes({
+        home: {
+          path: '/',
+          component: HomeComponent,
+          conditions: [checkAuth]
+        }
+      })
+
+      // Sync component with options should be wrapped
+      expect(routes['/']._sveltesparouter).toBe(true)
+    })
+  })
+
+  describe('named route registration', () => {
+    it('should register all routes as named routes', () => {
+      defineRoutes({
+        home: { path: '/', component: HomeComponent },
+        about: { path: '/about', component: AboutComponent },
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      expect(hasRoute('home')).toBe(true)
+      expect(hasRoute('about')).toBe(true)
+      expect(hasRoute('user')).toBe(true)
+    })
+
+    it('should not register non-existent route names', () => {
+      defineRoutes({
+        home: { path: '/', component: HomeComponent }
+      })
+
+      expect(hasRoute('nonexistent')).toBe(false)
+    })
+  })
+
+  describe('nav helpers', () => {
+    it('should provide push/replace/link/path for each route', () => {
+      const { nav } = defineRoutes({
+        home: { path: '/', component: HomeComponent },
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      expect(typeof nav.home.push).toBe('function')
+      expect(typeof nav.home.replace).toBe('function')
+      expect(typeof nav.home.link).toBe('function')
+      expect(nav.home.path).toBe('/')
+
+      expect(typeof nav.user.push).toBe('function')
+      expect(typeof nav.user.replace).toBe('function')
+      expect(typeof nav.user.link).toBe('function')
+      expect(nav.user.path).toBe('/user/:id')
+    })
+
+    it('nav.X.push() should navigate to the named route', async () => {
+      const { nav } = defineRoutes({
+        about: { path: '/about', component: AboutComponent }
+      })
+
+      nav.about.push()
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(location()).toBe('/about')
+    })
+
+    it('nav.X.push() should navigate with params', async () => {
+      const { nav } = defineRoutes({
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      nav.user.push({ id: 42 })
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(location()).toBe('/user/42')
+    })
+
+    it('nav.X.push() should navigate with params and query', async () => {
+      const { nav } = defineRoutes({
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      nav.user.push({ id: 42 }, { tab: 'settings' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(window.location.hash).toContain('/user/42')
+      expect(window.location.hash).toContain('tab=settings')
+    })
+
+    it('nav.X.replace() should replace current location', async () => {
+      const { nav } = defineRoutes({
+        about: { path: '/about', component: AboutComponent },
+        home: { path: '/', component: HomeComponent }
+      })
+
+      nav.about.push()
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      const historyLength = window.history.length
+
+      nav.home.replace()
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(location()).toBe('/')
+      expect(window.history.length).toBe(historyLength)
+    })
+
+    it('nav.X.link() should return link action object', () => {
+      const { nav } = defineRoutes({
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      const linkObj = nav.user.link({ id: 123 })
+
+      expect(linkObj).toEqual({
+        route: 'user',
+        params: { id: 123 },
+        query: undefined
+      })
+    })
+
+    it('nav.X.link() should include query when provided', () => {
+      const { nav } = defineRoutes({
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      const linkObj = nav.user.link({ id: 123 }, { tab: 'profile' })
+
+      expect(linkObj).toEqual({
+        route: 'user',
+        params: { id: 123 },
+        query: { tab: 'profile' }
+      })
+    })
+  })
+
+  describe('path builders', () => {
+    it('should build URL for simple route', () => {
+      const { paths } = defineRoutes({
+        home: { path: '/', component: HomeComponent },
+        about: { path: '/about', component: AboutComponent }
+      })
+
+      expect(paths.home()).toBe('/')
+      expect(paths.about()).toBe('/about')
+    })
+
+    it('should build URL with params', () => {
+      const { paths } = defineRoutes({
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      expect(paths.user({ id: 123 })).toBe('/user/123')
+    })
+
+    it('should build URL with params and query', () => {
+      const { paths } = defineRoutes({
+        user: { path: '/user/:id', component: asyncUserComponent }
+      })
+
+      const url = paths.user({ id: 456 }, { tab: 'settings' })
+      expect(url).toBe('/user/456?tab=settings')
+    })
+  })
+
+  describe('options forwarding', () => {
+    it('should forward conditions to wrapped route', () => {
+      const condition1 = () => true
+      const condition2 = () => false
+
+      const { routes } = defineRoutes({
+        admin: {
+          path: '/admin',
+          component: asyncUserComponent,
+          conditions: [condition1, condition2]
+        }
+      })
+
+      const wrappedRoute = routes['/admin']
+      expect(wrappedRoute._sveltesparouter).toBe(true)
+      expect(wrappedRoute.conditions).toContain(condition1)
+      expect(wrappedRoute.conditions).toContain(condition2)
+    })
+
+    it('should forward breadcrumbs via routeContext', () => {
+      const breadcrumbs = [{ label: 'Home', path: '/' }, { label: 'Admin' }]
+
+      const { routes } = defineRoutes({
+        admin: {
+          path: '/admin',
+          component: asyncUserComponent,
+          breadcrumbs
+        }
+      })
+
+      const wrappedRoute = routes['/admin']
+      expect(wrappedRoute._sveltesparouter).toBe(true)
+      expect(wrappedRoute.routeContext.breadcrumbs).toEqual(breadcrumbs)
+    })
+
+    it('should forward static props', () => {
+      const { routes } = defineRoutes({
+        info: {
+          path: '/info',
+          component: HomeComponent,
+          props: { version: '1.0' }
+        }
+      })
+
+      const wrappedRoute = routes['/info']
+      expect(wrappedRoute._sveltesparouter).toBe(true)
+      expect(wrappedRoute.props).toEqual({ version: '1.0' })
+    })
+  })
+
+  describe('multiple routes together', () => {
+    it('should handle a full route definition set', () => {
+      const { routes, nav, paths } = defineRoutes({
+        home: { path: '/', component: HomeComponent },
+        about: { path: '/about', component: AboutComponent },
+        user: { path: '/user/:id', component: asyncUserComponent, conditions: [checkAuth] },
+        contacts: { path: '/contacts', component: asyncContactsComponent }
+      })
+
+      // All routes should be generated
+      expect(Object.keys(routes)).toHaveLength(4)
+      expect(routes['/']).toBeDefined()
+      expect(routes['/about']).toBeDefined()
+      expect(routes['/user/:id']).toBeDefined()
+      expect(routes['/contacts']).toBeDefined()
+
+      // All nav helpers should be generated
+      expect(nav.home).toBeDefined()
+      expect(nav.about).toBeDefined()
+      expect(nav.user).toBeDefined()
+      expect(nav.contacts).toBeDefined()
+
+      // All path builders should be generated
+      expect(typeof paths.home).toBe('function')
+      expect(typeof paths.about).toBe('function')
+      expect(typeof paths.user).toBe('function')
+      expect(typeof paths.contacts).toBe('function')
+
+      // All named routes should be registered
+      expect(hasRoute('home')).toBe(true)
+      expect(hasRoute('about')).toBe(true)
+      expect(hasRoute('user')).toBe(true)
+      expect(hasRoute('contacts')).toBe(true)
     })
   })
 })

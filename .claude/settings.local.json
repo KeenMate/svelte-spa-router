@@ -11,7 +11,14 @@
       "Bash(npm test:*)",
       "Bash(nul)",
       "Bash(npm run dev:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(gh issue view:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(ls:*)",
+      "Bash(make build-hash:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite build)",
+      "Bash(npx svelte-check:*)"
     ],
     "deny": [],
     "ask": []
