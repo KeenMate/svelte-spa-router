@@ -6,7 +6,6 @@
 export { default as Router } from './Router.svelte';
 
 // Core utilities
-export * from './active.svelte.js';
 export * from './utils';
 export * from './constants';
 export { default as wrap } from './wrap';

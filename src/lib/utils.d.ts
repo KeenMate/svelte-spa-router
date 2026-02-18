@@ -97,6 +97,51 @@ export function setParamReplacementPlaceholder(value: string): void;
 export function getParamReplacementPlaceholder(): string;
 
 /**
+ * Enable or disable hierarchical route inheritance
+ * Must be called before app initialization
+ *
+ * When enabled, child routes automatically inherit breadcrumbs, permissions,
+ * conditions, and authorization callbacks from parent routes.
+ *
+ * @param value - true to enable hierarchical mode, false for flat mode (default: false)
+ *
+ * @example
+ * ```typescript
+ * import { setHierarchicalRoutesEnabled } from '@keenmate/svelte-spa-router'
+ * setHierarchicalRoutesEnabled(true)
+ * ```
+ */
+export function setHierarchicalRoutesEnabled(value: boolean): void;
+
+/**
+ * Get current hierarchical routes mode
+ *
+ * @returns true if hierarchical mode is enabled
+ */
+export function getHierarchicalRoutesEnabled(): boolean;
+
+/**
+ * Configure automatic referrer tracking in navigationContext
+ * Must be called before app initialization
+ *
+ * @param value - 'never' (default), 'notfound' (404 only), or 'always' (all routes)
+ *
+ * @example
+ * ```typescript
+ * import { setIncludeReferrer } from '@keenmate/svelte-spa-router'
+ * setIncludeReferrer('always')
+ * ```
+ */
+export function setIncludeReferrer(value: 'never' | 'notfound' | 'always'): void;
+
+/**
+ * Get current referrer tracking mode
+ *
+ * @returns Current mode: 'never', 'notfound', or 'always'
+ */
+export function getIncludeReferrer(): 'never' | 'notfound' | 'always';
+
+/**
  * Get the current location path
  *
  * @returns Current location (e.g., '/about')
