@@ -72,7 +72,12 @@
       "import": "./src/lib/helpers/error-handler.svelte.js"
     },
     "./helpers/GlobalErrorHandler": {
+      "types": "./src/lib/helpers/GlobalErrorHandler.svelte.d.ts",
       "svelte": "./src/lib/helpers/GlobalErrorHandler.svelte"
+    },
+    "./helpers/ErrorDisplay": {
+      "types": "./src/lib/helpers/ErrorDisplay.svelte.d.ts",
+      "svelte": "./src/lib/helpers/ErrorDisplay.svelte"
     },
     "./helpers/hierarchy": {
       "types": "./src/lib/helpers/hierarchy.d.ts",
