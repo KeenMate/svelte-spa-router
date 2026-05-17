@@ -78,10 +78,6 @@ let shouldThrowRender = $state(false)
                     <td><code>{config.safeRoute}</code></td>
                 </tr>
                 <tr>
-                    <td><strong>Show Toast:</strong></td>
-                    <td>{config.showToast ? '✅' : '❌'}</td>
-                </tr>
-                <tr>
                     <td><strong>Max Restarts:</strong></td>
                     <td>{config.maxRestarts}</td>
                 </tr>
@@ -208,7 +204,6 @@ configureGlobalErrorHandler({'{'}
     maxRestarts: 3,
     restartWindow: 60000,  // 1 minute
 
-    showToast: true,
     isDevelopment: import.meta.env.DEV,
 {'}'})</code></pre>
     </div>

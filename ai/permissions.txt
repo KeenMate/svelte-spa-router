@@ -4,15 +4,78 @@ PERMISSIONS SYSTEM
 SETUP
 -----
 // main.js - configure before app mount
-import { configurePermissions } from '@keenmate/svelte-spa-router/helpers/permissions'
+import {
+    configurePermissions,
+    setCurrentUser
+} from '@keenmate/svelte-spa-router/helpers/permissions'
 
 configurePermissions({
-    getUserPermissions: async () => {
-        // Return array of permission strings
-        const user = await getCurrentUser()
-        return user.permissions  // ['read', 'write', 'admin.users']
+    checkPermissions: (user, requirements) => {
+        if (!user || !requirements) return false
+        if (requirements.any) return requirements.any.some(p => user.permissions.includes(p))
+        if (requirements.all) return requirements.all.every(p => user.permissions.includes(p))
+        return false
     }
 })
+
+// Push current user into the permission system.
+setCurrentUser(null) // logged-out at startup
+// After login:           setCurrentUser({ id: 42, permissions: ['admin.read'] })
+// Websocket update:      setCurrentUser({ ...getCurrentUser(), permissions: newPerms })
+// Logout:                setCurrentUser(null)
+
+REACTIVITY
+----------
+The library keeps an internal $state-backed current user, so hasPermission()
+re-evaluates automatically in any reactive context (template {#if},
+$derived, $effect) when setCurrentUser() is called. No subscription wiring
+needed on the consumer side.
+
+If you maintain your own reactive user store and want hasPermission() to
+read from it, pass a getter to configurePermissions:
+
+    configurePermissions({ getCurrentUser: () => myUserState.user, ... })
+
+Avoid non-tracked reads (get(store), localStorage, etc.) — those won't
+propagate updates and {#if hasPermission(...)} blocks will only refresh on
+navigation. Pass getCurrentUser: null to reset back to the default
+state-backed getter.
+
+RE-VALIDATING THE ACTIVE ROUTE
+-------------------------------
+hasPermission() reactivity covers menu/button visibility. It does NOT cover
+the case where the user is sitting on a protected page when their
+permissions are revoked — the router checks guards/conditions only during
+navigation. Call revalidateCurrentRoute() after permission changes:
+
+    import { revalidateCurrentRoute } from '@keenmate/svelte-spa-router'
+
+    socket.on('permissions:updated', (newPerms) => {
+        setCurrentUser({ ...getCurrentUser(), permissions: newPerms })
+        revalidateCurrentRoute()
+    })
+
+On success the component keeps its state (no flicker). On failure, the
+standard unauthorized handling fires — same path as a fresh navigation.
+
+To customize the failure path (e.g. confirmation dialog before redirect),
+provide onRevalidationFailure:
+
+    configurePermissions({
+        onRevalidationFailure: async (detail) => {
+            // detail: { route, location, relativeLocation, querystring, params, isPermissionFailure }
+            const confirmed = await showDialog('Permissions changed. Continue to home?')
+            if (confirmed) push('/')
+            // If nothing called, user stays on current route.
+        }
+    })
+
+When configured, the callback runs INSTEAD of standard unauthorized
+handling. The onConditionsFailed Router event still fires for consistency.
+Pass onRevalidationFailure: null to clear.
+
+Calls to revalidateCurrentRoute() within a ~50ms window are coalesced into
+a single re-validation pass.
 
 BASIC PROTECTED ROUTE
 ----------------------

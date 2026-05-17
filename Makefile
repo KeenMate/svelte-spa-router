@@ -1,4 +1,4 @@
-.PHONY: install setup dev build package publish publish-dry clean help docker-run-examples-history docker-run-examples-hash docker-stop-examples
+.PHONY: install setup dev build package publish publish-dry clean help podman-run-examples-history podman-run-examples-hash podman-stop-examples
 
 # Default target
 .DEFAULT_GOAL := help
@@ -47,14 +47,14 @@ help: ## Show this help message
 	@echo "  dev                     Run development server (history mode - clean URLs)"
 	@echo "  dev-hash                Run development server (hash mode - traditional #/path URLs)"
 	@echo "  dev-showcase            Run showcase documentation site"
-	@echo "  docker-build-examples          Build Docker images (use VERSION=5.0.0-rc06 for npm version)"
-	@echo "  docker-build-examples-no-cache Build Docker images without cache (use VERSION=5.0.0-rc06)"
-	@echo "  docker-build-history           Build Docker image for history mode (use VERSION=5.0.0-rc06)"
-	@echo "  docker-build-hash              Build Docker image for hash mode (use VERSION=5.0.0-rc06)"
-	@echo "  docker-push-examples           Push Docker images to registry"
-	@echo "  docker-run-examples-history    Run history mode example Docker container on port 8080"
-	@echo "  docker-run-examples-hash       Run hash mode example Docker container on port 8081"
-	@echo "  docker-stop-examples           Stop running example Docker containers"
+	@echo "  podman-build-examples          Build Podman images (use VERSION=5.0.0-rc06 for npm version)"
+	@echo "  podman-build-examples-no-cache Build Podman images without cache (use VERSION=5.0.0-rc06)"
+	@echo "  podman-build-history           Build Podman image for history mode (use VERSION=5.0.0-rc06)"
+	@echo "  podman-build-hash              Build Podman image for hash mode (use VERSION=5.0.0-rc06)"
+	@echo "  podman-push-examples           Push Podman images to registry"
+	@echo "  podman-run-examples-history    Run history mode example Podman container on port 8080"
+	@echo "  podman-run-examples-hash       Run hash mode example Podman container on port 8081"
+	@echo "  podman-stop-examples           Stop running example Podman containers"
 	@echo "  help                    Show this help message"
 	@echo "  install                 Install dependencies"
 	@echo "  lint                    Run linter"
@@ -63,12 +63,15 @@ help: ## Show this help message
 	@echo "  publish-dry             Dry run of npm publish (use TAG=rc for pre-releases)"
 	@echo "  setup                   Alias for install"
 	@echo "  test                    Run tests"
+	@echo "  test-e2e                Run Playwright e2e tests against the example app"
+	@echo "  test-e2e-install        One-time install of the chromium binary for e2e"
+	@echo "  test-e2e-ui             Run Playwright in interactive UI mode"
 	@echo "  version                 Display current version"
 	@echo ""
-	@echo "Docker Examples:"
-	@echo "  make docker-build-examples                      # Use local source (file:..)"
-	@echo "  make docker-build-examples VERSION=5.0.0-rc06  # Use npm version"
-	@echo "  make docker-build-examples VERSION=latest      # Use latest from npm"
+	@echo "Podman Examples:"
+	@echo "  make podman-build-examples                      # Use local source (file:..)"
+	@echo "  make podman-build-examples VERSION=5.0.0-rc06  # Use npm version"
+	@echo "  make podman-build-examples VERSION=latest      # Use latest from npm"
 
 install: ## Install dependencies
 	$(NPM) install
@@ -122,104 +125,104 @@ build-showcase: ## Build showcase documentation site
 	cd ../svelte-spa-router-showcase && $(NPM) run build
 	@echo "Showcase built successfully!"
 
-docker-build-examples: ## Build Docker images for both examples (use VERSION=5.0.0-rc06 to specify npm version)
-	@echo "Building Docker images for both examples..."
+podman-build-examples: ## Build Podman images for both examples (use VERSION=5.0.0-rc06 to specify npm version)
+	@echo "Building Podman images for both examples..."
 ifdef VERSION
 	@echo "Using npm version: $(VERSION)"
 else
 	@echo "Using local source (file:..)"
-	@echo "To use npm version, run: make docker-build-examples VERSION=5.0.0-rc06"
+	@echo "To use npm version, run: make podman-build-examples VERSION=5.0.0-rc06"
 endif
 	@echo ""
-	@echo "Building Docker image for history mode example..."
-	docker build -f example/Dockerfile \
+	@echo "Building Podman image for history mode example..."
+	podman build -f example/Dockerfile \
 		--build-arg VITE_ROUTING_MODE=history \
 		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
 		-t registry.km8.es/svelte-spa-router-example-history:latest .
 	@echo ""
-	@echo "Building Docker image for hash mode example..."
-	docker build -f example/Dockerfile \
+	@echo "Building Podman image for hash mode example..."
+	podman build -f example/Dockerfile \
 		--build-arg VITE_ROUTING_MODE=hash \
 		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
 		-t registry.km8.es/svelte-spa-router-example-hash:latest .
 	@echo ""
-	@echo "Both Docker images built successfully!"
+	@echo "Both Podman images built successfully!"
 	@echo "  - registry.km8.es/svelte-spa-router-example-history:latest"
 	@echo "  - registry.km8.es/svelte-spa-router-example-hash:latest"
 
-docker-build-examples-no-cache: ## Build Docker images without cache (use VERSION=5.0.0-rc06 to specify npm version)
-	@echo "Building Docker images for both examples (no cache)..."
+podman-build-examples-no-cache: ## Build Podman images without cache (use VERSION=5.0.0-rc06 to specify npm version)
+	@echo "Building Podman images for both examples (no cache)..."
 ifdef VERSION
 	@echo "Using npm version: $(VERSION)"
 else
 	@echo "Using local source (file:..)"
-	@echo "To use npm version, run: make docker-build-examples-no-cache VERSION=5.0.0-rc06"
+	@echo "To use npm version, run: make podman-build-examples-no-cache VERSION=5.0.0-rc06"
 endif
 	@echo ""
-	@echo "Building Docker image for history mode example (no cache)..."
-	docker build --no-cache --progress plain -f example/Dockerfile \
+	@echo "Building Podman image for history mode example (no cache)..."
+	podman build --no-cache --progress plain -f example/Dockerfile \
 		--build-arg VITE_ROUTING_MODE=history \
 		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
 		-t registry.km8.es/svelte-spa-router-example-history:latest .
 	@echo ""
-	@echo "Building Docker image for hash mode example (no cache)..."
-	docker build --no-cache --progress plain -f example/Dockerfile \
+	@echo "Building Podman image for hash mode example (no cache)..."
+	podman build --no-cache --progress plain -f example/Dockerfile \
 		--build-arg VITE_ROUTING_MODE=hash \
 		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
 		-t registry.km8.es/svelte-spa-router-example-hash:latest .
 	@echo ""
-	@echo "Both Docker images built successfully!"
+	@echo "Both Podman images built successfully!"
 	@echo "  - registry.km8.es/svelte-spa-router-example-history:latest"
 	@echo "  - registry.km8.es/svelte-spa-router-example-hash:latest"
 
-docker-build-history: ## Build Docker image for history mode example (use VERSION=5.0.0-rc06 to specify npm version)
-	@echo "Building Docker image for history mode example..."
+podman-build-history: ## Build Podman image for history mode example (use VERSION=5.0.0-rc06 to specify npm version)
+	@echo "Building Podman image for history mode example..."
 ifdef VERSION
 	@echo "Using npm version: $(VERSION)"
 else
 	@echo "Using local source (file:..)"
 endif
-	docker build -f example/Dockerfile \
+	podman build -f example/Dockerfile \
 		--build-arg VITE_ROUTING_MODE=history \
 		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
 		-t registry.km8.es/svelte-spa-router-example-history:latest .
 
-docker-build-hash: ## Build Docker image for hash mode example (use VERSION=5.0.0-rc06 to specify npm version)
-	@echo "Building Docker image for hash mode example..."
+podman-build-hash: ## Build Podman image for hash mode example (use VERSION=5.0.0-rc06 to specify npm version)
+	@echo "Building Podman image for hash mode example..."
 ifdef VERSION
 	@echo "Using npm version: $(VERSION)"
 else
 	@echo "Using local source (file:..)"
 endif
-	docker build -f example/Dockerfile \
+	podman build -f example/Dockerfile \
 		--build-arg VITE_ROUTING_MODE=hash \
 		$(if $(VERSION),--build-arg ROUTER_VERSION=$(VERSION),) \
 		-t registry.km8.es/svelte-spa-router-example-hash:latest .
 
-docker-push-examples: ## Push Docker images to registry
-	@echo "Pushing Docker images to registry..."
-	docker push registry.km8.es/svelte-spa-router-example-history:latest
-	docker push registry.km8.es/svelte-spa-router-example-hash:latest
-	@echo "Docker images pushed successfully!"
+podman-push-examples: ## Push Podman images to registry
+	@echo "Pushing Podman images to registry..."
+	podman push registry.km8.es/svelte-spa-router-example-history:latest
+	podman push registry.km8.es/svelte-spa-router-example-hash:latest
+	@echo "Podman images pushed successfully!"
 
-docker-run-examples-history: ## Run history mode example Docker container on port 8080
+podman-run-examples-history: ## Run history mode example Podman container on port 8080
 	@echo "Starting history mode example container on http://localhost:8080..."
-	docker run -d --name svelte-spa-router-example-history -p 8080:80 registry.km8.es/svelte-spa-router-example-history:latest
+	podman run -d --name svelte-spa-router-example-history -p 8080:80 registry.km8.es/svelte-spa-router-example-history:latest
 	@echo "History mode example running at http://localhost:8080"
-	@echo "To stop: make docker-stop-examples"
+	@echo "To stop: make podman-stop-examples"
 
-docker-run-examples-hash: ## Run hash mode example Docker container on port 8081
+podman-run-examples-hash: ## Run hash mode example Podman container on port 8081
 	@echo "Starting hash mode example container on http://localhost:8081..."
-	docker run -d --name svelte-spa-router-example-hash -p 8081:80 registry.km8.es/svelte-spa-router-example-hash:latest
+	podman run -d --name svelte-spa-router-example-hash -p 8081:80 registry.km8.es/svelte-spa-router-example-hash:latest
 	@echo "Hash mode example running at http://localhost:8081"
-	@echo "To stop: make docker-stop-examples"
+	@echo "To stop: make podman-stop-examples"
 
-docker-stop-examples: ## Stop running example Docker containers
+podman-stop-examples: ## Stop running example Podman containers
 	@echo "Stopping example containers..."
-	-docker stop svelte-spa-router-example-history $(NULL_REDIRECT) || echo "History container not running"
-	-docker stop svelte-spa-router-example-hash $(NULL_REDIRECT) || echo "Hash container not running"
-	-docker rm svelte-spa-router-example-history $(NULL_REDIRECT) || echo "History container already removed"
-	-docker rm svelte-spa-router-example-hash $(NULL_REDIRECT) || echo "Hash container already removed"
+	-podman stop svelte-spa-router-example-history $(NULL_REDIRECT) || echo "History container not running"
+	-podman stop svelte-spa-router-example-hash $(NULL_REDIRECT) || echo "Hash container not running"
+	-podman rm svelte-spa-router-example-history $(NULL_REDIRECT) || echo "History container already removed"
+	-podman rm svelte-spa-router-example-hash $(NULL_REDIRECT) || echo "Hash container already removed"
 	@echo "Example containers stopped and removed"
 
 package: build ## Package for npm publication
@@ -302,6 +305,16 @@ endif
 test: ## Run tests
 	@echo "Running tests..."
 	$(NPM) test
+
+test-e2e: ## Run Playwright end-to-end tests against the example app (history mode, port 5050)
+	@echo "Running e2e tests..."
+	$(NPM) run test:e2e
+
+test-e2e-install: ## Install the chromium binary used by the e2e suite (one-time setup)
+	$(NPM) run test:e2e:install
+
+test-e2e-ui: ## Run Playwright in interactive UI mode
+	$(NPM) run test:e2e:ui
 
 lint: ## Run linter
 	@echo "Running linter..."

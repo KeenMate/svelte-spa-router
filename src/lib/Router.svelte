@@ -26,10 +26,10 @@
 
 import { parse } from './parse-route.js'
 import { tick, untrack } from 'svelte'
-import { location, querystring, routeParams, setParams, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer, restoreScroll, getZoneComponent, setZoneComponents } from './utils.svelte.js'
+import { location, querystring, routeParams, setParams, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer, restoreScroll, getZoneComponent, setZoneComponents, registerRevalidationListener } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 import { updateRouteMetadata, getUpdatedBreadcrumb, startRouteLoading, waitForRouteReady } from './helpers/route-metadata.svelte.js'
-import { getUnauthorizedBehavior, getUnauthorizedRoute, getUnauthorizedComponent, getUnauthorizedHandler, hasExplicitHandler } from './helpers/permissions.svelte.js'
+import { getUnauthorizedBehavior, getUnauthorizedRoute, getUnauthorizedComponent, getUnauthorizedHandler, hasExplicitHandler, getRevalidationFailureHandler } from './helpers/permissions.svelte.js'
 import { routerLogger, scrollLogger, guardsLogger, conditionsLogger, hierarchyLogger, zonesLogger } from './logger.ts'
 
 // Component props
@@ -167,19 +167,23 @@ class RouteItem {
     }
 }
 
-// Parse routes into RouteItem objects
-const routesList = []
-if (routes instanceof Map) {
-    routes.forEach((route, path) => {
-        routesList.push(new RouteItem(path, route))
-    })
-} else {
-    Object.keys(routes).forEach((path) => {
-        routesList.push(new RouteItem(path, routes[path]))
-    })
-}
-
-routerLogger.debug('Initialized with', routesList.length, 'routes')
+// Parse routes into RouteItem objects.
+// $derived.by() captures `routes` in a closure so the list rebuilds if the
+// prop is ever swapped, and silences Svelte's state_referenced_locally warning.
+const routesList = $derived.by(() => {
+    const list = []
+    if (routes instanceof Map) {
+        routes.forEach((route, path) => {
+            list.push(new RouteItem(path, route))
+        })
+    } else {
+        Object.keys(routes).forEach((path) => {
+            list.push(new RouteItem(path, routes[path]))
+        })
+    }
+    routerLogger.debug('Initialized with', list.length, 'routes')
+    return list
+})
 
 /**
  * Find parent route for hierarchical inheritance
@@ -385,6 +389,12 @@ function createPipelineContext(loc, qs, incomingContext, currentRouteSnapshot) {
     return {
         // Input state (immutable once created)
         location: loc,
+        // Prefix-stripped view of `location`. For a root Router (no prefix) or
+        // for paths outside the prefix, equal to `location`. Surfaced on every
+        // event payload so nested-router consumers don't have to strip themselves.
+        relativeLocation: (typeof prefix === 'string' && prefix && loc.startsWith(prefix))
+            ? (loc.substr(prefix.length) || '/')
+            : loc,
         querystring: qs,
         incomingContext: incomingContext,
         incomingRouteName: incomingContext?._routeName || null,
@@ -997,8 +1007,9 @@ async function pipelineLoadZoneComponents(ctx) {
  * Processes navigation through pure/async functions, then commits at the end
  * This is the waterfall/pipeline approach
  */
-async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot) {
-    routerLogger.debug('Running pipeline for:', loc)
+async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot, options = {}) {
+    const revalidationOnly = options.revalidationOnly === true
+    routerLogger.debug(revalidationOnly ? 'Revalidating route at:' : 'Running pipeline for:', loc)
 
     // Phase 1: Create pipeline context (plain JS object, not reactive)
     let ctx = createPipelineContext(loc, qs, incomingContext, currentRouteSnapshot)
@@ -1008,16 +1019,45 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
 
     // Early exit: No match (404)
     if (!ctx.match) {
+        if (revalidationOnly) {
+            // Current location stopped matching any route — unusual, but skip
+            // the destructive notFound commit since we're not navigating.
+            routerLogger.debug('Revalidation: no route matched, skipping')
+            return
+        }
         routerLogger.debug('No route matched')
         ctx = pipelineCalculateReferrer(ctx)
         ctx = pipelineDetermineResultType(ctx)
         commitToReactiveState(ctx)
-        await dispatchNextTick('notFound', { location: ctx.location, querystring: ctx.querystring })
+        await dispatchNextTick('notFound', {
+            location: ctx.location,
+            relativeLocation: ctx.relativeLocation,
+            querystring: ctx.querystring
+        })
         return
     }
 
+    // Catch-all match is semantically also a 404. Fire onNotFound so consumers
+    // can log/track unmatched routes even when a '*' route is configured to
+    // render a 404 component. The catch-all still renders (pipeline continues).
+    // Skip during revalidation — the 404 was already reported on initial nav.
+    if (ctx.match.routeItem.path === '*' && !revalidationOnly) {
+        routerLogger.debug('Catch-all route matched - firing notFound')
+        await dispatchNextTick('notFound', {
+            location: ctx.location,
+            relativeLocation: ctx.relativeLocation,
+            querystring: ctx.querystring
+        })
+    }
+
     // Phase 3: Check navigation guards (async, may have side effects)
-    ctx = await pipelineCheckGuards(ctx)
+    // Skip beforeLeave guards during revalidation — the user isn't navigating
+    // away, just having their current route's authorization re-checked.
+    if (revalidationOnly) {
+        ctx.canLeave = true
+    } else {
+        ctx = await pipelineCheckGuards(ctx)
+    }
 
     if (!ctx.canLeave) {
         guardsLogger.debug('Navigation cancelled by beforeLeave guard')
@@ -1034,13 +1074,16 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
         return // Early exit
     }
 
-    // Dispatch loading event
-    await dispatchNextTick('routeLoading', {
-        route: ctx.match.routeItem.path,
-        location: ctx.location,
-        querystring: ctx.querystring,
-        params: ctx.match.params
-    })
+    // Dispatch loading event (skip during revalidation — nothing is loading)
+    if (!revalidationOnly) {
+        await dispatchNextTick('routeLoading', {
+            route: ctx.match.routeItem.path,
+            location: ctx.location,
+            relativeLocation: ctx.relativeLocation,
+            querystring: ctx.querystring,
+            params: ctx.match.params
+        })
+    }
 
     // Phase 4: Check route conditions (async)
     ctx = await pipelineCheckConditions(ctx)
@@ -1054,6 +1097,53 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
     if (!ctx.conditionsPassed) {
         conditionsLogger.debug('Route conditions failed')
         ctx = pipelineDetermineResultType(ctx)
+
+        // Revalidation failure: if the consumer configured a custom handler,
+        // let it run instead of the standard unauthorized handling. The
+        // conditionsFailed event still fires for consistency with navigation.
+        if (revalidationOnly) {
+            await dispatchNextTick('conditionsFailed', {
+                route: ctx.match.routeItem.path,
+                location: ctx.location,
+                relativeLocation: ctx.relativeLocation,
+                querystring: ctx.querystring,
+                params: ctx.match.params
+            })
+
+            const handler = getRevalidationFailureHandler()
+            if (handler) {
+                try {
+                    await handler({
+                        route: ctx.match.routeItem.path,
+                        location: ctx.location,
+                        relativeLocation: ctx.relativeLocation,
+                        querystring: ctx.querystring,
+                        params: ctx.match.params,
+                        // isPermissionFailure is internally truthy-typed (the permissions
+                        // object) — coerce to a proper boolean for the public callback.
+                        isPermissionFailure: !!ctx.isPermissionFailure
+                    })
+                } catch (err) {
+                    routerLogger.error('onRevalidationFailure threw, falling back to standard unauthorized handling:', err)
+                    // Fall through to standard unauthorized handling below
+                    return runStandardUnauthorizedHandling()
+                }
+                return
+            }
+
+            return runStandardUnauthorizedHandling()
+
+            async function runStandardUnauthorizedHandling() {
+                if (ctx.resultType === 'unauthorized' && ctx.unauthorizedMode === 'navigate') {
+                    const { push } = await import('./utils.svelte.js')
+                    push(ctx.unauthorizedRoute)
+                    return
+                }
+                if (ctx.resultType === 'conditionsFailed' || ctx.resultType === 'unauthorized') {
+                    commitToReactiveState(ctx)
+                }
+            }
+        }
 
         // Handle unauthorized state specially for navigate mode
         if (ctx.resultType === 'unauthorized' && ctx.unauthorizedMode === 'navigate') {
@@ -1070,6 +1160,7 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
             await dispatchNextTick('conditionsFailed', {
                 route: ctx.match.routeItem.path,
                 location: ctx.location,
+                relativeLocation: ctx.relativeLocation,
                 querystring: ctx.querystring,
                 params: ctx.match.params
             })
@@ -1077,10 +1168,19 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
             await dispatchNextTick('conditionsFailed', {
                 route: ctx.match.routeItem.path,
                 location: ctx.location,
+                relativeLocation: ctx.relativeLocation,
                 querystring: ctx.querystring,
                 params: ctx.match.params
             })
         }
+        return
+    }
+
+    // Revalidation passed — current route still authorized, nothing to do.
+    // Skip the commit/load phases so the mounted component keeps its state
+    // (no flicker, no scroll reset, no in-flight form data lost).
+    if (revalidationOnly) {
+        conditionsLogger.debug('Revalidation: conditions still pass, leaving mounted route untouched')
         return
     }
 
@@ -1106,6 +1206,7 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
         await dispatchNextTick('routeLoaded', {
             route: ctx.match.routeItem.path,
             location: ctx.location,
+            relativeLocation: ctx.relativeLocation,
             querystring: ctx.querystring,
             params: ctx.match.params,
             zones: Object.keys(ctx.zoneComponents)
@@ -1137,6 +1238,15 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
             // Wait for hideLoading() signal
             await waitForRouteReady()
 
+            // Race condition check: if a newer navigation started while we were
+            // waiting, startRouteLoading() resolved our pending promise so this
+            // stale pipeline run can bail cleanly instead of leaking and racing
+            // with the new one's state writes.
+            if (ctx.loadingId !== loadingId) {
+                routerLogger.debug('Pipeline cancelled after waitForRouteReady (newer navigation)')
+                return
+            }
+
             // Update loading state
             untrack(() => {
                 isWaitingForData = false
@@ -1150,6 +1260,7 @@ async function runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot
         await dispatchNextTick('routeLoaded', {
             route: ctx.match.routeItem.path,
             location: ctx.location,
+            relativeLocation: ctx.relativeLocation,
             querystring: ctx.querystring,
             params: ctx.match.params,
             component: ctx.component,
@@ -1216,6 +1327,29 @@ $effect(() => {
 
     // Run pipeline asynchronously
     runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot)
+})
+
+// Effect to register/unregister this Router instance with the revalidation
+// dispatcher. When a consumer calls revalidateCurrentRoute(), this listener
+// fires and we re-run the pipeline against the current location with the
+// `revalidationOnly` flag so the route component is preserved on success.
+$effect(() => {
+    const unregister = registerRevalidationListener(() => {
+        const loc = untrack(() => location())
+        const qs = untrack(() => querystring())
+        const incomingContext = untrack(() => navigationContext() || {})
+        const currentRouteSnapshot = {
+            location: previousRoute,
+            querystring: previousQuerystring,
+            params: previousParams,
+            routeName: previousRouteName,
+            isCatchAll: isPreviousRouteCatchAll,
+            scrollX: typeof window !== 'undefined' ? window.scrollX : 0,
+            scrollY: typeof window !== 'undefined' ? window.scrollY : 0
+        }
+        runRoutingPipeline(loc, qs, incomingContext, currentRouteSnapshot, { revalidationOnly: true })
+    })
+    return unregister
 })
 
 // Effect to handle scroll restoration

@@ -31,7 +31,6 @@ describe('Error Handler', () => {
       restartWindow: 60000,
       strategy: 'navigateSafe',
       safeRoute: '/',
-      showToast: true,
       showErrorComponent: false,
       autoRestart: false,
       restartDelay: 5000,

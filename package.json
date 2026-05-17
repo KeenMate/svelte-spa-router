@@ -1,6 +1,6 @@
 {
   "name": "@keenmate/svelte-spa-router",
-  "version": "5.2.0-rc01",
+  "version": "5.2.0-rc02",
   "description": "Router for SPAs using Svelte 5 with runes, dual-mode routing, permissions, and error handling",
   "main": "./src/lib/index.js",
   "svelte": "./src/lib/Router.svelte",
@@ -97,7 +97,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "repository": {
     "type": "git",
@@ -124,6 +128,7 @@
     "regexparam": "2.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.2.8",

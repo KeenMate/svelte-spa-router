@@ -46,3 +46,26 @@ export function joinPaths(...paths) {
     // Ensure leading slash if any input had one
     return startsWithSlash && !joined.startsWith('/') ? '/' + joined : joined
 }
+
+/**
+ * Serializes a plain object into a URL querystring (without the leading '?').
+ * Null/undefined values are skipped. Keys and values are URL-encoded.
+ *
+ * @param {Object} query - Object to serialize
+ * @returns {string} Querystring without leading '?' (empty string if no entries)
+ *
+ * @example
+ * serializeQuery({ foo: 'bar', baz: 1 }) // 'foo=bar&baz=1'
+ * serializeQuery({ foo: null, baz: 'x' }) // 'baz=x'
+ * serializeQuery({}) // ''
+ */
+export function serializeQuery(query) {
+    if (!query || typeof query !== 'object' || Object.keys(query).length === 0) {
+        return ''
+    }
+
+    return Object.entries(query)
+        .filter(([, value]) => value !== undefined && value !== null)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+        .join('&')
+}

@@ -30,7 +30,7 @@
  * @property {RoutePrecondition[]|RoutePrecondition} [conditions] - Route pre-conditions to add, which will be executed in order
  * @property {string} [title] - Page title for this route
  * @property {Array<{label: string, path?: string}>} [breadcrumbs] - Breadcrumb trail for this route
- * @property {boolean} [shouldDisplayLoadingOnRouteLoad] - If true, keeps loading component visible until component calls hideLoading()
+ * @property {boolean} [shouldDisplayLoadingOnRouteLoad] - If true, mounts the route component but keeps it hidden under `loadingComponent` until the component itself calls `hideLoading()` from `@keenmate/svelte-spa-router/helpers/route-metadata`. **You must call hideLoading()** — typically at the end of an `onMount` data-fetch — or the page stays blank forever. Dev-mode `console.warn` after 10s.
  * @property {boolean} [inheritBreadcrumbs] - If true (default in hierarchical mode), inherit parent route breadcrumbs
  * @property {boolean} [inheritPermissions] - If true (default in hierarchical mode), inherit parent route permissions
  * @property {boolean} [inheritConditions] - If true (default in hierarchical mode), inherit parent route conditions
@@ -47,7 +47,7 @@
  * @property {RoutePrecondition[]|RoutePrecondition} [conditions] - Route guards/pre-conditions
  * @property {string} [title] - Page title
  * @property {Array<{label: string, path?: string}>} [breadcrumbs] - Breadcrumb trail
- * @property {boolean} [shouldDisplayLoadingOnRouteLoad] - If true, keeps loading component visible until component calls hideLoading()
+ * @property {boolean} [shouldDisplayLoadingOnRouteLoad] - If true, mounts the route component but keeps it hidden under `loadingComponent` until the component itself calls `hideLoading()` from `@keenmate/svelte-spa-router/helpers/route-metadata`. **You must call hideLoading()** — typically at the end of an `onMount` data-fetch — or the page stays blank forever. Dev-mode `console.warn` after 10s.
  */
 
 /**

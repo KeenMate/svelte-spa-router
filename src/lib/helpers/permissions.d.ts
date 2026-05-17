@@ -25,16 +25,61 @@ export interface PermissionConfig {
     checkPermissions: (user: any, requirements: PermissionRequirements) => boolean;
 
     /**
-     * Function that returns current user object
-     * @returns Current user
+     * Function that returns the current user object.
+     *
+     * Optional in Svelte 5 — if omitted, the default getter reads from the
+     * internal reactive user state populated by `setCurrentUser()`, which is
+     * the recommended path for new code (gives `hasPermission()` automatic
+     * reactivity in `{#if}` blocks without extra plumbing).
+     *
+     * Provide this only when you already maintain your own reactive user
+     * store and prefer to read from it directly. Note that non-reactive reads
+     * (e.g. `() => get(myStore)`) will not propagate updates to UI.
      */
-    getCurrentUser: () => any;
+    getCurrentUser?: () => any;
 
     /**
      * Optional handler called when user lacks required permissions
      * @param detail - Route detail object
      */
     onUnauthorized?: (detail: any) => void;
+
+    /**
+     * Optional handler called when a `revalidateCurrentRoute()` re-check
+     * fails. When set, fires *instead of* the standard unauthorized handling
+     * (component / navigate) for revalidation failures — letting you take
+     * over with a softer flow (e.g. confirmation dialog before redirecting).
+     *
+     * The standard `onConditionsFailed` Router event still fires for
+     * consistency with fresh navigation. If you do nothing inside this
+     * handler, the user stays on the currently-mounted route — useful when
+     * you want to prompt them before redirecting.
+     *
+     * Pass `null` to clear and fall back to standard unauthorized handling.
+     *
+     * @param detail - Object with route/location info plus `isPermissionFailure`
+     *
+     * @example
+     * ```typescript
+     * configurePermissions({
+     *   onRevalidationFailure: async (detail) => {
+     *     const confirmed = await showConfirmDialog(
+     *       'Your permissions have changed. Return to home?'
+     *     )
+     *     if (confirmed) push('/')
+     *     // If user dismisses the dialog, they stay on the current page.
+     *   }
+     * })
+     * ```
+     */
+    onRevalidationFailure?: ((detail: {
+        route: string
+        location: string
+        relativeLocation: string
+        querystring: string
+        params: Record<string, string>
+        isPermissionFailure: boolean
+    }) => void | Promise<void>) | null;
 }
 
 /**
@@ -65,24 +110,62 @@ export interface ProtectedRouteOptions {
  *
  * @example
  * ```typescript
- * import { configurePermissions } from '@keenmate/svelte-spa-router/helpers/permissions'
- * import { get } from 'svelte/store'
- * import { currentUser } from './stores/auth'
+ * import { configurePermissions, setCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
  *
  * configurePermissions({
  *   checkPermissions: (user, requirements) => {
- *     if (!requirements?.any) return true
- *     return requirements.any.some(perm => user.permissions.includes(perm))
+ *     if (!user || !requirements) return false
+ *     if (requirements.any) return requirements.any.some(p => user.permissions.includes(p))
+ *     if (requirements.all) return requirements.all.every(p => user.permissions.includes(p))
+ *     return true
  *   },
- *   getCurrentUser: () => get(currentUser),
  *   onUnauthorized: (detail) => {
  *     console.error('Access denied:', detail.location)
  *     push('/unauthorized')
  *   }
  * })
+ *
+ * // Push user state in from anywhere — UI re-evaluates hasPermission() reactively.
+ * setCurrentUser({ id: 42, permissions: ['admin.read'] })
  * ```
  */
 export function configurePermissions(config: PermissionConfig): void;
+
+/**
+ * Set the current user.
+ *
+ * Writes to the internal reactive user state. Every `hasPermission()` call
+ * in a reactive context (template `{#if}`, `$derived`, `$effect`) re-evaluates
+ * automatically when called — no extra subscription wiring needed on the
+ * consumer side.
+ *
+ * Useful for: login/logout flows, websocket permission updates, token refresh.
+ *
+ * @param user - The current user object, or `null` for logged-out state
+ *
+ * @example
+ * ```typescript
+ * import { setCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
+ *
+ * // After login
+ * setCurrentUser({ id: 42, permissions: ['admin.read'] })
+ *
+ * // On logout
+ * setCurrentUser(null)
+ * ```
+ */
+export function setCurrentUser(user: any): void;
+
+/**
+ * Get the current user.
+ *
+ * Returns whatever the configured `currentUserGetter` returns. With the
+ * default getter (or after `setCurrentUser()`), reads from the internal
+ * reactive user state.
+ *
+ * @returns The current user object, or `null`
+ */
+export function getCurrentUser(): any;
 
 /**
  * Create a permission condition function for use with wrap()

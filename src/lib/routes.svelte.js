@@ -8,6 +8,7 @@
  */
 
 import { getParamReplacementPlaceholder, push as navPush, replace as navReplace } from './utils.svelte.js'
+import { serializeQuery } from './helpers/url-helpers.svelte.js'
 import { createRoute } from './wrap.js'
 
 // Route registry - maps route names to path patterns
@@ -94,15 +95,9 @@ export function buildUrl(name, params = {}, query = {}) {
     })
 
     // Add query string if provided
-    if (query && Object.keys(query).length > 0) {
-        const queryString = Object.entries(query)
-            .filter(([, value]) => value !== undefined && value !== null)
-            .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-            .join('&')
-
-        if (queryString) {
-            url += '?' + queryString
-        }
+    const queryString = serializeQuery(query)
+    if (queryString) {
+        url += '?' + queryString
     }
 
     return url

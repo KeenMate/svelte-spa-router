@@ -33,6 +33,8 @@ import {
     setCategoryLevel
 } from './logger';
 
+import pkg from '../../package.json';
+
 /**
  * @typedef {Object} GlobalRouterAPI
  * @property {() => string} version - Get library version
@@ -72,18 +74,19 @@ if (typeof window !== 'undefined') {
     // Create components namespace if it doesn't exist
     window.components = window.components || {};
 
-    // Initialize svelte-spa-router API
-    // Note: __VERSION__, __PACKAGE_NAME__, etc. are injected by build tools (Vite, Rollup)
-    // via the `define` option. Fallback values are provided for source distribution.
+    const repositoryUrl = typeof pkg.repository === 'string'
+        ? pkg.repository
+        : (pkg.repository && pkg.repository.url) || '';
+
     window.components['svelte-spa-router'] = {
-        version: () => typeof __VERSION__ !== 'undefined' ? __VERSION__ : '5.1.0',
+        version: () => pkg.version,
         config: {
-            name: typeof __PACKAGE_NAME__ !== 'undefined' ? __PACKAGE_NAME__ : '@keenmate/svelte-spa-router',
-            version: typeof __VERSION__ !== 'undefined' ? __VERSION__ : '5.1.0',
-            author: typeof __AUTHOR__ !== 'undefined' ? __AUTHOR__ : 'KeenMate (https://keenmate.com)',
-            license: typeof __LICENSE__ !== 'undefined' ? __LICENSE__ : 'MIT',
-            repository: typeof __REPOSITORY__ !== 'undefined' ? __REPOSITORY__ : 'https://github.com/keenmate/svelte-spa-router',
-            homepage: typeof __HOMEPAGE__ !== 'undefined' ? __HOMEPAGE__ : 'https://github.com/keenmate/svelte-spa-router#readme'
+            name: pkg.name,
+            version: pkg.version,
+            author: pkg.author,
+            license: pkg.license,
+            repository: repositoryUrl,
+            homepage: pkg.homepage || ''
         },
         logging: {
             enableLogging,

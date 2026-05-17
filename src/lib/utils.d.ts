@@ -363,6 +363,35 @@ export function pop(): Promise<void>;
 export function goBack(): Promise<void>;
 
 /**
+ * Re-run guards, conditions, and permission checks against the currently
+ * mounted route, without re-mounting the component on success.
+ *
+ * Use this when user state changes outside of navigation — for example, from
+ * a websocket pushing a permissions update, an auth token refresh, or a
+ * background sync. On success, nothing visible happens (component keeps its
+ * state, no flicker). On failure, the same unauthorized handling that runs
+ * for fresh navigations runs here too — unless you configured
+ * `onRevalidationFailure` via `configurePermissions`, which lets you take
+ * over (e.g. show a confirmation dialog before redirecting).
+ *
+ * Calls within a ~50ms window are coalesced into a single re-validation pass.
+ * Multiple Router instances (nested, zones) each receive the signal and
+ * re-validate independently against their own routes.
+ *
+ * @example
+ * ```typescript
+ * import { revalidateCurrentRoute } from '@keenmate/svelte-spa-router'
+ * import { setCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
+ *
+ * socket.on('permissions:updated', (newPerms) => {
+ *     setCurrentUser({ ...getCurrentUser(), permissions: newPerms })
+ *     revalidateCurrentRoute()
+ * })
+ * ```
+ */
+export function revalidateCurrentRoute(): void;
+
+/**
  * Replace current page without modifying history stack
  *
  * Supports multiple formats:

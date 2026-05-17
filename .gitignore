@@ -3,6 +3,12 @@ test/app/dist/bundle*
 test/app/dist/*.js
 test/app/dist/*.js.map
 
+# Playwright e2e artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Example apps
 examples/*/dist/bundle*
 examples/*/dist/*.js

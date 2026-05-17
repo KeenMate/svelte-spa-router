@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import {
   updateRouteMetadata,
   routeContext,
@@ -257,6 +257,80 @@ describe('Route Metadata', () => {
 
       await new Promise(r => setTimeout(r, 10))
       expect(resolved).toBe(true)
+    })
+
+    it('a second startRouteLoading should resolve waiters from the previous one', async () => {
+      // Simulates: user navigates to route A (shouldDisplayLoadingOnRouteLoad)
+      // and then navigates to route B before A's hideLoading() fires. The first
+      // waiter must resolve so route A's pipeline can bail via its loadingId
+      // race check, instead of leaking an unresolvable promise.
+      startRouteLoading()
+
+      let firstResolved = false
+      waitForRouteReady().then(() => { firstResolved = true })
+
+      await new Promise(r => setTimeout(r, 10))
+      expect(firstResolved).toBe(false)
+
+      // New navigation starts loading — should resolve any pending waiters
+      startRouteLoading()
+
+      await new Promise(r => setTimeout(r, 10))
+      expect(firstResolved).toBe(true)
+
+      // Cleanup so the warning timer doesn't fire during other tests
+      hideLoading()
+    })
+  })
+
+  describe('loading state — diagnostic warning', () => {
+    let warnSpy
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      hideLoading()
+      warnSpy.mockRestore()
+      vi.useRealTimers()
+    })
+
+    it('console.warn fires when hideLoading is not called within the threshold', () => {
+      startRouteLoading()
+
+      // Just before threshold — no warning yet
+      vi.advanceTimersByTime(9999)
+      expect(warnSpy).not.toHaveBeenCalled()
+
+      // Cross the threshold
+      vi.advanceTimersByTime(2)
+      expect(warnSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy.mock.calls[0][0]).toMatch(/svelte-spa-router/)
+      expect(warnSpy.mock.calls[0][0]).toMatch(/hideLoading/)
+    })
+
+    it('console.warn does NOT fire when hideLoading is called in time', () => {
+      startRouteLoading()
+      vi.advanceTimersByTime(5000)
+      hideLoading()
+      vi.advanceTimersByTime(10000)
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
+
+    it('a subsequent startRouteLoading resets the warning timer', () => {
+      startRouteLoading()
+      vi.advanceTimersByTime(8000)
+
+      // New navigation — old timer should be cleared, new timer starts fresh
+      startRouteLoading()
+      vi.advanceTimersByTime(8000) // Total 16s — old timer would have fired by now
+      expect(warnSpy).not.toHaveBeenCalled()
+
+      // Now cross the threshold from the SECOND startRouteLoading
+      vi.advanceTimersByTime(3000)
+      expect(warnSpy).toHaveBeenCalledTimes(1)
     })
   })
 })

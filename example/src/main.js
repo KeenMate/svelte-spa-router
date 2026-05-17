@@ -89,7 +89,6 @@ configureGlobalErrorHandler({
     restartWindow: 60000, // 1 minute
 
     // UI options
-    showToast: true,
     showErrorComponent: false,
 
     // Ignore known non-critical errors

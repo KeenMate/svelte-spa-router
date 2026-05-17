@@ -5,11 +5,14 @@ import {
   createProtectedRoute,
   createProtectedRouteDefinition,
   hasPermission,
+  setCurrentUser,
+  getCurrentUser,
   getUnauthorizedBehavior,
   getUnauthorizedRoute,
   getUnauthorizedComponent,
   getUnauthorizedHandler,
-  hasExplicitHandler
+  hasExplicitHandler,
+  getRevalidationFailureHandler
 } from '../lib/helpers/permissions.svelte.js'
 
 describe('Permissions Helper', () => {
@@ -155,6 +158,74 @@ describe('Permissions Helper', () => {
       const result = hasPermission({ any: ['admin'] })
 
       expect(result).toBe(false)
+    })
+  })
+
+  describe('setCurrentUser / getCurrentUser', () => {
+    beforeEach(() => {
+      // These tests verify the default rune-backed getter. The file-level
+      // beforeEach replaces it with a hardcoded `() => null` — restore the
+      // default by passing `getCurrentUser: null` (see configurePermissions).
+      configurePermissions({
+        checkPermissions: (user, req) => {
+          if (!user || !req) return false
+          if (req.any) return req.any.some(p => user.permissions?.includes(p))
+          if (req.all) return req.all.every(p => user.permissions?.includes(p))
+          return false
+        },
+        getCurrentUser: null
+      })
+      setCurrentUser(null)
+    })
+
+    it('setCurrentUser populates the internal state, getCurrentUser reads it back', () => {
+      setCurrentUser({ id: 99, permissions: ['admin.read'] })
+
+      const user = getCurrentUser()
+      expect(user).toEqual({ id: 99, permissions: ['admin.read'] })
+    })
+
+    it('hasPermission reflects setCurrentUser writes (default getter)', () => {
+      expect(hasPermission({ any: ['admin.read'] })).toBe(false)
+
+      setCurrentUser({ id: 1, permissions: ['admin.read'] })
+      expect(hasPermission({ any: ['admin.read'] })).toBe(true)
+
+      setCurrentUser({ id: 1, permissions: ['docs.write'] })
+      expect(hasPermission({ any: ['admin.read'] })).toBe(false)
+    })
+
+    it('configurePermissions({getCurrentUser}) takes precedence over the default state-backed getter', () => {
+      let externalUser = { id: 'external', permissions: ['from-external'] }
+      configurePermissions({
+        getCurrentUser: () => externalUser
+      })
+
+      // setCurrentUser writes to the internal state, but the configured getter wins.
+      setCurrentUser({ id: 'internal', permissions: ['from-internal'] })
+
+      expect(getCurrentUser()).toEqual({ id: 'external', permissions: ['from-external'] })
+      expect(hasPermission({ any: ['from-external'] })).toBe(true)
+      expect(hasPermission({ any: ['from-internal'] })).toBe(false)
+    })
+
+    it('passing getCurrentUser: null restores the default state-backed getter', () => {
+      // Override with an external getter…
+      configurePermissions({ getCurrentUser: () => ({ id: 'external', permissions: ['x'] }) })
+      expect(getCurrentUser().id).toBe('external')
+
+      // …then explicitly reset.
+      configurePermissions({ getCurrentUser: null })
+      setCurrentUser({ id: 'internal', permissions: ['x'] })
+      expect(getCurrentUser().id).toBe('internal')
+    })
+
+    it('setCurrentUser(null) represents logged-out state', () => {
+      setCurrentUser({ id: 1, permissions: [] })
+      expect(getCurrentUser()).not.toBeNull()
+
+      setCurrentUser(null)
+      expect(getCurrentUser()).toBeNull()
     })
   })
 
@@ -362,6 +433,38 @@ describe('Permissions Helper', () => {
     it('hasExplicitHandler should be true after configuring onUnauthorized', () => {
       configurePermissions({ onUnauthorized: () => {} })
       expect(hasExplicitHandler()).toBe(true)
+    })
+
+    it('getRevalidationFailureHandler returns null by default', () => {
+      // Reset by passing null explicitly (handles state-leakage from previous tests).
+      configurePermissions({ onRevalidationFailure: null })
+      expect(getRevalidationFailureHandler()).toBeNull()
+    })
+
+    it('getRevalidationFailureHandler reflects configured handler', () => {
+      const handler = vi.fn()
+      configurePermissions({ onRevalidationFailure: handler })
+      expect(getRevalidationFailureHandler()).toBe(handler)
+    })
+
+    it('passing onRevalidationFailure: null clears a previously configured handler', () => {
+      configurePermissions({ onRevalidationFailure: () => {} })
+      expect(getRevalidationFailureHandler()).not.toBeNull()
+
+      configurePermissions({ onRevalidationFailure: null })
+      expect(getRevalidationFailureHandler()).toBeNull()
+    })
+
+    it('omitting onRevalidationFailure leaves the configured handler unchanged', () => {
+      const handler = vi.fn()
+      configurePermissions({ onRevalidationFailure: handler })
+
+      // A subsequent config call without the key shouldn't wipe it.
+      configurePermissions({ checkPermissions: () => true })
+      expect(getRevalidationFailureHandler()).toBe(handler)
+
+      // Cleanup for next test
+      configurePermissions({ onRevalidationFailure: null })
     })
   })
 

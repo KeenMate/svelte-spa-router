@@ -28,8 +28,6 @@ let {
 
 let config = $derived(getConfig())
 let errorState = $derived(getErrorState())
-let toastVisible = $state(false)
-let toastTimeoutId = null
 
 // Handle global errors
 function handleError(event) {
@@ -57,11 +55,6 @@ function handleError(event) {
         } catch (err) {
             errorHandlerLogger.error('Error in onError callback:', err)
         }
-    }
-
-    // Show toast if enabled and not showing error component
-    if (config.showToast && !config.showErrorComponent) {
-        showToast()
     }
 
     // Execute recovery strategy
@@ -126,29 +119,6 @@ function executeRecoveryStrategy(error, errorInfo) {
     }
 }
 
-// Show toast notification
-function showToast() {
-    toastVisible = true
-
-    // Clear existing timeout
-    if (toastTimeoutId) {
-        clearTimeout(toastTimeoutId)
-    }
-
-    // Auto-hide after 5 seconds
-    toastTimeoutId = setTimeout(() => {
-        toastVisible = false
-    }, 5000)
-}
-
-// Dismiss toast
-function dismissToast() {
-    toastVisible = false
-    if (toastTimeoutId) {
-        clearTimeout(toastTimeoutId)
-    }
-}
-
 // Manual restart (called from error component)
 function handleRestart() {
     if (canRestart()) {
@@ -169,7 +139,6 @@ function handleNavigateSafe() {
 function handleContinue() {
     config.showErrorComponent = false
     clearError()
-    dismissToast()
 }
 
 // Setup global error handlers
@@ -190,14 +159,6 @@ $effect(() => {
     }
 })
 
-// Cleanup on unmount
-$effect(() => {
-    return () => {
-        if (toastTimeoutId) {
-            clearTimeout(toastTimeoutId)
-        }
-    }
-})
 </script>
 
 {#if config.showErrorComponent && errorState.currentError}
@@ -229,88 +190,3 @@ $effect(() => {
     {@render children()}
 {/if}
 
-{#if toastVisible && errorState.currentError && !config.showErrorComponent}
-    <div class="error-toast">
-        <div class="toast-header">
-            <span class="toast-icon">⚠️</span>
-            <span class="toast-title">Error Caught</span>
-            <button onclick={dismissToast} class="toast-close" aria-label="Close">×</button>
-        </div>
-        <div class="toast-body">
-            {errorState.currentError.message}
-        </div>
-    </div>
-{/if}
-
-<style>
-.error-toast {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    background: white;
-    border: 2px solid #dc3545;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    min-width: 300px;
-    max-width: 500px;
-    z-index: 10000;
-    animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-    from {
-        transform: translateX(400px);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-.toast-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 1rem;
-    background: #dc3545;
-    color: white;
-    border-radius: 6px 6px 0 0;
-}
-
-.toast-icon {
-    font-size: 1.5rem;
-}
-
-.toast-title {
-    flex: 1;
-    font-weight: 600;
-}
-
-.toast-close {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 2rem;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.toast-close:hover {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-}
-
-.toast-body {
-    padding: 1rem;
-    color: #721c24;
-    font-family: monospace;
-    font-size: 0.9rem;
-}
-</style>

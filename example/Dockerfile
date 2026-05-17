@@ -30,14 +30,15 @@ RUN if [ "$ROUTER_VERSION" != "file:.." ]; then \
         npm uninstall @keenmate/svelte-spa-router && \
         npm install @keenmate/svelte-spa-router@$ROUTER_VERSION; \
     else \
-        # For local version, link the copied source
+        # For local version, link the copied source and install its dependencies
         rm -rf node_modules/@keenmate/svelte-spa-router && \
         mkdir -p node_modules/@keenmate && \
-        cp -r /router-src node_modules/@keenmate/svelte-spa-router; \
+        cp -r /router-src node_modules/@keenmate/svelte-spa-router && \
+        cd node_modules/@keenmate/svelte-spa-router && npm install --omit=dev && cd /app; \
     fi
 
 # Verify installed packages
-RUN echo "=== Installed packages ===" && npm ls --depth=0
+RUN echo "=== Installed packages ===" && (npm ls --depth=0 || true)
 
 # Copy example source files
 COPY example/. .

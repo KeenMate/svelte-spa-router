@@ -1,11 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import {
   push, pop, replace, goBack,
   location, querystring, routeParams, loc,
   navigationContext, setNavigationContext,
   setIncludeReferrer, getIncludeReferrer,
   setParamReplacementPlaceholder, getParamReplacementPlaceholder,
-  setParams
+  setParams,
+  revalidateCurrentRoute, registerRevalidationListener
 } from '../lib/utils.svelte.js'
 import { registerRoutes, clearRoutes } from '../lib/routes.svelte.js'
 
@@ -84,6 +85,50 @@ describe('Navigation Functions', () => {
 
       clearRoutes()
     })
+
+    it('should serialize query object when called with a path (multi-param)', async () => {
+      push('/path-query', {}, { foo: 'bar', baz: 'qux' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(window.location.hash).toContain('/path-query')
+      expect(window.location.hash).toContain('foo=bar')
+      expect(window.location.hash).toContain('baz=qux')
+    })
+
+    it('should URL-encode keys and values from query object', async () => {
+      push('/encode', {}, { 'k ey': 'v&l=ue' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(window.location.hash).toContain('k%20ey=v%26l%3Due')
+    })
+
+    it('should skip null/undefined values in query object', async () => {
+      push('/null-skip', {}, { keep: 'yes', skip: null, gone: undefined })
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(window.location.hash).toContain('keep=yes')
+      expect(window.location.hash).not.toContain('skip=')
+      expect(window.location.hash).not.toContain('gone=')
+    })
+
+    it('should merge path-embedded query with query object using &', async () => {
+      push('/both?existing=1', {}, { added: '2' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(window.location.hash).toContain('existing=1')
+      expect(window.location.hash).toContain('added=2')
+      // Exactly one '?', the rest joined with '&'
+      const hash = window.location.hash
+      const questionMarks = (hash.match(/\?/g) || []).length
+      expect(questionMarks).toBe(1)
+    })
+
+    it('should leave path untouched when query object is empty', async () => {
+      push('/no-query', {}, {})
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(window.location.hash).toBe('#/no-query')
+    })
   })
 
   describe('pop', () => {
@@ -132,6 +177,14 @@ describe('Navigation Functions', () => {
 
       expect(window.location.hash).toBe('#/page2')
       expect(window.history.length).toBe(historyLength)
+    })
+
+    it('should serialize query object when called with a path (multi-param)', async () => {
+      replace('/replace-query', {}, { foo: 'bar' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(window.location.hash).toContain('/replace-query')
+      expect(window.location.hash).toContain('foo=bar')
     })
   })
 
@@ -266,6 +319,90 @@ describe('Navigation Functions', () => {
 
       // Reset
       setParamReplacementPlaceholder('N-A')
+    })
+  })
+
+  describe('revalidateCurrentRoute', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('invokes registered listeners after the debounce window', () => {
+      const listener = vi.fn()
+      const unregister = registerRevalidationListener(listener)
+
+      revalidateCurrentRoute()
+      expect(listener).not.toHaveBeenCalled() // debounced
+
+      vi.advanceTimersByTime(60)
+      expect(listener).toHaveBeenCalledTimes(1)
+
+      unregister()
+    })
+
+    it('coalesces rapid-fire calls into a single listener invocation', () => {
+      const listener = vi.fn()
+      const unregister = registerRevalidationListener(listener)
+
+      revalidateCurrentRoute()
+      revalidateCurrentRoute()
+      revalidateCurrentRoute()
+      revalidateCurrentRoute()
+
+      vi.advanceTimersByTime(60)
+      expect(listener).toHaveBeenCalledTimes(1)
+
+      unregister()
+    })
+
+    it('notifies multiple registered listeners (multi-router scenario)', () => {
+      const listenerA = vi.fn()
+      const listenerB = vi.fn()
+      const unregA = registerRevalidationListener(listenerA)
+      const unregB = registerRevalidationListener(listenerB)
+
+      revalidateCurrentRoute()
+      vi.advanceTimersByTime(60)
+
+      expect(listenerA).toHaveBeenCalledTimes(1)
+      expect(listenerB).toHaveBeenCalledTimes(1)
+
+      unregA()
+      unregB()
+    })
+
+    it('unregister stops the listener from firing on subsequent calls', () => {
+      const listener = vi.fn()
+      const unregister = registerRevalidationListener(listener)
+
+      revalidateCurrentRoute()
+      vi.advanceTimersByTime(60)
+      expect(listener).toHaveBeenCalledTimes(1)
+
+      unregister()
+      revalidateCurrentRoute()
+      vi.advanceTimersByTime(60)
+      expect(listener).toHaveBeenCalledTimes(1) // not called again
+    })
+
+    it('a throwing listener does not prevent other listeners from running', () => {
+      const thrower = vi.fn(() => { throw new Error('boom') })
+      const survivor = vi.fn()
+      const unregA = registerRevalidationListener(thrower)
+      const unregB = registerRevalidationListener(survivor)
+
+      revalidateCurrentRoute()
+      vi.advanceTimersByTime(60)
+
+      expect(thrower).toHaveBeenCalledTimes(1)
+      expect(survivor).toHaveBeenCalledTimes(1)
+
+      unregA()
+      unregB()
     })
   })
 })

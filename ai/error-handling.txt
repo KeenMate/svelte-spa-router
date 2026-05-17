@@ -209,15 +209,18 @@ ERROR COMPONENT PROPS
 
 TOAST NOTIFICATIONS
 -------------------
-Show non-blocking error toasts:
+The router does not render its own toast. Use your existing toast/snackbar
+library from the `onError` callback — it's the supported integration point
+for any notification UI, observability tooling, or analytics pipeline:
 
 configureGlobalErrorHandler({
     strategy: 'navigateSafe',
-    fallbackRoute: '/',
-    showToast: true  // Enable toast notifications
+    safeRoute: '/',
+    onError: (error, errorInfo) => {
+        toast.error(`Something went wrong: ${error.message}`)
+        Sentry.captureException(error, { extra: errorInfo })
+    }
 })
-
-Requires toast library (not included).
 
 DEVELOPMENT VS PRODUCTION
 --------------------------

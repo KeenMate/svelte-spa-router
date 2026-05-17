@@ -61,7 +61,20 @@ export interface WrapOptions {
     title?: string;
     /** Breadcrumb trail */
     breadcrumbs?: BreadcrumbItem[];
-    /** If true, keeps loading component visible until component calls hideLoading() */
+    /**
+     * If true, mounts the route component immediately but keeps it visually
+     * hidden under the `loadingComponent` until the component itself calls
+     * `hideLoading()` from `@keenmate/svelte-spa-router/helpers/route-metadata`.
+     *
+     * **You MUST call `hideLoading()` from the route component**, typically at
+     * the end of an `onMount` data-fetch. If you forget, the loading component
+     * stays visible forever and the real component never appears — the route
+     * is effectively bricked until the user navigates away. In development a
+     * `console.warn` is emitted after 10s as a diagnostic; production has no
+     * automatic recovery.
+     *
+     * Pair with `loadingComponent` — has no effect on its own.
+     */
     shouldDisplayLoadingOnRouteLoad?: boolean;
 }
 
@@ -85,7 +98,20 @@ export interface RouteOptions {
     title?: string;
     /** Breadcrumb trail */
     breadcrumbs?: BreadcrumbItem[];
-    /** If true, keeps loading component visible until component calls hideLoading() */
+    /**
+     * If true, mounts the route component immediately but keeps it visually
+     * hidden under the `loadingComponent` until the component itself calls
+     * `hideLoading()` from `@keenmate/svelte-spa-router/helpers/route-metadata`.
+     *
+     * **You MUST call `hideLoading()` from the route component**, typically at
+     * the end of an `onMount` data-fetch. If you forget, the loading component
+     * stays visible forever and the real component never appears — the route
+     * is effectively bricked until the user navigates away. In development a
+     * `console.warn` is emitted after 10s as a diagnostic; production has no
+     * automatic recovery.
+     *
+     * Pair with `loadingComponent` — has no effect on its own.
+     */
     shouldDisplayLoadingOnRouteLoad?: boolean;
 }
 

@@ -29,7 +29,13 @@ export interface HierarchyNode {
     title?: string;
     /** Breadcrumb trail */
     breadcrumbs?: BreadcrumbItem[];
-    /** If true, keeps loading component visible until component calls hideLoading() */
+    /**
+     * If true, mounts the route component but keeps it hidden under
+     * `loadingComponent` until the component itself calls `hideLoading()`.
+     * **You must call hideLoading()** — typically at the end of an `onMount`
+     * data-fetch — or the page stays blank forever. Dev-mode `console.warn`
+     * after 10s. See `wrap.d.ts` for details.
+     */
     shouldDisplayLoadingOnRouteLoad?: boolean;
     /** Optional route name for programmatic navigation */
     name?: string;

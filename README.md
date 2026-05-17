@@ -957,6 +957,16 @@ The router provides flexible loading control with support for three distinct pat
 
 Use `loadingComponent` with `shouldDisplayLoadingOnRouteLoad: true` for multi-zone layouts where the Router manages the loading state:
 
+> **⚠️ You must call `hideLoading()` from the route component.** When
+> `shouldDisplayLoadingOnRouteLoad: true` is set, the router mounts the route
+> component immediately but keeps it hidden under `loadingComponent` and waits
+> for an explicit `hideLoading()` signal before revealing it. If the component
+> never calls `hideLoading()` (forgotten, thrown before reaching it, conditional
+> code path that didn't run), the loading screen stays up forever and the real
+> component never appears — the route is effectively bricked until the user
+> navigates away. In development, a `console.warn` fires after 10 seconds to
+> surface this; production has no automatic recovery.
+
 ```javascript
 import { createRoute } from '@keenmate/svelte-spa-router/wrap'
 import { hideLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
@@ -1234,6 +1244,25 @@ const routes = {
 }
 ```
 
+**What happens when a condition returns `false`:**
+The route's component is not mounted — the slot becomes **empty**. There is no
+built-in fallback UI. The router fires the `onConditionsFailed` event (see
+[Event handling](#event-handling)) and that's it. The consumer decides what
+happens next, typically by either redirecting from inside the condition itself
+(`await push('/login'); return false`) or by handling the event globally:
+
+```svelte
+<Router
+    {routes}
+    onConditionsFailed={(e) => push('/login')}
+/>
+```
+
+If you want batteries-included Unauthorized-component rendering, use the
+[permission system](#permission-based-routing) instead — see
+[Conditions vs Permissions](#conditions-vs-permissions) for when to reach for
+which.
+
 ### Permission-based routing
 
 svelte-spa-router-5 includes a flexible permission system for role-based access control:
@@ -1241,37 +1270,119 @@ svelte-spa-router-5 includes a flexible permission system for role-based access 
 **1. Configure the permission system (in main.js before mounting):**
 
 ```javascript
-import { configurePermissions } from '@keenmate/svelte-spa-router/helpers/permissions'
-import { get } from 'svelte/store'
-import { currentUser } from './stores/auth'
+import {
+    configurePermissions,
+    setCurrentUser
+} from '@keenmate/svelte-spa-router/helpers/permissions'
 
 configurePermissions({
-  checkPermissions: (user, requirements) => {
-    if (!user) return false
-    if (!requirements) return true
+    checkPermissions: (user, requirements) => {
+        if (!user) return false
+        if (!requirements) return true
 
-    // Check if user has any of the required permissions
-    if (requirements.any) {
-      return requirements.any.some(perm =>
-        user.permissions.includes(perm)
-      )
+        // Check if user has any of the required permissions
+        if (requirements.any) {
+            return requirements.any.some(perm => user.permissions.includes(perm))
+        }
+
+        // Check if user has all required permissions
+        if (requirements.all) {
+            return requirements.all.every(perm => user.permissions.includes(perm))
+        }
+
+        return true
+    },
+    onUnauthorized: (detail) => {
+        push('/unauthorized')
     }
+})
 
-    // Check if user has all required permissions
-    if (requirements.all) {
-      return requirements.all.every(perm =>
-        user.permissions.includes(perm)
-      )
-    }
+// Push the current user into the permission system. The library keeps an
+// internal $state-backed user, so every hasPermission() call site in a
+// reactive context (templates, $derived, $effect) re-evaluates automatically
+// when you call setCurrentUser() again.
+setCurrentUser(null) // logged-out at startup
 
-    return true
-  },
-  getCurrentUser: () => get(currentUser),
-  onUnauthorized: (detail) => {
-    push('/unauthorized')
-  }
+// Later, on login:
+//   setCurrentUser({ id: 42, permissions: ['admin.read'] })
+// From a websocket permission update:
+//   setCurrentUser({ ...getCurrentUser(), permissions: newPerms })
+// On logout:
+//   setCurrentUser(null)
+```
+
+> **Reactivity:** `hasPermission()` re-evaluates automatically when you call
+> `setCurrentUser()` — the function reads from an internal `$state` rune, so
+> Svelte's tracker registers the dependency in any reactive context (template
+> `{#if}`, `$derived`, `$effect`). No subscription wiring needed on your side.
+>
+> If you maintain your own reactive user store and prefer to read from it
+> directly, pass `getCurrentUser` to `configurePermissions`:
+>
+> ```js
+> configurePermissions({ getCurrentUser: () => myUserState.user, ... })
+> ```
+>
+> Watch out for non-tracked reads (`get(store)`, `localStorage.getItem`, etc.) —
+> those won't propagate updates, and your `{#if hasPermission(...)}` blocks
+> will appear "broken" (only updating on navigation). The default
+> `setCurrentUser`-based path avoids this footgun entirely.
+
+**Re-validating the currently mounted route**
+
+`hasPermission()` reactivity covers UI element visibility — the user's menu
+and buttons update live when permissions change. It does **not** cover the
+case where the user is *sitting on a protected page* when their permissions
+are revoked. The router checks route conditions only during navigation, so a
+user already on `/admin` who loses admin permission stays on `/admin` until
+they navigate away.
+
+To handle this case, call `revalidateCurrentRoute()` after the permission
+change:
+
+```javascript
+import { revalidateCurrentRoute } from '@keenmate/svelte-spa-router'
+import { setCurrentUser, getCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
+
+socket.on('permissions:updated', (newPerms) => {
+    setCurrentUser({ ...getCurrentUser(), permissions: newPerms })
+    revalidateCurrentRoute()
 })
 ```
+
+This re-runs the matched route's guards and conditions against the current
+location. On success, nothing visible happens — the component keeps its
+state (no flicker, no scroll reset, no in-flight form data lost). On
+failure, the same unauthorized handling that runs for fresh navigation
+fires here too.
+
+If you want to customize the failure path — e.g. show a confirmation dialog
+before redirecting, soft-warn the user, log to an audit trail — provide an
+`onRevalidationFailure` handler:
+
+```javascript
+configurePermissions({
+    // ... checkPermissions, etc.
+    onRevalidationFailure: async (detail) => {
+        const confirmed = await showConfirmDialog(
+            'Your permissions have changed. Return to the home page?'
+        )
+        if (confirmed) {
+            push('/')
+        }
+        // If the user dismisses the dialog, they stay on the current page.
+    }
+})
+```
+
+When `onRevalidationFailure` is configured, it fires **instead of** the
+standard unauthorized handling for revalidation failures. The
+`onConditionsFailed` Router event still fires for consistency with normal
+navigation. Pass `onRevalidationFailure: null` to clear and fall back to
+standard handling.
+
+Calls to `revalidateCurrentRoute()` within a ~50ms window are coalesced into
+a single re-validation pass — safe to call on every websocket message.
 
 **2. Protect routes with permissions:**
 
@@ -1407,6 +1518,21 @@ Perfect for:
 - API-based authorization (call your backend for access check)
 
 See `example-permissions/` for a complete working example with mock authentication.
+
+### Conditions vs Permissions
+
+Both gate access to a route, but they have **different defaults** and **different failure paths**. Reach for the one that matches your situation:
+
+| | `wrap({ conditions: [...] })` | `createProtectedRoute({ permissions: ... })` |
+|---|---|---|
+| **What it is** | Low-level primitive: any sync/async predicate(s) you want | Opinionated wrapper around conditions, built on the configured permission system |
+| **Setup needed** | None — just write the function | Call `configurePermissions({ checkPermissions, getCurrentUser, onUnauthorized })` once at app start |
+| **Where the logic lives** | Inline in the condition function | Inside `checkPermissions` (your function), which is reused across every protected route |
+| **On failure: UI** | **Empty slot.** The matched component does not mount; nothing renders in its place unless the consumer redirects | The configured `Unauthorized` component mounts (or `onUnauthorized` callback runs, if set), with `unauthorizedBehavior: 'component' \| 'navigate'` controlling which |
+| **On failure: event** | `onConditionsFailed` fires with `{ route, location, querystring, params }` | Same event fires (permissions are conditions under the hood); the unauthorized handling runs in addition |
+| **When to choose it** | Ad-hoc check that doesn't fit a generic permission model — feature flags, subscription state, ownership of a single resource, custom redirects | Role/permission-based access control where the same `checkPermissions` logic governs many routes and you want a consistent unauthorized UX |
+
+**Common combo:** use `createProtectedRoute` for the role check (gets you the Unauthorized UI) *and* pass extra `conditions` for one-off checks specific to that route. The router runs them in order — permissions first (fast), then your custom conditions.
 
 ### Active link highlighting
 
@@ -1803,8 +1929,23 @@ const routes = {
     onRouteLoading={(e) => console.log('Loading:', e.detail)}
     onRouteLoaded={(e) => console.log('Loaded:', e.detail)}
     onConditionsFailed={(e) => console.log('Failed:', e.detail)}
+    onNotFound={(e) => console.log('Not found:', e.detail)}
 />
 ```
+
+**Event payloads (`e.detail`):**
+
+| Event | Payload shape | Fires when |
+|---|---|---|
+| `onRouteLoading` | `{ route, location, relativeLocation, querystring, params }` | Before guards/conditions run for a matched route |
+| `onRouteLoaded` | `{ route, location, relativeLocation, querystring, params, component?, name?, routeContext?, zones? }` | After the matched component (and any async children) successfully mounts. `zones` is set for multi-zone routes; `component`/`name`/`routeContext` for single-component routes |
+| `onConditionsFailed` | `{ route, location, relativeLocation, querystring, params }` | A condition in `wrap({ conditions })` returned `false`. The slot is now empty — handle the redirect here or inside the condition itself |
+| `onNotFound` | `{ location, relativeLocation, querystring }` | No route matched, *or* the `'*'` catch-all matched (it fires for both, so consumers can always log 404s) |
+
+**`location` vs `relativeLocation`:**
+- `location` is the **full app URL** as the browser sees it (e.g. `/test/embed/missing`). Use this for logging, analytics, or re-navigating with `push()` (which always takes app-wide paths).
+- `relativeLocation` is the URL **after the Router's `prefix` has been stripped** (e.g. `/missing` for a `<Router prefix="/test/embed" />`). Use this when you're reasoning about what *this* Router instance saw — it matches how routes inside the Router were defined.
+- For a root Router with no `prefix`, the two fields are identical.
 
 ### Tree/Nested Route Structure
 
@@ -2033,6 +2174,9 @@ configureGlobalErrorHandler({
     onError: (error, errorInfo, context) => {
         // Log to Sentry, LogRocket, etc.
         Sentry.captureException(error, { extra: errorInfo })
+
+        // Show a toast/snackbar via your own UI library
+        toast.error(`Something went wrong: ${error.message}`)
     },
 
     strategy: 'navigateSafe', // Navigate to home on error
@@ -2041,7 +2185,6 @@ configureGlobalErrorHandler({
     maxRestarts: 3,
     restartWindow: 60000, // 1 minute
 
-    showToast: true,
     isDevelopment: import.meta.env.DEV
 })
 ```
@@ -2087,8 +2230,8 @@ configureGlobalErrorHandler({
 
 - ✅ Catches ALL errors (render, effect, event handlers, async, promises)
 - ✅ Loop prevention (tracks restarts in sessionStorage)
-- ✅ Toast notifications or full-page error UI
-- ✅ Custom error components
+- ✅ Full-page error UI (default `ErrorDisplay` or your own component)
+- ✅ `onError` callback for wiring up your toast/snackbar library, Sentry, analytics, etc.
 - ✅ Error filtering (ignore known non-critical errors)
 - ✅ TypeScript support
 

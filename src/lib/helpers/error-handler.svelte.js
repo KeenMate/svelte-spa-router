@@ -14,7 +14,6 @@ let config = $state({
     restartWindow: 60000, // 1 minute
     strategy: 'navigateSafe', // 'navigateSafe' | 'restart' | 'showError' | 'custom'
     safeRoute: '/',
-    showToast: true,
     showErrorComponent: false,
     autoRestart: false,
     restartDelay: 5000,

@@ -1,5 +1,5 @@
 ﻿import { tick } from 'svelte'
-import { joinPaths } from './helpers/url-helpers.svelte.js'
+import { joinPaths, serializeQuery } from './helpers/url-helpers.svelte.js'
 import { buildUrl } from './routes.svelte.js'
 import { navigationLogger, scrollLogger } from './logger.ts'
 
@@ -593,9 +593,17 @@ export async function push(location, param2, param3, param4, param5) {
     }
 
     // Build URL from route if needed
-    const href = opts.route
+    let href = opts.route
         ? buildUrl(opts.route, opts.params, opts.query)
         : opts.href
+
+    // Path-form: buildUrl wasn't called, so serialize the query object here.
+    if (!opts.route && opts.query) {
+        const queryString = serializeQuery(opts.query)
+        if (queryString) {
+            href += (href.includes('?') ? '&' : '?') + queryString
+        }
+    }
 
     if (!href || href.length < 1 || (href.charAt(0) != '/' && href.indexOf('#/') !== 0)) {
         throw Error('Invalid parameter location')
@@ -649,6 +657,74 @@ export async function pop() {
 export async function goBack() {
     navigationLogger.debug('Going back in history')
     return pop()
+}
+
+// =============================================================================
+// Route revalidation — re-run guards/conditions on the currently-mounted route
+// =============================================================================
+
+const REVALIDATE_DEBOUNCE_MS = 50
+let revalidationListeners = []
+let revalidationDebounceTimeoutId = null
+
+/**
+ * Internal — register a listener invoked when revalidateCurrentRoute() fires.
+ * Used by Router.svelte; not part of the public API.
+ *
+ * @param {() => void} listener
+ * @returns {() => void} Unsubscribe function
+ */
+export function registerRevalidationListener(listener) {
+    revalidationListeners.push(listener)
+    return () => {
+        revalidationListeners = revalidationListeners.filter(l => l !== listener)
+    }
+}
+
+/**
+ * Re-run guards, conditions, and permission checks against the currently
+ * mounted route, without re-mounting the component on success.
+ *
+ * Use this when user state changes outside of navigation — for example, from
+ * a websocket pushing a permissions update, an auth token refresh, or a
+ * background sync. On success, nothing visible happens (component keeps its
+ * state, no flicker). On failure, the same unauthorized handling that runs
+ * for fresh navigations runs here too — unless you configured
+ * `onRevalidationFailure` via `configurePermissions`, which lets you take
+ * over (e.g. show a confirmation dialog before redirecting).
+ *
+ * Calls within a ~50ms window are coalesced into a single re-validation pass,
+ * so calling this on every websocket message is cheap.
+ *
+ * Multiple Router instances (nested routers, zones) each receive the signal
+ * and re-validate independently against their own routes.
+ *
+ * @example
+ * ```javascript
+ * import { revalidateCurrentRoute } from '@keenmate/svelte-spa-router'
+ * import { setCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
+ *
+ * socket.on('permissions:updated', (newPerms) => {
+ *     setCurrentUser({ ...getCurrentUser(), permissions: newPerms })
+ *     revalidateCurrentRoute()
+ * })
+ * ```
+ */
+export function revalidateCurrentRoute() {
+    if (revalidationDebounceTimeoutId !== null) {
+        clearTimeout(revalidationDebounceTimeoutId)
+    }
+    revalidationDebounceTimeoutId = setTimeout(() => {
+        revalidationDebounceTimeoutId = null
+        navigationLogger.debug('Revalidating current route on', revalidationListeners.length, 'router(s)')
+        revalidationListeners.forEach(listener => {
+            try {
+                listener()
+            } catch (err) {
+                navigationLogger.error('Revalidation listener threw:', err)
+            }
+        })
+    }, REVALIDATE_DEBOUNCE_MS)
 }
 
 /**
@@ -706,9 +782,17 @@ export async function replace(location, param2, param3, param4, param5) {
     }
 
     // Build URL from route if needed
-    const href = opts.route
+    let href = opts.route
         ? buildUrl(opts.route, opts.params, opts.query)
         : opts.href
+
+    // Path-form: buildUrl wasn't called, so serialize the query object here.
+    if (!opts.route && opts.query) {
+        const queryString = serializeQuery(opts.query)
+        if (queryString) {
+            href += (href.includes('?') ? '&' : '?') + queryString
+        }
+    }
 
     if (!href || href.length < 1 || (href.charAt(0) != '/' && href.indexOf('#/') !== 0)) {
         throw Error('Invalid parameter location')

@@ -76,12 +76,6 @@ export interface GlobalErrorHandlerConfig {
     safeRoute?: string
 
     /**
-     * Show toast notification for errors
-     * @default true
-     */
-    showToast?: boolean
-
-    /**
      * Show full-page error component
      * @default false
      */

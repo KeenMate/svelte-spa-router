@@ -25,7 +25,12 @@
       "Bash(echo:*)",
       "Bash(test:*)",
       "Bash(printenv:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(make podman-build-examples:*)",
+      "Bash(awk NR==90 *)",
+      "Bash(npx playwright *)",
+      "Bash(npm run *)",
+      "Bash(timeout 8 npx vite --port 5052)"
     ],
     "deny": [],
     "ask": []

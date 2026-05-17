@@ -20,6 +20,25 @@ const routes = {
 Return true: Allow navigation
 Return false: Block navigation (triggers onConditionsFailed)
 
+WHAT HAPPENS ON FAILURE
+-----------------------
+When any condition returns false:
+- The matched component is NOT mounted (the route's slot becomes empty)
+- No fallback UI is rendered by the router
+- onConditionsFailed fires on the Router with:
+    { route, location, querystring, params }
+- previousRoute / navigationContext / referrer are preserved (so redirects
+  from the event handler still know where the user came from)
+
+The consumer must either:
+1. Redirect from inside the condition itself before returning false:
+       await push('/login'); return false
+2. Handle onConditionsFailed globally and redirect there
+
+For batteries-included Unauthorized-component rendering on RBAC failures,
+use createProtectedRoute() (see permissions.txt). Plain conditions are the
+low-level primitive — they trade convenience for flexibility.
+
 ASYNC GUARD
 -----------
 import { wrap } from '@keenmate/svelte-spa-router/wrap'

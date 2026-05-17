@@ -104,6 +104,11 @@ interface RouteDefinition {
     routeContext?: Record<string, any>;
     title?: string;
     breadcrumbs?: Array<{ label: string; path?: string; id?: string }>;
+    /**
+     * Mounts the route component but keeps it hidden under `loadingComponent`
+     * until the component itself calls `hideLoading()`. **You must call
+     * `hideLoading()`** or the page stays blank forever — see `wrap.d.ts`.
+     */
     shouldDisplayLoadingOnRouteLoad?: boolean;
     permissions?: { any?: string[]; all?: string[] };
     authorizationCallback?: Function;

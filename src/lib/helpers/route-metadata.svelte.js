@@ -23,6 +23,15 @@ let isRouteLoading = $state(false)
 let hasCustomLoadingComponent = $state(false)
 
 /**
+ * Diagnostic timer for shouldDisplayLoadingOnRouteLoad routes.
+ * If hideLoading() isn't called within this window, the page stays visually
+ * blank forever — almost always a missing hideLoading() call in the target
+ * component. We emit a console.warn to surface this during development.
+ */
+let routeLoadingWarningTimeoutId = null
+const ROUTE_LOADING_WARNING_MS = 10000
+
+/**
  * Track the current route to detect route changes
  */
 let currentRouteKey = null
@@ -271,6 +280,10 @@ export function updateTitle(title) {
  */
 export function hideLoading() {
     isRouteLoading = false
+    if (routeLoadingWarningTimeoutId !== null) {
+        clearTimeout(routeLoadingWarningTimeoutId)
+        routeLoadingWarningTimeoutId = null
+    }
     // Resolve any waiting promises
     routeReadyResolvers.forEach(resolve => resolve())
     routeReadyResolvers = []
@@ -297,9 +310,38 @@ export function waitForRouteReady() {
  * @param {boolean} hasCustomComponent - Whether the route has a custom loading component
  */
 export function startRouteLoading(hasCustomComponent = false) {
+    // Resolve any waiters still pending from a previous navigation so their
+    // pipeline runs unblock and bail via the loadingId race check, rather than
+    // leaking a promise that can never be resolved.
+    routeReadyResolvers.forEach(resolve => resolve())
+    routeReadyResolvers = []
+
+    // Clear any prior warning timer before starting a new one.
+    if (routeLoadingWarningTimeoutId !== null) {
+        clearTimeout(routeLoadingWarningTimeoutId)
+        routeLoadingWarningTimeoutId = null
+    }
+
     isRouteLoading = true
     hasCustomLoadingComponent = hasCustomComponent
-    routeReadyResolvers = []
+
+    // Diagnostic only — fires after the threshold if hideLoading() was never
+    // called. Bypasses the configurable logger because this is a misconfiguration
+    // warning, not normal logging output (matches the project convention).
+    if (typeof setTimeout === 'function') {
+        routeLoadingWarningTimeoutId = setTimeout(() => {
+            routeLoadingWarningTimeoutId = null
+            if (isRouteLoading) {
+                console.warn(
+                    '[svelte-spa-router] Route has been in loading state for over ' +
+                    (ROUTE_LOADING_WARNING_MS / 1000) + 's. ' +
+                    'If you set shouldDisplayLoadingOnRouteLoad: true, the route component ' +
+                    'must call hideLoading() — otherwise the page stays blank. ' +
+                    'See: https://github.com/keenmate/svelte-spa-router#route-guards-pre-conditions'
+                )
+            }
+        }, ROUTE_LOADING_WARNING_MS)
+    }
 }
 
 /**

@@ -152,8 +152,8 @@ The router is organized into several key modules:
 **helpers/GlobalErrorHandler.svelte** - Error handler component
 - Catches all unhandled errors via `window.addEventListener('error')`
 - Executes configured recovery strategy
-- Shows toast notifications or full-page error UI
-- Supports custom error components
+- Optionally renders the full-page error UI (ErrorDisplay or a custom component)
+- Notification UI (toast/snackbar) is the consumer's responsibility — wire it up inside the `onError` callback
 
 **helpers/ErrorDisplay.svelte** - Default error UI
 - Beautiful full-page error display

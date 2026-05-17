@@ -21,15 +21,34 @@ let permissionChecker = () => {
 }
 
 /**
+ * Internal reactive user state.
+ *
+ * Reads from this rune (via the default `currentUserGetter` below) propagate
+ * Svelte 5 reactivity. Consumers who call `setCurrentUser()` on login/logout/
+ * websocket-update get live `hasPermission()` re-evaluation in `{#if}` blocks
+ * automatically, without writing their own reactive plumbing.
+ */
+let currentUserState = $state({ user: null })
+
+/**
+ * Default user getter — reads from the internal reactive state.
+ * Stored separately from `currentUserGetter` so we can restore it when
+ * `configurePermissions({ getCurrentUser: null })` is called.
+ */
+const defaultCurrentUserGetter = () => currentUserState.user
+
+/**
  * Global user getter function
- * Override this with your own implementation to return current user
+ *
+ * The default reads from the internal `currentUserState` rune so calls inside
+ * reactive contexts (templates, `$derived`, `$effect`) track changes from
+ * `setCurrentUser()`. Consumers who already maintain their own reactive user
+ * store can override this via `configurePermissions({ getCurrentUser })`.
+ * Pass `getCurrentUser: null` to restore the default state-backed getter.
  *
  * @type {() => any}
  */
-let currentUserGetter = () => {
-    console.warn('No user getter configured. Permission checks may fail.')
-    return null
-}
+let currentUserGetter = defaultCurrentUserGetter
 
 /**
  * Global unauthorized handler
@@ -69,6 +88,18 @@ let unauthorizedComponent = null
 let hasExplicitUnauthorizedHandler = false
 
 /**
+ * Optional callback fired when a route revalidation (triggered by
+ * `revalidateCurrentRoute()`) fails its checks. If set, this fires instead
+ * of the standard unauthorized handling — letting the consumer show a
+ * confirmation dialog, soft-redirect, or just no-op (user stays on the
+ * current route). If not set, revalidation failures behave exactly like
+ * fresh-navigation failures.
+ *
+ * @type {((detail: any) => void | Promise<void>) | null}
+ */
+let revalidationFailureHandler = null
+
+/**
  * Configure the permission system
  * Call this once during app initialization
  *
@@ -82,33 +113,41 @@ let hasExplicitUnauthorizedHandler = false
  *
  * @example
  * ```javascript
- * import { configurePermissions } from 'svelte-spa-router-5/helpers/permissions'
- * import { get } from 'svelte/store'
- * import { currentUser } from './stores/auth'
+ * import { configurePermissions, setCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
  *
  * configurePermissions({
  *   checkPermissions: (user, requirements) => {
- *     if (!requirements || !requirements.any) return true
- *     return requirements.any.some(perm => user.permissions.includes(perm))
+ *     if (!user || !requirements) return false
+ *     if (requirements.any) return requirements.any.some(p => user.permissions.includes(p))
+ *     if (requirements.all) return requirements.all.every(p => user.permissions.includes(p))
+ *     return true
  *   },
- *   getCurrentUser: () => get(currentUser),
  *   onUnauthorized: (detail) => {
  *     console.error('Access denied:', detail.location)
  *     push('/unauthorized')
  *   }
  * })
+ *
+ * // Update user state from anywhere — UI re-evaluates hasPermission() reactively.
+ * setCurrentUser({ id: 42, permissions: ['admin.read'] })
  * ```
  */
 export function configurePermissions(config) {
     if (config.checkPermissions) {
         permissionChecker = config.checkPermissions
     }
-    if (config.getCurrentUser) {
-        currentUserGetter = config.getCurrentUser
+    if ('getCurrentUser' in config) {
+        // Explicit null resets back to the default state-backed reactive getter.
+        currentUserGetter = config.getCurrentUser || defaultCurrentUserGetter
     }
     if (config.onUnauthorized) {
         unauthorizedHandler = config.onUnauthorized
         hasExplicitUnauthorizedHandler = true
+    }
+    if ('onRevalidationFailure' in config) {
+        // Explicit null clears the handler — falls back to standard unauthorized
+        // handling for revalidation failures.
+        revalidationFailureHandler = config.onRevalidationFailure || null
     }
     if (config.unauthorizedBehavior !== undefined) {
         unauthorizedBehavior = config.unauthorizedBehavior
@@ -119,6 +158,55 @@ export function configurePermissions(config) {
     if (config.unauthorizedComponent !== undefined) {
         unauthorizedComponent = config.unauthorizedComponent
     }
+}
+
+/**
+ * Set the current user.
+ *
+ * Writes to the internal reactive user state. When called from anywhere
+ * (login flow, websocket handler, token refresh), every `hasPermission()`
+ * call site in a reactive context (`{#if hasPermission(...)}`, `$derived`,
+ * `$effect`) re-evaluates automatically — no extra subscription wiring on
+ * the consumer side.
+ *
+ * Consumers who already own a reactive user store and configured
+ * `configurePermissions({ getCurrentUser })` don't need this — their
+ * getter takes precedence. This API is the recommended path for new code.
+ *
+ * @param {any} user - The current user object, or `null` for logged-out state
+ *
+ * @example
+ * ```javascript
+ * import { setCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
+ *
+ * // After login
+ * setCurrentUser({ id: 42, permissions: ['admin.read', 'docs.write'] })
+ *
+ * // From a websocket permissions-update handler
+ * socket.on('permissions:updated', (newPerms) => {
+ *     setCurrentUser({ ...getCurrentUser(), permissions: newPerms })
+ * })
+ *
+ * // On logout
+ * setCurrentUser(null)
+ * ```
+ */
+export function setCurrentUser(user) {
+    currentUserState.user = user
+}
+
+/**
+ * Get the current user.
+ *
+ * Returns whatever the configured `currentUserGetter` returns. With the
+ * default getter (or after `setCurrentUser()`), reads from the internal
+ * reactive user state. With a consumer-supplied `getCurrentUser`, reads
+ * from that source.
+ *
+ * @returns {any} The current user object, or `null`
+ */
+export function getCurrentUser() {
+    return currentUserGetter()
 }
 
 /**
@@ -447,4 +535,13 @@ export function getUnauthorizedHandler() {
  */
 export function hasExplicitHandler() {
     return hasExplicitUnauthorizedHandler
+}
+
+/**
+ * Get the configured revalidation failure handler.
+ * Returns null when not configured (use standard unauthorized handling).
+ * @returns {((detail: any) => void | Promise<void>) | null}
+ */
+export function getRevalidationFailureHandler() {
+    return revalidationFailureHandler
 }

@@ -48,6 +48,39 @@ import TabsDemo from './routes/TabsDemo.svelte'
 import DefineRoutesDemo from './routes/DefineRoutesDemo.svelte'
 import RouteContextDemo from './routes/RouteContextDemo.svelte'
 import RouteContextTarget from './routes/RouteContextTarget.svelte'
+import TestIndex from './routes/test/TestIndex.svelte'
+import NavigationTest from './routes/test/NavigationTest.svelte'
+import NamedRoutesTest from './routes/test/NamedRoutesTest.svelte'
+import RouteParamsTest from './routes/test/RouteParamsTest.svelte'
+import LinkActionsTest from './routes/test/LinkActionsTest.svelte'
+import PermissionsTest from './routes/test/PermissionsTest.svelte'
+import PermissionsProtected from './routes/test/PermissionsProtected.svelte'
+import RevalidateTest from './routes/test/RevalidateTest.svelte'
+import RevalidateProtected from './routes/test/RevalidateProtected.svelte'
+import GuardsTest from './routes/test/GuardsTest.svelte'
+import GuardsProtected from './routes/test/GuardsProtected.svelte'
+import MetadataTest from './routes/test/MetadataTest.svelte'
+import EmbeddedRouterTest from './routes/test/EmbeddedRouterTest.svelte'
+import TreeStructureTest from './routes/test/TreeStructureTest.svelte'
+import WrapTest from './routes/test/WrapTest.svelte'
+import WrapLoading from './routes/test/WrapLoading.svelte'
+import MultiZoneTest from './routes/test/MultiZoneTest.svelte'
+import QuerystringTest from './routes/test/QuerystringTest.svelte'
+import FiltersTest from './routes/test/FiltersTest.svelte'
+import ReferrerTest from './routes/test/ReferrerTest.svelte'
+import ErrorTest from './routes/test/ErrorTest.svelte'
+
+// Initialize the e2e scaffold used by /test/guards/* — conditions push to this
+// array so the spec can assert call order + short-circuit behavior.
+if (typeof window !== 'undefined') {
+    window.__guardCalls = window.__guardCalls || []
+}
+const recordGuardCall = (entry) => {
+    if (typeof window !== 'undefined') {
+        window.__guardCalls = window.__guardCalls || []
+        window.__guardCalls.push(entry)
+    }
+}
 import Loading from './components/Loading.svelte'
 
 // Configure permissions system
@@ -57,7 +90,17 @@ configurePermissions({
 
     // Use component mode (shows unauthorized without changing URL)
     unauthorizedBehavior: 'component',
-    unauthorizedComponent: Unauthorized
+    unauthorizedComponent: Unauthorized,
+
+    // E2E test scaffold: record onRevalidationFailure invocations so the
+    // revalidate spec can assert. Production apps would typically push() to
+    // an unauthorized route or show a confirmation dialog here.
+    onRevalidationFailure: (detail) => {
+        if (typeof window !== 'undefined') {
+            window.__revalidationFailureCalls = window.__revalidationFailureCalls || []
+            window.__revalidationFailureCalls.push(detail)
+        }
+    }
 
     // For navigate mode (changes URL to /unauthorized):
     // unauthorizedBehavior: 'navigate',
@@ -74,6 +117,32 @@ registerRoutes({
     'linksDemo': '/links-demo',
     'metadataDemo': '/metadata-demo',
     'navigationContextDemo': '/navigation-context-demo'
+})
+
+// E2E test fixture: tree-structure / createHierarchy
+const treeFixtureRoutes = createHierarchy({
+    '/test/tree': {
+        name: 'testTreeRoot',
+        component: TreeStructureTest,
+        title: 'Tree Root',
+        breadcrumbs: [{ label: 'Tree' }],
+        children: {
+            ':id': {
+                name: 'testTreeItem',
+                component: TreeStructureTest,
+                title: 'Tree Item',
+                breadcrumbs: [{ label: 'Item' }],
+                children: {
+                    'logs': {
+                        name: 'testTreeItemLogs',
+                        component: TreeStructureTest,
+                        title: 'Item Logs',
+                        breadcrumbs: [{ label: 'Logs' }]
+                    }
+                }
+            }
+        }
+    }
 })
 
 // NESTED ROUTES EXAMPLE (Tree Structure)
@@ -314,13 +383,145 @@ const routes = {
             { label: 'Orders' }
         ]
     }),
+    // E2E test fixtures (deterministic, minimal — see example/src/routes/test/)
+    '/test': TestIndex,
+    '/test/navigation': NavigationTest,
+    '/test/navigation/:id': NavigationTest,
+    '/test/named': NamedRoutesTest,
+    '/test/named/:id': NamedRoutesTest,
+    '/test/named/:id/edit': NamedRoutesTest,
+    '/test/params': RouteParamsTest,
+    '/test/params/:id': RouteParamsTest,
+    '/test/params/optional/:first/:last?': RouteParamsTest,
+    '/test/params/wild/*': RouteParamsTest,
+    '/test/links': LinkActionsTest,
+    '/test/links/target': LinkActionsTest,
+    '/test/perms': PermissionsTest,
+    '/test/perms/needs-read': createProtectedRoute({
+        component: PermissionsProtected,
+        permissions: { any: ['read'] }
+    }),
+    '/test/perms/needs-admin': createProtectedRoute({
+        component: PermissionsProtected,
+        permissions: { any: ['admin'] }
+    }),
+    '/test/perms/document/:id': createProtectedRoute({
+        component: PermissionsProtected,
+        authorizationCallback: async (detail) => hasDocumentAccess(detail.params.id)
+    }),
+    '/test/revalidate': RevalidateTest,
+    '/test/revalidate/protected': createProtectedRoute({
+        component: RevalidateProtected,
+        permissions: { any: ['admin'] }
+    }),
+    '/test/guards': GuardsTest,
+    '/test/guards/allow': wrap({
+        component: GuardsProtected,
+        conditions: [() => { recordGuardCall({ name: 'allow' }); return true }]
+    }),
+    '/test/guards/deny': wrap({
+        component: GuardsProtected,
+        conditions: [() => { recordGuardCall({ name: 'deny' }); return false }]
+    }),
+    '/test/guards/pass-then-fail': wrap({
+        component: GuardsProtected,
+        conditions: [
+            () => { recordGuardCall({ name: 'first-pass' }); return true },
+            () => { recordGuardCall({ name: 'then-fail' }); return false }
+        ]
+    }),
+    '/test/guards/fail-then-skip': wrap({
+        component: GuardsProtected,
+        conditions: [
+            () => { recordGuardCall({ name: 'first-fail' }); return false },
+            () => { recordGuardCall({ name: 'should-not-run' }); return true }
+        ]
+    }),
+    '/test/guards/async-allow': wrap({
+        component: GuardsProtected,
+        conditions: [async () => {
+            await Promise.resolve()
+            recordGuardCall({ name: 'async-allow' })
+            return true
+        }]
+    }),
+    '/test/guards/async-deny': wrap({
+        component: GuardsProtected,
+        conditions: [async () => {
+            await Promise.resolve()
+            recordGuardCall({ name: 'async-deny' })
+            return false
+        }]
+    }),
+    '/test/guards/echo/:id': wrap({
+        component: GuardsProtected,
+        conditions: [(detail) => {
+            recordGuardCall({
+                name: 'echo',
+                location: detail.location,
+                params: detail.params
+            })
+            return true
+        }]
+    }),
+    '/test/meta': wrap({
+        component: MetadataTest,
+        title: 'Meta',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Meta' }
+        ]
+    }),
+    '/test/meta/items': wrap({
+        component: MetadataTest,
+        title: 'Items',
+        breadcrumbs: [{ label: 'Items' }]
+    }),
+    '/test/meta/items/:id': wrap({
+        component: MetadataTest,
+        title: 'Item Detail',
+        breadcrumbs: [{ id: 'itemDetail', label: 'Loading...' }]
+    }),
+    // Wildcard so the nested Router inside EmbeddedRouterTest sees the rest of the path.
+    '/test/embed/*': EmbeddedRouterTest,
+    '/test/wrap': wrap({
+        component: WrapTest,
+        title: 'Wrap Root',
+        routeContext: {
+            section: 'wrap-fixture',
+            customField: 'Hello from routeContext!'
+        }
+    }),
+    '/test/wrap/async': wrap({
+        asyncComponent: async () => {
+            // Small delay so the loading component is observable by Playwright.
+            await new Promise((resolve) => setTimeout(resolve, 250))
+            return (await import('./routes/test/WrapAsyncTarget.svelte')).default
+        },
+        loadingComponent: WrapLoading,
+        shouldDisplayLoadingOnRouteLoad: true
+    }),
+    '/test/wrap/with-props': wrap({
+        component: WrapTest,
+        title: 'Wrap With Props',
+        props: { staticGreeting: 'hello from props' },
+        routeContext: { section: 'wrap-props' }
+    }),
+    // Wildcard so the nested Routers inside MultiZoneTest see the sub-path.
+    '/test/zones/*': MultiZoneTest,
+    '/test/querystring': QuerystringTest,
+    '/test/filters': FiltersTest,
+    '/test/referrer/from/:source': ReferrerTest,
+    '/test/referrer/to/:dest': ReferrerTest,
+    '/test/error': ErrorTest,
     '*': NotFound
 }
 
 // Combine tree-structured routes with flat routes
 const allRoutes = {
-    ...adminRoutes,  // Tree-structured routes
-    ...routes        // Flat routes
+    ...adminRoutes,        // Tree-structured admin routes
+    ...treeFixtureRoutes,  // E2E fixture tree (createHierarchy)
+    ...routes              // Flat routes
 }
 
 // Check if current location is a zone route
@@ -337,12 +538,52 @@ const navContext = $derived(navigationContext())
 const referrer = $derived(navContext?.referrer)
 
 // Log router activity
+function handleRouteLoading(event) {
+    if (typeof window !== 'undefined') {
+        window.__routeLoadingEvents = window.__routeLoadingEvents || []
+        window.__routeLoadingEvents.push({
+            location: event.detail?.location,
+            relativeLocation: event.detail?.relativeLocation,
+            route: event.detail?.route
+        })
+    }
+}
+
 function handleRouteLoaded(event) {
     console.log('[Router] Route loaded:', event.detail)
+    if (typeof window !== 'undefined') {
+        window.__routeLoadedEvents = window.__routeLoadedEvents || []
+        window.__routeLoadedEvents.push({
+            location: event.detail?.location,
+            relativeLocation: event.detail?.relativeLocation,
+            route: event.detail?.route,
+            params: event.detail?.params
+        })
+    }
+}
+
+// E2E test scaffold: record conditionsFailed events for /test/guards/* assertions.
+function handleConditionsFailed(event) {
+    if (typeof window !== 'undefined') {
+        window.__conditionsFailedEvents = window.__conditionsFailedEvents || []
+        window.__conditionsFailedEvents.push({
+            location: event.detail?.location,
+            relativeLocation: event.detail?.relativeLocation,
+            route: event.detail?.route
+        })
+    }
 }
 
 function handleNotFound(event) {
     console.log('[Router] 404 Not Found:', event.detail)
+    if (typeof window !== 'undefined') {
+        window.__notFoundEvents = window.__notFoundEvents || []
+        window.__notFoundEvents.push({
+            location: event.detail?.location,
+            relativeLocation: event.detail?.relativeLocation,
+            querystring: event.detail?.querystring
+        })
+    }
     // Example: Send to Sentry or other monitoring service
     // Sentry.captureMessage('404 Not Found', {
     //     extra: {
@@ -454,21 +695,21 @@ function handleToggleUser() {
         <div class="zone-layout">
             <aside class="zone-sidebar">
                 <div class="zone-header">Zone: "sidebar"</div>
-                <Router routes={allRoutes} zone="sidebar" onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="sidebar" onRouteLoading={handleRouteLoading} onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} onConditionsFailed={handleConditionsFailed} />
             </aside>
             <main class="zone-main">
                 <div class="zone-header">Zone: "main"</div>
-                <Router routes={allRoutes} zone="main" onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="main" onRouteLoading={handleRouteLoading} onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} onConditionsFailed={handleConditionsFailed} />
             </main>
             <aside class="zone-panel">
                 <div class="zone-header">Zone: "panel"</div>
-                <Router routes={allRoutes} zone="panel" onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+                <Router routes={allRoutes} zone="panel" onRouteLoading={handleRouteLoading} onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} onConditionsFailed={handleConditionsFailed} />
             </aside>
         </div>
     {:else}
         <!-- Single component layout -->
         <main>
-            <Router routes={allRoutes} onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} />
+            <Router routes={allRoutes} onRouteLoading={handleRouteLoading} onRouteLoaded={handleRouteLoaded} onNotFound={handleNotFound} onConditionsFailed={handleConditionsFailed} />
         </main>
     {/if}
 </div>
