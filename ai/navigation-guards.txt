@@ -1,0 +1,206 @@
+NAVIGATION GUARDS (beforeLeave)
+================================
+
+WHAT IT IS
+----------
+A guard that runs BEFORE navigating away from the current route. Used to
+prompt the user before discarding unsaved work, refusing a navigation,
+redirecting to a different destination, or warning about a closing tab.
+
+Distinct from `wrap({ conditions })`:
+- Conditions guard ENTRY to a route (before mount)
+- beforeLeave guards EXIT from a route (before unmount)
+Both can coexist on the same page.
+
+WHICH MODE TO USE
+-----------------
+Three patterns. All call the same registerBeforeLeave primitive — the
+wrapper and helper are conveniences on top. Pick by ergonomics, not
+capability.
+
+PageWrapper (declarative)
+    When: page-level guard tied to component lifecycle. Drop the wrapper
+          around your page, write beforeLeave, done.
+    Cost: extra component layer; less control over WHEN the guard is
+          active during the page's lifetime.
+
+Direct Registration (imperative)
+    When: fine control needed — swap the guard mid-session, toggle based
+          on a condition, share one guard across multiple components.
+          Call registerBeforeLeave / unregisterBeforeLeave in onMount /
+          onDestroy (or $effect).
+    Cost: you own the lifecycle — easy to forget cleanup and leak guards
+          across navigations.
+
+createDirtyCheckGuard (shortcut)
+    When: classic "form has unsaved changes — confirm before leaving"
+          pattern. Helper bakes in dirty-check + confirm() dialog.
+    Cost: only fits the dirty-check shape. Still register it the same
+          way as Direct mode — helper just saves the confirm boilerplate.
+
+PAGEWRAPPER MODE
+----------------
+// PageWrapper.svelte
+import { registerBeforeLeave, unregisterBeforeLeave } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+import { onMount, onDestroy } from 'svelte'
+
+let { beforeLeave = undefined, children } = $props()
+
+onMount(() => { if (beforeLeave) registerBeforeLeave(beforeLeave) })
+onDestroy(() => { if (beforeLeave) unregisterBeforeLeave(beforeLeave) })
+
+{@render children?.()}
+
+// Usage in a page
+import PageWrapper from './PageWrapper.svelte'
+import { NavigationCancelledError } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+
+let formIsDirty = $state(false)
+
+async function beforeLeave(ctx) {
+    if (formIsDirty && !confirm(`Leave "${ctx.from}" with unsaved changes?`)) {
+        throw new NavigationCancelledError()
+    }
+}
+
+<PageWrapper {beforeLeave}>
+    <form>...</form>
+</PageWrapper>
+
+DIRECT REGISTRATION MODE
+------------------------
+import { registerBeforeLeave, unregisterBeforeLeave, NavigationCancelledError } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+import { onMount, onDestroy } from 'svelte'
+
+let formIsDirty = $state(false)
+
+async function beforeLeave(ctx) {
+    if (formIsDirty && !confirm('Unsaved changes. Leave anyway?')) {
+        throw new NavigationCancelledError()
+    }
+}
+
+onMount(() => registerBeforeLeave(beforeLeave))
+onDestroy(() => unregisterBeforeLeave(beforeLeave))
+
+// Or with $effect (conditional registration)
+$effect(() => {
+    if (formIsDirty) {
+        registerBeforeLeave(beforeLeave)
+        return () => unregisterBeforeLeave(beforeLeave)
+    }
+})
+
+CREATEDIRTYCHECKGUARD MODE
+--------------------------
+import { registerBeforeLeave, unregisterBeforeLeave, createDirtyCheckGuard } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+import { onMount, onDestroy } from 'svelte'
+
+let formIsDirty = $state(false)
+
+const beforeLeave = createDirtyCheckGuard(
+    () => formIsDirty,
+    'You have unsaved changes. Leave anyway?'
+)
+beforeLeave.isDirty = () => formIsDirty  // enables browser beforeunload warning
+
+onMount(() => registerBeforeLeave(beforeLeave))
+onDestroy(() => unregisterBeforeLeave(beforeLeave))
+
+CONTEXT OBJECT
+--------------
+The beforeLeave handler receives:
+
+{
+    from: string,                       // current route
+    to: string,                         // destination route
+    params?: Record<string, string>,    // matched params of destination
+    querystring?: string                // querystring of destination
+}
+
+Use these to decide whether to allow, cancel, or redirect.
+
+CANCELLING A NAVIGATION
+-----------------------
+Throw NavigationCancelledError to cancel the navigation cleanly:
+
+import { NavigationCancelledError } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+
+async function beforeLeave(ctx) {
+    if (shouldBlock) {
+        throw new NavigationCancelledError()
+    }
+}
+
+The router catches this specifically and silently aborts. Other thrown
+errors propagate normally (and are caught by GlobalErrorHandler if
+configured).
+
+BROWSER BEFOREUNLOAD
+--------------------
+Attach an isDirty function to the guard for browser tab close / reload
+warnings (browsers can only show a generic "you have unsaved changes"
+prompt — message text is ignored for security reasons):
+
+const beforeLeave = createDirtyCheckGuard(() => formIsDirty)
+beforeLeave.isDirty = () => formIsDirty
+// Now both SPA navigation AND browser tab close prompt the user.
+
+For Direct mode, attach isDirty manually to the function:
+
+beforeLeave.isDirty = () => formIsDirty
+registerBeforeLeave(beforeLeave)
+
+COMMON PATTERNS
+---------------
+Form dirty check (createDirtyCheckGuard):
+    const beforeLeave = createDirtyCheckGuard(() => formIsDirty,
+        'You have unsaved changes. Leave anyway?')
+
+Conditional redirect (Direct):
+    async function beforeLeave(ctx) {
+        if (ctx.to === '/protected' && !isAuthenticated()) {
+            push('/login?return=' + encodeURIComponent(ctx.to))
+            throw new NavigationCancelledError()
+        }
+    }
+
+Multi-step wizard guard (PageWrapper):
+    async function beforeLeave(ctx) {
+        if (currentStep < totalSteps && !confirm('Abandon wizard?')) {
+            throw new NavigationCancelledError()
+        }
+    }
+
+Async save-before-leave (Direct):
+    async function beforeLeave(ctx) {
+        if (formIsDirty) {
+            const choice = await showSaveDialog()
+            if (choice === 'cancel') throw new NavigationCancelledError()
+            if (choice === 'save') await saveForm()
+            // 'discard' → just continue
+        }
+    }
+
+GOTCHAS
+-------
+- Forgetting unregisterBeforeLeave leaks guards across navigations.
+  Always pair register/unregister in onMount/onDestroy or $effect's
+  return function. PageWrapper handles this automatically.
+- Multiple guards can be registered simultaneously (e.g. one per
+  mounted component). They all run; any one throwing
+  NavigationCancelledError aborts the navigation.
+- browserunload prompts cannot show custom text. Browsers ignore the
+  message and display their own generic warning. The isDirty function
+  is only used to decide WHETHER to prompt, not WHAT to say.
+- The handler is sync OR async. Async handlers can await dialogs, API
+  calls, etc. before deciding to cancel.
+
+RELATED FILES
+-------------
+guards-conditions.txt   - Route ENTRY guards (wrap({ conditions }))
+permissions.txt         - Permission-based entry protection
+basic-setup.txt         - General router setup
+
+Live demo: /navigation-guard-demo (in example app) lets you switch
+between all three modes side-by-side.

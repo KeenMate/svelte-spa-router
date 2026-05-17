@@ -71,6 +71,16 @@ redirect on failure, onConditionsFailed → guards-conditions.txt
 loadingComponent, loading state → guards-conditions.txt
 userData, passing data to route → guards-conditions.txt
 
+NAVIGATION GUARDS (beforeLeave)
+-------------------------------
+beforeLeave, navigation guard → navigation-guards.txt
+registerBeforeLeave, unregisterBeforeLeave → navigation-guards.txt
+PageWrapper, page-level guard → navigation-guards.txt
+createDirtyCheckGuard, dirty form check → navigation-guards.txt
+NavigationCancelledError, cancel navigation → navigation-guards.txt
+unsaved changes, leave confirmation → navigation-guards.txt
+browser beforeunload, tab close warning → navigation-guards.txt
+
 HIERARCHICAL ROUTES (INHERITANCE)
 ---------------------------------
 hierarchical mode, inheritance → hierarchical-routes.txt
@@ -177,6 +187,10 @@ guards-conditions.txt
   Route protection: Guards, conditions, async checks, redirects
   Start here for: Authentication checks, conditional routing
 
+navigation-guards.txt
+  Exit guards: beforeLeave, PageWrapper, createDirtyCheckGuard, browser beforeunload
+  Start here for: Unsaved-changes warnings, confirm-before-leave dialogs
+
 hierarchical-routes.txt
   Inheritance: Hierarchical mode, breadcrumb/permission/condition inheritance
   Start here for: DRY route definitions with parent-child relationships
@@ -263,8 +277,9 @@ Breadcrumbs
   → tree-structure.txt (breadcrumbs in tree structure)
 
 Route Protection
-  → guards-conditions.txt (route conditions)
-  → permissions.txt (permission-based protection)
+  → guards-conditions.txt (entry: route conditions)
+  → permissions.txt (entry: permission-based protection)
+  → navigation-guards.txt (exit: beforeLeave / unsaved changes)
   → hierarchical-routes.txt (inherited protection)
 
 Back Navigation
@@ -307,6 +322,12 @@ Problem: Permissions not checking
 Problem: Conditions not running
 → guards-conditions.txt (check wrap() usage)
 → debug-logging.txt (enable ROUTER:CONDITIONS logs)
+
+Problem: User leaves page without confirmation (form changes lost)
+→ navigation-guards.txt (registerBeforeLeave / PageWrapper / createDirtyCheckGuard)
+
+Problem: beforeLeave not firing on browser tab close
+→ navigation-guards.txt (attach isDirty function to enable beforeunload)
 
 Problem: Scroll not restoring
 → referrer-tracking.txt (use goBack() not manual push)
