@@ -1,6 +1,6 @@
 <script>
 import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
-import { updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+import { updateQuerystring, createQuerystringHelpers } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
 import { querystring } from '@keenmate/svelte-spa-router'
 
 // Detect initial array format from URL
@@ -133,6 +133,119 @@ async function clearFilters() {
 
 async function changePage(newPage) {
     await updateQuerystring({ page: newPage })
+}
+
+// =============================================================================
+// OData / Microsoft Graph custom-formatter demo
+// =============================================================================
+// OData uses dollar-prefixed system query options ($filter, $select, $orderby,
+// $top, $skip, $count) and comma-separates field lists instead of repeating
+// keys. The standard parsers don't handle this — but createQuerystringHelpers()
+// lets you plug in your own parse/stringify pair and get the full reactive
+// helper suite (parsed view, updateQuerystring, etc.) for free.
+
+const ODATA_LIST_KEYS = new Set(['$select', '$orderby', '$expand'])
+const ODATA_NUMBER_KEYS = new Set(['$top', '$skip'])
+
+function parseOData(qs) {
+    if (!qs) return {}
+    const params = new URLSearchParams(qs)
+    const result = {}
+    for (const [key, value] of params.entries()) {
+        if (ODATA_LIST_KEYS.has(key)) {
+            result[key] = value ? value.split(',').map(s => s.trim()).filter(Boolean) : []
+        } else if (ODATA_NUMBER_KEYS.has(key)) {
+            result[key] = Number(value)
+        } else if (key === '$count') {
+            result[key] = value === 'true'
+        } else {
+            result[key] = value
+        }
+    }
+    return result
+}
+
+function stringifyOData(obj) {
+    const parts = []
+    for (const [key, value] of Object.entries(obj)) {
+        if (value === null || value === undefined || value === '') continue
+        if (Array.isArray(value)) {
+            if (value.length === 0) continue
+            parts.push(`${encodeURIComponent(key)}=${value.map(v => encodeURIComponent(String(v))).join(',')}`)
+        } else if (typeof value === 'boolean') {
+            parts.push(`${encodeURIComponent(key)}=${value ? 'true' : 'false'}`)
+        } else {
+            parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+        }
+    }
+    return parts.join('&')
+}
+
+// Custom helpers wired to the OData formatter.
+const odata = createQuerystringHelpers(parseOData, stringifyOData)
+
+// Local form state — what the user is composing in the builder.
+// We don't bind these directly to the URL on every keystroke; the user
+// presses "Apply" to write them. That keeps the demo predictable.
+const ALL_USER_FIELDS = ['id', 'displayName', 'mail', 'jobTitle', 'department']
+const ALL_ORDER_FIELDS = ['displayName', 'mail', 'jobTitle']
+
+let odataFilter = $state("startswith(displayName,'A')")
+let odataSelect = $state(['id', 'displayName', 'mail'])
+let odataOrderField = $state('displayName')
+let odataOrderDir = $state('asc')
+let odataTop = $state(10)
+let odataSkip = $state(0)
+let odataCount = $state(true)
+
+// Live OData querystring as built from the form state (no URL write yet).
+const odataBuilt = $derived(stringifyOData({
+    $filter: odataFilter,
+    $select: odataSelect,
+    $orderby: odataOrderField ? `${odataOrderField} ${odataOrderDir}` : null,
+    $top: odataTop,
+    $skip: odataSkip,
+    $count: odataCount
+}))
+
+// Round-trip: re-parse the actually-on-URL querystring through parseOData.
+// Shows ONLY the $-prefixed keys (because parseOData picks them up; standard
+// keys from the existing demo are returned as plain strings and we hide them).
+const odataParsed = $derived.by(() => {
+    const all = odata.getParsedQuerystring()
+    const dollar = {}
+    for (const [k, v] of Object.entries(all)) {
+        if (k.startsWith('$')) dollar[k] = v
+    }
+    return dollar
+})
+
+function toggleOdataField(field) {
+    odataSelect = odataSelect.includes(field)
+        ? odataSelect.filter(f => f !== field)
+        : [...odataSelect, field]
+}
+
+async function applyOdata() {
+    await odata.updateQuerystring({
+        $filter: odataFilter || null,
+        $select: odataSelect.length > 0 ? odataSelect : null,
+        $orderby: odataOrderField ? `${odataOrderField} ${odataOrderDir}` : null,
+        $top: odataTop || null,
+        $skip: odataSkip > 0 ? odataSkip : null,
+        $count: odataCount ? true : null
+    })
+}
+
+async function clearOdata() {
+    await odata.updateQuerystring({
+        $filter: null,
+        $select: null,
+        $orderby: null,
+        $top: null,
+        $skip: null,
+        $count: null
+    })
 }
 </script>
 
@@ -302,6 +415,165 @@ const tags = $derived(Array.isArray(query.tags) ? query.tags : [])
 
 // Specify format when updating
 await updateQuerystring({ tags: ['foo', 'bar'] }, { arrayFormat: '${arrayFormat}' })`}</code></pre>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- OData / Microsoft Graph custom formatter demo                          -->
+    <!-- ===================================================================== -->
+    <div class="odata-demo">
+        <h2>🔌 Custom Formatter Demo — OData / Microsoft Graph</h2>
+        <p class="odata-intro">
+            Standard repeat/comma formats don't cover every API. Some backends use
+            their own conventions — like <a href="https://learn.microsoft.com/en-us/graph/query-parameters" target="_blank" rel="noopener">Microsoft Graph</a>
+            (and OData generally), with dollar-prefixed query options
+            (<code>$filter</code>, <code>$select</code>, <code>$orderby</code>,
+            <code>$top</code>, <code>$skip</code>, <code>$count</code>) and
+            comma-separated field lists. <code>createQuerystringHelpers()</code>
+            lets you plug in a custom parse/stringify pair and get the full
+            reactive helper suite for free.
+        </p>
+
+        <div class="odata-builder">
+            <h3>Query Builder</h3>
+            <p class="odata-hint">
+                Imagine you're fetching <code>/users</code> from Microsoft Graph.
+                Compose a request below — the OData querystring is built live,
+                and "Apply to URL" writes it to <em>this page</em> using your
+                custom stringifier.
+            </p>
+
+            <div class="odata-field">
+                <label for="odata-filter">$filter (OData expression):</label>
+                <input
+                    id="odata-filter"
+                    type="text"
+                    bind:value={odataFilter}
+                    placeholder="startswith(displayName,'A') and department eq 'Sales'"
+                />
+            </div>
+
+            <div class="odata-field">
+                <label>$select (which fields to return):</label>
+                <div class="odata-chips">
+                    {#each ALL_USER_FIELDS as field}
+                        <button
+                            type="button"
+                            class="odata-chip"
+                            class:active={odataSelect.includes(field)}
+                            onclick={() => toggleOdataField(field)}
+                        >
+                            {field}
+                        </button>
+                    {/each}
+                </div>
+            </div>
+
+            <div class="odata-row">
+                <div class="odata-field">
+                    <label for="odata-orderby-field">$orderby field:</label>
+                    <select id="odata-orderby-field" bind:value={odataOrderField}>
+                        <option value="">(none)</option>
+                        {#each ALL_ORDER_FIELDS as field}
+                            <option value={field}>{field}</option>
+                        {/each}
+                    </select>
+                </div>
+                <div class="odata-field">
+                    <label for="odata-orderby-dir">direction:</label>
+                    <select id="odata-orderby-dir" bind:value={odataOrderDir}>
+                        <option value="asc">asc</option>
+                        <option value="desc">desc</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="odata-row">
+                <div class="odata-field odata-field-narrow">
+                    <label for="odata-top">$top:</label>
+                    <input id="odata-top" type="number" min="0" bind:value={odataTop} />
+                </div>
+                <div class="odata-field odata-field-narrow">
+                    <label for="odata-skip">$skip:</label>
+                    <input id="odata-skip" type="number" min="0" bind:value={odataSkip} />
+                </div>
+                <div class="odata-field odata-field-narrow">
+                    <label class="odata-checkbox">
+                        <input type="checkbox" bind:checked={odataCount} />
+                        $count=true
+                    </label>
+                </div>
+            </div>
+
+            <div class="odata-actions">
+                <button type="button" onclick={applyOdata} class="btn-apply">Apply to URL</button>
+                <button type="button" onclick={clearOdata} class="btn-clear-odata">Clear OData params</button>
+            </div>
+        </div>
+
+        <div class="odata-panels">
+            <div class="odata-panel odata-panel-built">
+                <h4>Built querystring (from form)</h4>
+                <pre class="odata-string"><code>?{odataBuilt}</code></pre>
+                <p class="odata-panel-note">
+                    Output of <code>stringifyOData(formState)</code> — what
+                    "Apply to URL" will write.
+                </p>
+            </div>
+
+            <div class="odata-panel odata-panel-parsed">
+                <h4>Parsed back from URL</h4>
+                <pre class="odata-string"><code>{JSON.stringify(odataParsed, null, 2)}</code></pre>
+                <p class="odata-panel-note">
+                    Output of <code>parseOData(window.location.search)</code> —
+                    keys typed back as arrays / numbers / booleans according to
+                    OData conventions.
+                </p>
+            </div>
+        </div>
+
+        <div class="odata-code">
+            <h3>How it's wired</h3>
+            <pre><code>{`import { createQuerystringHelpers } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Tiny OData-aware parse/stringify pair.
+function parseOData(qs) {
+    const params = new URLSearchParams(qs)
+    const result = {}
+    for (const [key, value] of params.entries()) {
+        if (key === '$select' || key === '$orderby' || key === '$expand') {
+            result[key] = value.split(',').map(s => s.trim())
+        } else if (key === '$top' || key === '$skip') {
+            result[key] = Number(value)
+        } else if (key === '$count') {
+            result[key] = value === 'true'
+        } else {
+            result[key] = value
+        }
+    }
+    return result
+}
+
+function stringifyOData(obj) {
+    const parts = []
+    for (const [key, value] of Object.entries(obj)) {
+        if (value == null || value === '') continue
+        if (Array.isArray(value)) {
+            if (value.length === 0) continue
+            parts.push(\`\${encodeURIComponent(key)}=\${value.map(v => encodeURIComponent(v)).join(',')}\`)
+        } else {
+            parts.push(\`\${encodeURIComponent(key)}=\${encodeURIComponent(String(value))}\`)
+        }
+    }
+    return parts.join('&')
+}
+
+// One call wires the full helper suite to your formatter.
+const odata = createQuerystringHelpers(parseOData, stringifyOData)
+
+// Use it like the standard helpers:
+const query = $derived(odata.getParsedQuerystring())
+await odata.updateQuerystring({ $select: ['id', 'displayName'], $top: 10 })`}</code></pre>
+        </div>
     </div>
 </div>
 
@@ -633,5 +905,264 @@ h1 {
 .usage-example code {
     font-family: 'Courier New', monospace;
     font-size: 0.9em;
+}
+
+/* ===== OData / Microsoft Graph demo ===== */
+
+.odata-demo {
+    background: linear-gradient(180deg, #f3f0ff 0%, #ede9fe 100%);
+    border-left: 4px solid #7c3aed;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin: 2.5rem 0 1.5rem;
+}
+
+.odata-demo h2 {
+    margin-top: 0;
+    color: #5b21b6;
+}
+
+.odata-intro {
+    margin: 0 0 1.5rem;
+    color: #4b3a78;
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+.odata-intro a {
+    color: #7c3aed;
+    text-decoration: underline;
+}
+
+.odata-intro code {
+    background: white;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    color: #5b21b6;
+    font-family: 'Courier New', monospace;
+    font-size: 0.88em;
+}
+
+.odata-builder {
+    background: white;
+    border-radius: 6px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.odata-builder h3 {
+    margin-top: 0;
+    color: #5b21b6;
+    font-size: 1.05rem;
+}
+
+.odata-hint {
+    margin: 0 0 1rem;
+    font-size: 0.88rem;
+    color: #6b5f88;
+}
+
+.odata-hint code {
+    background: #f5f3ff;
+    padding: 0.05rem 0.35rem;
+    border-radius: 3px;
+    color: #5b21b6;
+}
+
+.odata-field {
+    margin-bottom: 1rem;
+    flex: 1;
+}
+
+.odata-field label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #4b3a78;
+    margin-bottom: 0.35rem;
+}
+
+.odata-field input[type="text"],
+.odata-field input[type="number"],
+.odata-field select {
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #d8d0f0;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-family: 'Courier New', monospace;
+    background: white;
+}
+
+.odata-field input[type="text"]:focus,
+.odata-field input[type="number"]:focus,
+.odata-field select:focus {
+    outline: none;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+}
+
+.odata-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+}
+
+.odata-field-narrow {
+    flex: 0 1 8rem;
+}
+
+.odata-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.odata-chip {
+    padding: 0.35rem 0.7rem;
+    border: 1px solid #d8d0f0;
+    background: white;
+    color: #6b5f88;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.odata-chip:hover {
+    border-color: #7c3aed;
+    color: #5b21b6;
+}
+
+.odata-chip.active {
+    background: #7c3aed;
+    color: white;
+    border-color: #7c3aed;
+}
+
+.odata-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: #4b3a78;
+    cursor: pointer;
+    padding-top: 0.5rem;
+}
+
+.odata-checkbox input {
+    margin: 0;
+}
+
+.odata-actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+.btn-apply {
+    background: #7c3aed;
+    color: white;
+    border: none;
+    padding: 0.55rem 1.2rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.btn-apply:hover {
+    background: #6d28d9;
+}
+
+.btn-clear-odata {
+    background: white;
+    color: #5b21b6;
+    border: 1px solid #d8d0f0;
+    padding: 0.55rem 1.2rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.btn-clear-odata:hover {
+    background: #f5f3ff;
+}
+
+.odata-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 720px) {
+    .odata-panels {
+        grid-template-columns: 1fr;
+    }
+}
+
+.odata-panel {
+    background: white;
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+}
+
+.odata-panel h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+    color: #5b21b6;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.odata-string {
+    background: #1f1432;
+    color: #e9d5ff;
+    padding: 0.75rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0;
+    font-size: 0.78rem;
+}
+
+.odata-panel-note {
+    margin: 0.5rem 0 0;
+    font-size: 0.78rem;
+    color: #6b5f88;
+    font-style: italic;
+}
+
+.odata-panel-note code {
+    background: #f5f3ff;
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    color: #5b21b6;
+    font-family: 'Courier New', monospace;
+    font-style: normal;
+}
+
+.odata-code {
+    background: white;
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+}
+
+.odata-code h3 {
+    margin-top: 0;
+    color: #5b21b6;
+    font-size: 1rem;
+}
+
+.odata-code pre {
+    background: #1f1432;
+    color: #e9d5ff;
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0.5rem 0 0;
+    font-size: 0.78rem;
 }
 </style>

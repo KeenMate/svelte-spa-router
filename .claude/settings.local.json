@@ -30,7 +30,8 @@
       "Bash(awk NR==90 *)",
       "Bash(npx playwright *)",
       "Bash(npm run *)",
-      "Bash(timeout 8 npx vite --port 5052)"
+      "Bash(timeout 8 npx vite --port 5052)",
+      "Bash(timeout 6 npx vite --port 5052)"
     ],
     "deny": [],
     "ask": []
