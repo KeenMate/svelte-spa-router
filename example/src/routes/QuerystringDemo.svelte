@@ -496,12 +496,13 @@ await updateQuerystring({ tags: ['foo', 'bar'] }, { arrayFormat: '${arrayFormat}
                     <label for="odata-skip">$skip:</label>
                     <input id="odata-skip" type="number" min="0" bind:value={odataSkip} />
                 </div>
-                <div class="odata-field odata-field-narrow">
-                    <label class="odata-checkbox">
-                        <input type="checkbox" bind:checked={odataCount} />
-                        $count=true
-                    </label>
-                </div>
+            </div>
+
+            <div class="odata-field odata-checkbox-row">
+                <label class="odata-checkbox" for="odata-count">
+                    <input id="odata-count" type="checkbox" bind:checked={odataCount} />
+                    <span>Include <code>$count=true</code> in the request (asks the server for a total result count)</span>
+                </label>
             </div>
 
             <div class="odata-actions">
@@ -986,6 +987,7 @@ h1 {
 .odata-field input[type="number"],
 .odata-field select {
     width: 100%;
+    box-sizing: border-box;
     padding: 0.5rem 0.65rem;
     border: 1px solid #d8d0f0;
     border-radius: 4px;
@@ -1041,19 +1043,40 @@ h1 {
     border-color: #7c3aed;
 }
 
+.odata-checkbox-row {
+    background: #f5f3ff;
+    border: 1px dashed #d8d0f0;
+    border-radius: 6px;
+    padding: 0.6rem 0.75rem;
+    margin-top: 0;
+}
+
 .odata-checkbox {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    font-family: 'Courier New', monospace;
+    gap: 0.55rem;
     font-size: 0.85rem;
     color: #4b3a78;
     cursor: pointer;
-    padding-top: 0.5rem;
+    margin: 0;
+    font-weight: 400;
 }
 
 .odata-checkbox input {
     margin: 0;
+    width: 1rem;
+    height: 1rem;
+    accent-color: #7c3aed;
+    flex-shrink: 0;
+}
+
+.odata-checkbox code {
+    background: white;
+    padding: 0.05rem 0.35rem;
+    border-radius: 3px;
+    color: #5b21b6;
+    font-family: 'Courier New', monospace;
+    font-size: 0.88em;
 }
 
 .odata-actions {
@@ -1093,15 +1116,9 @@ h1 {
 
 .odata-panels {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 0.75rem;
     margin-bottom: 1rem;
-}
-
-@media (max-width: 720px) {
-    .odata-panels {
-        grid-template-columns: 1fr;
-    }
 }
 
 .odata-panel {
@@ -1123,9 +1140,10 @@ h1 {
     color: #e9d5ff;
     padding: 0.75rem;
     border-radius: 4px;
-    overflow-x: auto;
     margin: 0;
     font-size: 0.78rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .odata-panel-note {
