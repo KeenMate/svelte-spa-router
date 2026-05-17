@@ -28,6 +28,28 @@ Main features:
 
 This module is released under MIT license.
 
+## What's new
+
+### v5.2.0-rc02
+
+- **Playwright e2e suite** — 16 specs / 103 tests covering every feature area, with dedicated browser-level fixtures in `example/src/routes/test/`
+- **`setCurrentUser()` + reactivity-by-default** — `hasPermission()` updates live in `{#if}` blocks without subscription wiring; no more `get(store)` footgun
+- **`revalidateCurrentRoute()` + `onRevalidationFailure`** — re-check the currently mounted route on out-of-band user changes (websocket permission updates, token refresh) without remounting on success
+- **`relativeLocation` on every Router event payload** — prefix-stripped view for nested routers; `location` stays full URL
+- **Several router fixes** — `push('/path', {}, queryObj)` was dropping the query; `onNotFound` never fired when `'*'` catch-all was configured; `navigationContext()` was leaking the internal `_routeName` key (so `!ctx` was never true)
+- **Diagnostic warning** when `shouldDisplayLoadingOnRouteLoad` routes never call `hideLoading()` — surfaces forgotten-callback bugs after 10s instead of blank pages forever
+- **Built-in toast removed from `GlobalErrorHandler`** (breaking — rc02 unreleased) — notification UI belongs in your stack via the `onError` callback
+
+### v5.2.0-rc01
+
+- **`defineRoutes()`** — type-safe route definitions with IDE autocomplete on route names and params, plus generated `nav.X.push(params)` and `paths.X(params)` helpers
+- **Comprehensive test suite** — expanded from ~156 to 347 passing vitest tests across 16 files (0 skipped)
+- **AI-assistant documentation** — 15 plain-text reference files in `ai/` (basic-setup, navigation, permissions, …) optimized for Claude / Cursor / Copilot
+- **Route Context Demo pages** — interactive examples for `routeContext()`, `routeTitle()`, `routeBreadcrumbs()`
+- **Several TypeScript + correctness fixes** — `routeContext()` mangled name, `wrap()` not merging `title`/`breadcrumbs` into routeContext, missing type declarations for `GlobalErrorHandler` / `ErrorDisplay` / `setHierarchicalRoutesEnabled` / `setIncludeReferrer`
+
+Full details in [CHANGELOG.md](./CHANGELOG.md).
+
 ## Installation
 
 ```sh
