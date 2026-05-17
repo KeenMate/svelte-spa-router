@@ -82,16 +82,51 @@ function handleReset() {
                 <h3>Demo Mode:</h3>
                 <label>
                     <input type="radio" bind:group={demoMode} value="wrapper" />
-                    PageWrapper Component
+                    PageWrapper Component <span class="mode-tag">declarative</span>
                 </label>
                 <label>
                     <input type="radio" bind:group={demoMode} value="direct" />
-                    Direct Registration
+                    Direct Registration <span class="mode-tag">imperative</span>
                 </label>
                 <label>
                     <input type="radio" bind:group={demoMode} value="helper" />
-                    Helper Function
+                    Helper Function <span class="mode-tag">dirty-check shortcut</span>
                 </label>
+            </div>
+
+            <div class="mode-guide">
+                <h3>Which mode should I use?</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mode</th>
+                            <th>Reach for it when…</th>
+                            <th>Trade-off</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>PageWrapper</strong></td>
+                            <td>You want a page-level guard that follows the component's lifecycle. Drop the wrapper around your page, write the <code>beforeLeave</code> function, done.</td>
+                            <td>Adds one extra component in the markup. Less control over <em>when</em> the guard is active during the page's lifetime.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Direct Registration</strong></td>
+                            <td>You need fine control — swap the guard mid-session, toggle it based on a condition, share one guard across multiple components. Call <code>registerBeforeLeave</code> / <code>unregisterBeforeLeave</code> inside a <code>$effect</code>.</td>
+                            <td>You own the lifecycle — easy to forget the cleanup function and leak guards across navigations.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Helper Function</strong></td>
+                            <td>Your guard is the classic "form has unsaved changes — confirm before leaving" pattern. <code>createDirtyCheckGuard(isDirty, message)</code> bakes it in.</td>
+                            <td>Only fits the dirty-check shape. You still register it the same way as Direct mode — the helper just saves you from writing the <code>confirm</code> logic.</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="mode-guide-note">
+                    All three modes call the same underlying guard system —
+                    <code>registerBeforeLeave</code> is the primitive, the wrapper and helper
+                    are conveniences on top. Pick by ergonomics, not capability.
+                </p>
             </div>
 
             <div class="status-box" class:dirty={formIsDirty}>
@@ -304,6 +339,82 @@ h1 {
 
 .mode-selector input[type="radio"] {
     margin-right: 0.5rem;
+}
+
+.mode-tag {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.45rem;
+    background: #ddd;
+    color: #444;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    vertical-align: middle;
+}
+
+.mode-guide {
+    background: #fff8e1;
+    border-left: 4px solid #f9a825;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+    border-radius: 4px;
+}
+
+.mode-guide h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-size: 1.05rem;
+}
+
+.mode-guide table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.mode-guide th,
+.mode-guide td {
+    text-align: left;
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid #f0e4b8;
+    vertical-align: top;
+}
+
+.mode-guide th {
+    background: #fff3c4;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #6b5d11;
+}
+
+.mode-guide td:first-child {
+    width: 11rem;
+    white-space: nowrap;
+}
+
+.mode-guide td:last-child {
+    color: #6b5d11;
+    font-size: 0.85rem;
+}
+
+.mode-guide code {
+    background: #fffaf0;
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+}
+
+.mode-guide-note {
+    margin: 0.75rem 0 0;
+    font-size: 0.82rem;
+    color: #6b5d11;
+    font-style: italic;
 }
 
 .status-box {

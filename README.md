@@ -1762,6 +1762,18 @@ await updateQuerystring({ search: null }, { dropNull: false }) // Keeps as ?sear
 
 Prevent navigation when there's unsaved work or other conditions that need user confirmation.
 
+### Which mode should I use?
+
+Three patterns, all calling the same underlying `registerBeforeLeave` primitive — the wrapper and helper are conveniences on top. Pick by ergonomics, not capability.
+
+| Mode | Reach for it when… | Trade-off |
+|---|---|---|
+| **PageWrapper** *(declarative)* | You want a page-level guard tied to the component's lifecycle. Drop the wrapper around your page, write the `beforeLeave` function, done. | Adds one extra component in the markup. Less control over *when* the guard is active during the page's lifetime. |
+| **Direct Registration** *(imperative)* | You need fine control — swap the guard mid-session, toggle it based on a condition, share one guard across multiple components. Call `registerBeforeLeave` / `unregisterBeforeLeave` inside `onMount`/`onDestroy` (or a `$effect`). | You own the lifecycle — easy to forget the cleanup and leak guards across navigations. |
+| **`createDirtyCheckGuard`** *(shortcut)* | Your guard is the classic "form has unsaved changes — confirm before leaving" pattern. The helper bakes in the dirty-check + `confirm()` dialog; just plug in the dirty predicate. | Only fits the dirty-check shape. You still register it the same way as Direct mode — the helper just saves the `confirm` boilerplate. |
+
+> **Tip:** the live demo at `/navigation-guard-demo` (in the example app) lets you switch between all three modes with the same form, so you can compare them side-by-side.
+
 ### Basic Usage with PageWrapper
 
 Create a reusable wrapper component:
