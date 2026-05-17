@@ -8,6 +8,10 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/tests/setup.js'],
+    // Only scan unit tests under src/tests/. Otherwise vitest picks up
+    // e2e/*.spec.ts (Playwright tests) and fails because Playwright's
+    // test.describe doesn't work under vitest's runner.
+    include: ['src/tests/**/*.{test,spec}.{js,ts}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
