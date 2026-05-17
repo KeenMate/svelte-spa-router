@@ -282,6 +282,27 @@ describe('Navigation Functions', () => {
       expect(ctx).toBeTruthy()
       expect(ctx.fromPage).toBe('dashboard')
     })
+
+    it('navigationContext() returns null after push() with no user context', async () => {
+      // push() internally injects _routeName for referrer tracking. That key
+      // must not leak into the public navigationContext() — if the user
+      // didn't pass any context, they should see null, not { _routeName }.
+      // This was the bug behind the broken NavigationContextDemo "back to list"
+      // path where the list view never re-rendered after a backToList push().
+      push('/no-context-route')
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(navigationContext()).toBeNull()
+    })
+
+    it('navigationContext() filters out internal _routeName but keeps user keys', async () => {
+      push('/some-route', {}, {}, { foo: 'bar' })
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      const ctx = navigationContext()
+      expect(ctx).toEqual({ foo: 'bar' }) // no _routeName visible
+      expect(ctx._routeName).toBeUndefined()
+    })
   })
 
   describe('setIncludeReferrer', () => {

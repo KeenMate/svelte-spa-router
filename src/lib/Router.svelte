@@ -26,7 +26,7 @@
 
 import { parse } from './parse-route.js'
 import { tick, untrack } from 'svelte'
-import { location, querystring, routeParams, setParams, getHierarchicalRoutesEnabled, navigationContext, setNavigationContext, getIncludeReferrer, restoreScroll, getZoneComponent, setZoneComponents, registerRevalidationListener } from './utils.svelte.js'
+import { location, querystring, routeParams, setParams, getHierarchicalRoutesEnabled, navigationContext, getRawNavigationContext, setNavigationContext, getIncludeReferrer, restoreScroll, getZoneComponent, setZoneComponents, registerRevalidationListener } from './utils.svelte.js'
 import { runBeforeLeaveGuards } from './helpers/navigation-guard.svelte.js'
 import { updateRouteMetadata, getUpdatedBreadcrumb, startRouteLoading, waitForRouteReady } from './helpers/route-metadata.svelte.js'
 import { getUnauthorizedBehavior, getUnauthorizedRoute, getUnauthorizedComponent, getUnauthorizedHandler, hasExplicitHandler, getRevalidationFailureHandler } from './helpers/permissions.svelte.js'
@@ -1309,8 +1309,9 @@ $effect(() => {
 
     routerLogger.debug('Location changed:', loc, qs)
 
-    // Read navigationContext to get route name (untracked to prevent re-runs on context changes)
-    const incomingContext = untrack(() => navigationContext() || {})
+    // Read raw navigationContext (including internal _routeName) for pipeline use.
+    // Untracked to prevent re-runs on context changes.
+    const incomingContext = untrack(() => getRawNavigationContext() || {})
 
     // Capture previous route snapshot for referrer calculation
     // Uses previousRoute state which is updated AFTER navigation completes
@@ -1337,7 +1338,7 @@ $effect(() => {
     const unregister = registerRevalidationListener(() => {
         const loc = untrack(() => location())
         const qs = untrack(() => querystring())
-        const incomingContext = untrack(() => navigationContext() || {})
+        const incomingContext = untrack(() => getRawNavigationContext() || {})
         const currentRouteSnapshot = {
             location: previousRoute,
             querystring: previousQuerystring,
@@ -1380,8 +1381,10 @@ $effect(() => {
 $effect(() => {
     scrollLogger.debug('Scroll effect triggered - restoreScrollState:', restoreScrollState, 'component:', !!component)
     if (component) {
-        // Check if navigationContext has scroll behavior override
-        const navContext = untrack(() => navigationContext())
+        // Check if navigationContext has scroll behavior override.
+        // Use the raw accessor because __scrollBehavior is an internal key
+        // filtered out of the public navigationContext().
+        const navContext = untrack(() => getRawNavigationContext())
         const scrollBehavior = navContext?.__scrollBehavior
 
         scrollLogger.debug('Scroll behavior:', scrollBehavior, 'navigationContext:', navContext)

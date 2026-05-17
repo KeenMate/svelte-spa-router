@@ -287,14 +287,47 @@ export function setParams(newParams) {
     paramsState = newParams
 }
 
+// Internal context keys injected by push()/replace() for the router's own
+// bookkeeping (referrer tracking, scroll behavior). These are filtered out
+// of the public navigationContext() so consumers see only what they passed.
+const INTERNAL_CONTEXT_KEYS = new Set(['_routeName', '__scrollBehavior'])
+
 /**
- * Get route context data
- * Context is data passed during navigation that doesn't appear in the URL
- * Example: push('/orders', { context: { orderId: 123 } })
+ * Get route context data passed during navigation.
  *
- * @returns {any} Context object or null if no context was set
+ * Returns ONLY the user-supplied portion of the context — internal keys
+ * used by the router for referrer/scroll bookkeeping are filtered out.
+ * If the user didn't pass any context, returns `null` (even after a
+ * `push('/path')` call that internally tagged the route name).
+ *
+ * Example: push('/orders', {}, {}, { orderId: 123 })
+ *          → navigationContext() === { orderId: 123 }
+ *
+ *          push('/orders')
+ *          → navigationContext() === null  (internal _routeName filtered out)
+ *
+ * @returns {any} Context object or null if no user context was set
  */
 export function navigationContext() {
+    const state = navigationContextState
+    if (!state || typeof state !== 'object') return state
+    const userKeys = Object.keys(state).filter(k => !INTERNAL_CONTEXT_KEYS.has(k))
+    if (userKeys.length === 0) return null
+    const filtered = {}
+    for (const k of userKeys) {
+        filtered[k] = state[k]
+    }
+    return filtered
+}
+
+/**
+ * Internal — returns the raw navigation context including the router's
+ * internal bookkeeping keys (`_routeName`, `__scrollBehavior`). Used by
+ * Router.svelte to read its own internal flags. Not part of the public API.
+ *
+ * @returns {any} Raw context state
+ */
+export function getRawNavigationContext() {
     return navigationContextState
 }
 
