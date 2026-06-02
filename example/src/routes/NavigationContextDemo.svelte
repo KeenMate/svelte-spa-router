@@ -158,25 +158,25 @@ if (ctx) {
 
             <div class="order-details">
                 <div class="detail-row">
-                    <label>Customer:</label>
+                    <strong class="detail-label">Customer:</strong>
                     <span>{ctx.order.customer}</span>
                 </div>
                 <div class="detail-row">
-                    <label>Items:</label>
+                    <strong class="detail-label">Items:</strong>
                     <span>{ctx.order.items}</span>
                 </div>
                 <div class="detail-row">
-                    <label>Total:</label>
+                    <strong class="detail-label">Total:</strong>
                     <span>${ctx.order.total.toFixed(2)}</span>
                 </div>
                 <div class="detail-row">
-                    <label>Status:</label>
+                    <strong class="detail-label">Status:</strong>
                     <span class="status status-{ctx.order.status.toLowerCase()}">
                         {ctx.order.status}
                     </span>
                 </div>
                 <div class="detail-row">
-                    <label>Loaded At:</label>
+                    <strong class="detail-label">Loaded At:</strong>
                     <span>{new Date(ctx.timestamp).toLocaleString()}</span>
                 </div>
             </div>
@@ -200,26 +200,26 @@ if (ctx) {
             </div>
 
             <div class="order-form">
-                <div class="form-row">
-                    <label>Customer:</label>
+                <label class="form-row">
+                    <span class="form-label">Customer:</span>
                     <input type="text" value={ctx.order.customer} />
-                </div>
-                <div class="form-row">
-                    <label>Items:</label>
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Items:</span>
                     <input type="number" value={ctx.order.items} />
-                </div>
-                <div class="form-row">
-                    <label>Total:</label>
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Total:</span>
                     <input type="number" step="0.01" value={ctx.order.total} />
-                </div>
-                <div class="form-row">
-                    <label>Status:</label>
+                </label>
+                <label class="form-row">
+                    <span class="form-label">Status:</span>
                     <select value={ctx.order.status}>
                         <option>Pending</option>
                         <option>Shipped</option>
                         <option>Delivered</option>
                     </select>
-                </div>
+                </label>
 
                 <div class="actions">
                     <button onclick={saveOrder} class="btn-save">💾 Save Changes</button>
@@ -517,8 +517,8 @@ code {
     align-items: center;
 }
 
-.detail-row label,
-.form-row label {
+.detail-label,
+.form-label {
     font-weight: 600;
     color: #666;
 }

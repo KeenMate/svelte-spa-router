@@ -262,7 +262,7 @@ code {
     line-height: 1.6;
 }
 
-p code, li code, h3 code {
+p code, li code {
     background: #f5f5f5;
     color: #e74c3c;
     padding: 0.2rem 0.4rem;

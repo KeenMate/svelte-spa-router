@@ -165,35 +165,35 @@ paths.user({ id: 456 }, { tab: 'info' })  // '/user/456?tab=info'
 
         <div class="playground-grid">
             <div class="playground-controls">
-                <div class="control-row">
-                    <label>Route:</label>
+                <label class="control-row">
+                    <span class="control-label">Route:</span>
                     <select bind:value={selectedRoute}>
                         <option value="home">home</option>
                         <option value="userProfile">userProfile</option>
                         <option value="documentDetail">documentDetail</option>
                         <option value="settings">settings</option>
                     </select>
-                </div>
+                </label>
 
                 {#if selectedRoute === 'userProfile'}
-                    <div class="control-row">
-                        <label>userId:</label>
+                    <label class="control-row">
+                        <span class="control-label">userId:</span>
                         <input type="text" bind:value={paramUserId} placeholder="e.g. 42" />
-                    </div>
+                    </label>
                 {/if}
 
                 {#if selectedRoute === 'documentDetail'}
-                    <div class="control-row">
-                        <label>docId:</label>
+                    <label class="control-row">
+                        <span class="control-label">docId:</span>
                         <input type="text" bind:value={paramDocId} placeholder="e.g. abc-123" />
-                    </div>
+                    </label>
                 {/if}
 
                 {#if selectedRoute === 'userProfile' || selectedRoute === 'documentDetail'}
-                    <div class="control-row">
-                        <label>query (tab):</label>
+                    <label class="control-row">
+                        <span class="control-label">query (tab):</span>
                         <input type="text" bind:value={queryTab} placeholder="e.g. overview" />
-                    </div>
+                    </label>
                 {/if}
             </div>
 
@@ -499,6 +499,7 @@ h2 {
 }
 
 .control-row {
+    display: block;
     margin-bottom: 1rem;
 }
 
@@ -506,7 +507,7 @@ h2 {
     margin-bottom: 0;
 }
 
-.control-row label {
+.control-label {
     display: block;
     font-weight: 600;
     color: #475569;

@@ -246,12 +246,4 @@
   .btn:hover {
     background: #2563eb;
   }
-
-  .btn-secondary {
-    background: #6b7280;
-  }
-
-  .btn-secondary:hover {
-    background: #4b5563;
-  }
 </style>

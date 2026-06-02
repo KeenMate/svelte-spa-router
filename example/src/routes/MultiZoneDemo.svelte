@@ -281,15 +281,5 @@ h1 {
     .multi-zone-demo {
         padding: 1rem;
     }
-
-    .control-group {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .control-group select,
-    .control-group button {
-        width: 100%;
-    }
 }
 </style>

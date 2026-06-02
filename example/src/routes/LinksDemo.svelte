@@ -84,7 +84,7 @@ registerRoutes(&#123;
 <div class="demo-section">
     <h2>2. Direct href with Object Syntax</h2>
     <pre><code>&lt;a use:link=&#123;&#123; href: '/about' &#125;&#125;&gt;About Page&lt;/a&gt;</code></pre>
-    <p class="demo-link">Try it: <a use:link={{href: '/about'}}>About Page (object syntax)</a></p>
+    <p class="demo-link">Try it: <a href="/about" use:link={{href: '/about'}}>About Page (object syntax)</a></p>
     <p class="note">Resolves to: <code>/about</code></p>
 </div>
 
@@ -96,7 +96,7 @@ registerRoutes(&#123;
 &#125;&#125;&gt;
   User: John Doe
 &lt;/a&gt;</code></pre>
-    <p class="demo-link">Try it: <a use:link={{route: 'userDetail', params: {first: 'john', last: 'doe'}}}>
+    <p class="demo-link">Try it: <a href="/user/john/doe" use:link={{route: 'userDetail', params: {first: 'john', last: 'doe'}}}>
         User: John Doe (named route)
     </a></p>
     <p class="note">Resolves to: <code>/user/john/doe</code></p>
@@ -107,7 +107,7 @@ registerRoutes(&#123;
     <pre><code>&lt;a use:link=&#123;['userDetail', &#123; first: 'jane', last: 'smith' &#125;]&#125;&gt;
   User: Jane Smith
 &lt;/a&gt;</code></pre>
-    <p class="demo-link">Try it: <a use:link={['userDetail', {first: 'jane', last: 'smith'}]}>
+    <p class="demo-link">Try it: <a href="/user/jane/smith" use:link={['userDetail', {first: 'jane', last: 'smith'}]}>
         User: Jane Smith (array shorthand)
     </a></p>
     <p class="note">Resolves to: <code>/user/jane/smith</code></p>
@@ -121,7 +121,7 @@ registerRoutes(&#123;
 &#125;&#125;&gt;
   About with Query Params
 &lt;/a&gt;</code></pre>
-    <p class="demo-link">Try it: <a use:link={{route: 'about', query: {tab: 'info', section: 'details'}}}>
+    <p class="demo-link">Try it: <a href="/about?tab=info&section=details" use:link={{route: 'about', query: {tab: 'info', section: 'details'}}}>
         About with Query Params
     </a></p>
     <p class="note">Resolves to: <code>/about?tab=info&amp;section=details</code></p>
@@ -132,7 +132,7 @@ registerRoutes(&#123;
     <pre><code>&lt;a use:link=&#123;&#123; href: '/about', query: &#123; source: 'demo' &#125; &#125;&#125;&gt;
   About with query
 &lt;/a&gt;</code></pre>
-    <p class="demo-link">Try it: <a use:link={{href: '/about', query: {source: 'demo'}}}>
+    <p class="demo-link">Try it: <a href="/about?source=demo" use:link={{href: '/about', query: {source: 'demo'}}}>
         About with query (href + query)
     </a></p>
     <p class="note">Resolves to: <code>/about?source=demo</code></p>
@@ -143,7 +143,7 @@ registerRoutes(&#123;
     <pre><code>&lt;a use:link=&#123;['bookDetail', &#123; bookId: '123' &#125;, &#123; preview: 'true' &#125;]&#125;&gt;
   Book Detail with Query
 &lt;/a&gt;</code></pre>
-    <p class="demo-link">Try it: <a use:link={['bookDetail', {bookId: '123'}, {preview: 'true'}]}>
+    <p class="demo-link">Try it: <a href="/book/123?preview=true" use:link={['bookDetail', {bookId: '123'}, {preview: 'true'}]}>
         Book Detail with Query (array with query)
     </a></p>
     <p class="note">Resolves to: <code>/book/123?preview=true</code></p>
@@ -154,7 +154,7 @@ registerRoutes(&#123;
     <pre><code>&lt;a use:link=&#123;['bookDetail', &#123; bookId: '456' &#125;, &#123; tab: 'reviews' &#125;, &#123; source: 'links-demo' &#125;]&#125;&gt;
   Book with Context
 &lt;/a&gt;</code></pre>
-    <p class="demo-link">Try it: <a use:link={['bookDetail', {bookId: '456'}, {tab: 'reviews'}, {source: 'links-demo'}]}>
+    <p class="demo-link">Try it: <a href="/book/456?tab=reviews" use:link={['bookDetail', {bookId: '456'}, {tab: 'reviews'}, {source: 'links-demo'}]}>
         Book with Navigation Context (4-element array)
     </a></p>
     <p class="note">Resolves to: <code>/book/456?tab=reviews</code></p>
@@ -166,7 +166,7 @@ registerRoutes(&#123;
     <pre><code>&lt;a use:link=&#123;['userDetail', &#123; first: 'bob', last: 'wilson' &#125;]&#125;&gt;
   User: Bob Wilson
 &lt;/a&gt;</code></pre>
-    <p class="demo-link">Try it: <a use:link={['userDetail', {first: 'bob', last: 'wilson'}]}>
+    <p class="demo-link">Try it: <a href="/user/bob/wilson" use:link={['userDetail', {first: 'bob', last: 'wilson'}]}>
         User: Bob Wilson (2-element array)
     </a></p>
     <p class="note">Resolves to: <code>/user/bob/wilson</code></p>

@@ -325,7 +325,7 @@ async function clearOdata() {
         </div>
 
         <div class="filter-group">
-            <label>🏷️ Tags:</label>
+            <strong class="group-label">🏷️ Tags:</strong>
             <div class="tags">
                 {#each ['programming', 'web', 'tech', 'fashion', 'organic', 'audio'] as tag}
                     <button
@@ -453,7 +453,7 @@ await updateQuerystring({ tags: ['foo', 'bar'] }, { arrayFormat: '${arrayFormat}
             </div>
 
             <div class="odata-field">
-                <label>$select (which fields to return):</label>
+                <strong class="odata-field-label">$select (which fields to return):</strong>
                 <div class="odata-chips">
                     {#each ALL_USER_FIELDS as field}
                         <button
@@ -715,7 +715,8 @@ h1 {
     margin: 1rem 0;
 }
 
-.filter-group label {
+.filter-group label,
+.filter-group .group-label {
     display: block;
     font-weight: 600;
     margin-bottom: 0.5rem;
@@ -975,7 +976,8 @@ h1 {
     flex: 1;
 }
 
-.odata-field label {
+.odata-field label,
+.odata-field .odata-field-label {
     display: block;
     font-weight: 600;
     font-size: 0.85rem;

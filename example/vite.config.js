@@ -54,6 +54,16 @@ export default defineConfig({
         '__REPOSITORY__': JSON.stringify(pkg.repository?.url || pkg.repository || ''),
         '__HOMEPAGE__': JSON.stringify(pkg.homepage || '')
     },
+    css: {
+        preprocessorOptions: {
+            scss: {
+                // Use Sass's modern compiler API. Without this, Vite invokes
+                // sass via the legacy JS API, which prints a deprecation
+                // warning on every build (going away in Dart Sass 2.0).
+                api: 'modern-compiler'
+            }
+        }
+    },
     server: {
         port: 5050
     },
