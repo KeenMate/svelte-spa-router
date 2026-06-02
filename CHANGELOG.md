@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.2.0-rc02] - 2026-05-01
+## [5.2.0-rc02] - 2026-05-01 [PUBLISHED]
 
 ### Fixed
 - **`ReferenceError: __PACKAGE_NAME__ is not defined` masking real route errors** — The global API setup in `src/lib/index.js` referenced bundler-injected placeholders (`__PACKAGE_NAME__`, `__VERSION__`, `__AUTHOR__`, `__LICENSE__`, `__REPOSITORY__`, `__HOMEPAGE__`) with `typeof X !== 'undefined'` fallbacks. Consumer Vite optimizers (esbuild prebundle) were not preserving the guard, leaving bare references that threw `ReferenceError` at module-init. The error surfaced asynchronously during route activation and masked real errors thrown by route components.
@@ -92,7 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New npm scripts: `test:e2e`, `test:e2e:install`, `test:e2e:ui`, `test:e2e:headed`. New Makefile targets: `test-e2e`, `test-e2e-install`, `test-e2e-ui`.
   - Documentation: `e2e/README.md` covers run instructions, the fixture/spec convention, a coverage matrix, and a 6-step recipe for adding new fixtures. A discoverable in-browser index of all fixtures lives at `/test`.
 
-## [5.2.0-rc01] - 2026-02-18
+## [5.2.0-rc01] - 2026-02-18 [PUBLISHED]
 
 ### Fixed
 - **`routeContext()` function missing / mangled name** (Issue #3) — The exported function was named `routerouteContext()` instead of `routeContext()` due to a find-replace accident during the `userData` → `routeContext` rename. The README also referenced the old name `routeUserData()`.
@@ -191,7 +191,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Best practices and common patterns
   - Debugging with ROUTER:METADATA logging category
 
-## [5.1.1] - 2025-11-30
+## [5.1.1] - 2025-11-30 [PUBLISHED]
 
 ### Fixed
 - **Breadcrumbs preserved on querystring changes** - Fixed breadcrumbs resetting to "Loading..." when only the querystring changes (e.g., tab navigation)
@@ -221,7 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Shows common pattern with page definitions array
   - Explains the "Route X not found in registry" error and how to fix it
 
-## [5.1.0] - 2025-11-20 ✅ Published
+## [5.1.0] - 2025-11-20 [PUBLISHED]
 
 ### Added
 - **Global Window API:** Added runtime debugging and introspection via `window.components['svelte-spa-router']`
@@ -238,7 +238,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enables debugging production issues without code changes or rebuilding
   - Example: `window.components['svelte-spa-router'].logging.setCategoryLevel('ROUTER:NAVIGATION', 'debug')`
 
-## [5.0.0] - 2025-01-17 ✅ Published
+## [5.0.0] - 2025-01-17 [PUBLISHED]
 
 ### Changed
 - **Code Quality:** Major ESLint cleanup - reduced linting issues from 161 to 11 (93% reduction)
