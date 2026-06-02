@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+## [5.2.0] - 2026-06-02 [PUBLISHED]
+
 ### Changed (docs)
 - **README split into a slim entry point plus `docs/*.md`** — the README had grown to ~2,300 lines mixing install instructions with deep-dive content for every feature. Trimmed it to the basics (features, What's new, install, quick start, docs index, license) and moved the rest into 14 domain-specific files under `docs/`: `imports.md`, `routing-modes.md`, `routes.md`, `navigation.md`, `route-params.md`, `querystring-filters.md`, `loading-metadata.md`, `route-guards.md`, `permissions.md`, `navigation-guards.md`, `hierarchical-routes.md`, `error-handling.md`, `logging.md`, `advanced.md`. All original content is preserved; cross-references use relative links. The new README is 157 lines.
 
@@ -100,6 +108,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.2.0-rc01] - 2026-02-18 [PUBLISHED]
 
 ### Fixed
+- **Routes no longer wrapped in a layout-breaking `<div style="display: block">`** (Issue #1) — `Router.svelte` previously wrapped every routed component in a wrapper div, even for routes that don't use the loading feature. This broke CSS flexbox/grid layouts and child selectors for the majority of routes that have no need for the wrapper.
+  - Split rendering into two paths in `src/lib/Router.svelte`: routes without loading render the component directly (no wrapper div at all); routes with loading keep the wrapper (needed to hide the component during loading) but switch from `display: block` to `display: contents`, making the wrapper invisible to layout.
+
 - **`routeContext()` function missing / mangled name** (Issue #3) — The exported function was named `routerouteContext()` instead of `routeContext()` due to a find-replace accident during the `userData` → `routeContext` rename. The README also referenced the old name `routeUserData()`.
   - Renamed `routerouteContext()` → `routeContext()` in `route-metadata.svelte.js` (function + all internal variable references)
   - Updated `route-metadata.d.ts` type declaration to match

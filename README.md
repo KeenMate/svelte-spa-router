@@ -23,23 +23,20 @@ MIT licensed.
 
 ## What's new
 
-### v5.2.0-rc02
+### v5.2.0
 
-- **Playwright e2e suite** — 16 specs / 103 tests covering every feature area, with dedicated browser-level fixtures in `example/src/routes/test/`
-- **`setCurrentUser()` + reactivity-by-default** — `hasPermission()` updates live in `{#if}` blocks without subscription wiring; no more `get(store)` footgun
-- **`revalidateCurrentRoute()` + `onRevalidationFailure`** — re-check the currently mounted route on out-of-band user changes (websocket permission updates, token refresh) without remounting on success
-- **`relativeLocation` on every Router event payload** — prefix-stripped view for nested routers; `location` stays full URL
-- **Several router fixes** — `push('/path', {}, queryObj)` was dropping the query; `onNotFound` never fired when `'*'` catch-all was configured; `navigationContext()` was leaking the internal `_routeName` key (so `!ctx` was never true)
-- **Diagnostic warning** when `shouldDisplayLoadingOnRouteLoad` routes never call `hideLoading()` — surfaces forgotten-callback bugs after 10s instead of blank pages forever
-- **Built-in toast removed from `GlobalErrorHandler`** (breaking — rc02 unreleased) — notification UI belongs in your stack via the `onError` callback
-
-### v5.2.0-rc01
-
+- **Breaking — built-in toast removed from `GlobalErrorHandler`** — notification UI belongs in your stack. Wire your own toast/snackbar inside the `onError` callback. The `showToast` config field is gone.
 - **`defineRoutes()`** — type-safe route definitions with IDE autocomplete on route names and params, plus generated `nav.X.push(params)` and `paths.X(params)` helpers
-- **Comprehensive test suite** — expanded from ~156 to 347 passing vitest tests across 16 files (0 skipped)
-- **AI-assistant documentation** — 15 plain-text reference files in `ai/` (basic-setup, navigation, permissions, …) optimized for Claude / Cursor / Copilot
-- **Route Context Demo pages** — interactive examples for `routeContext()`, `routeTitle()`, `routeBreadcrumbs()`
-- **Several TypeScript + correctness fixes** — `routeContext()` mangled name, `wrap()` not merging `title`/`breadcrumbs` into routeContext, missing type declarations for `GlobalErrorHandler` / `ErrorDisplay` / `setHierarchicalRoutesEnabled` / `setIncludeReferrer`
+- **Permissions reactivity by default** — `setCurrentUser()` makes `hasPermission()` updates live in `{#if}` blocks without subscription wiring; `revalidateCurrentRoute()` + `onRevalidationFailure` re-check the currently mounted route on out-of-band user changes (websocket permission updates, token refresh)
+- **Comprehensive test coverage** — 347 vitest cases across 16 files plus a 16-spec / 103-test Playwright e2e suite with dedicated browser-level fixtures
+- **Docs reorganization** — README trimmed from ~2,300 to 157 lines, deep-dive content split into 14 domain-specific files under `docs/`; 15-file AI-assistant reference set under `ai/` for Claude / Cursor / Copilot
+- **Several router fixes + diagnostics** — routed components are no longer wrapped in a layout-breaking `<div style="display: block">` (broke flexbox/grid for routes that didn't use loading); `push('/path', {}, queryObj)` was dropping the query; `onNotFound` never fired when `'*'` catch-all was configured; `navigationContext()` leaked the internal `_routeName` key (so `!ctx` was never true); new 10-second warning when `shouldDisplayLoadingOnRouteLoad` routes forget to call `hideLoading()`; `relativeLocation` now on every Router event payload for prefix-stripped nested-router reasoning
+
+### v5.1.1
+
+- **Breadcrumbs preserved on querystring-only navigation** — fixed breadcrumbs resetting to "Loading..." when only the querystring changes (e.g., tab switching via `replace('/items/1', {}, { tab: 'settings' })`)
+- **TabsDemo example** — shows the correct `replace()`-for-tabs pattern with dynamic breadcrumbs that persist across tab switches
+- **AI documentation index** — `ai/INDEX.txt` for keyword lookup, organized by topic with reading-order recommendations and a quick problem-solving guide
 
 Full details in [CHANGELOG.md](./CHANGELOG.md).
 
