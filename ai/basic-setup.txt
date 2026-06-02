@@ -102,6 +102,41 @@ ROUTER PROPS
     onNotFound={(e) => console.log('404:', e.detail)}
 />
 
+EVENT PAYLOAD SHAPE (e.detail)
+-------------------------------
+onRouteLoading:
+    { route, location, relativeLocation, querystring, params }
+    Fires before guards/conditions run for a matched route.
+
+onRouteLoaded:
+    { route, location, relativeLocation, querystring, params,
+      component?, name?, routeContext?, zones? }
+    Fires after the matched component (and any async children) mounts.
+    zones is set for multi-zone routes; component/name/routeContext for
+    single-component routes.
+
+onConditionsFailed:
+    { route, location, relativeLocation, querystring, params }
+    A condition in wrap({ conditions }) returned false. The slot is now
+    empty — handle the redirect here or inside the condition itself.
+
+onNotFound:
+    { location, relativeLocation, querystring }
+    Fires when no route matched OR when the '*' catch-all matched. (Prior
+    to v5.2.0-rc02, this event was suppressed if '*' was configured — now
+    it always fires, so consumers can log every 404 regardless of whether
+    the catch-all is present.)
+
+LOCATION VS RELATIVELOCATION
+-----------------------------
+location           Full app URL the browser sees (e.g. /test/embed/missing).
+                   Use for logging, analytics, push() (always app-wide).
+relativeLocation   The path with the Router's prefix stripped (e.g.
+                   /missing for a <Router prefix="/test/embed" />). Use
+                   when reasoning about what THIS Router instance saw —
+                   matches how routes inside it were defined.
+                   For a root Router with no prefix, the two are equal.
+
 ROUTE COMPONENT PROPS
 ---------------------
 Route components receive:
@@ -142,11 +177,31 @@ setIncludeReferrer('always')           // Track referrer: 'never', 'notfound', '
 
 ENABLING NAMED ROUTES
 ---------------------
-IMPORTANT: Named route navigation (push('routeName', params)) requires
-explicit registration. Route names defined elsewhere are just metadata
-until registered with registerRoutes().
+Named route navigation (push('routeName', params)) requires registration.
+Use defineRoutes() (recommended) — it auto-registers names AND gives you
+type-safe nav.X.push / paths.X helpers:
 
-// main.js - register before mount
+// routes.js
+import { defineRoutes } from '@keenmate/svelte-spa-router/routes'
+
+const { routes, nav, paths } = defineRoutes({
+    home: { path: '/', component: Home },
+    userProfile: { path: '/user/:userId', component: UserProfile }
+})
+
+export { routes, nav, paths }
+
+// main.js
+import { routes } from './routes'
+// no separate registerRoutes() call needed
+
+// Now you can navigate by name:
+await push('userProfile', { userId: 123 })  // → /user/123
+// Or with the typed helper:
+nav.userProfile.push({ userId: 123 })
+
+Lower-level API — registerRoutes():
+
 import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
 
 registerRoutes({
@@ -155,25 +210,8 @@ registerRoutes({
     'documentDetail': '/documents/:docId'
 })
 
-// Now you can navigate by name:
-await push('userProfile', { userId: 123 })  // → /user/123
-
-Common pattern with page definitions:
-// pages.ts
-export const pages = [
-    { name: 'home', url: '/', component: Home },
-    { name: 'userProfile', url: '/user/:userId', component: UserProfile }
-]
-
-// main.js
-import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
-import { pages } from './pages'
-
-registerRoutes(
-    Object.fromEntries(pages.map(p => [p.name, p.url]))
-)
+See named-routes.txt for the full named routes API.
 
 ERROR: "Route X not found in registry. Registered routes: []"
-- This means registerRoutes() was never called
-- Named routes require explicit registration in main.js
-- See named-routes.txt for full documentation
+- defineRoutes() / registerRoutes() was never called
+- Make sure your routes module is imported before navigation runs

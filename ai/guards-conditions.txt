@@ -59,12 +59,20 @@ DETAIL OBJECT
 -------------
 Conditions receive detail object:
 {
-    route: '/user/:id',              // Route pattern
-    location: '/user/123',           // Actual URL path
-    querystring: 'tab=profile',      // Query string
-    routeParams: { id: '123' },      // Extracted params
-    userData: { /* custom data */ }  // From wrap()
+    route: '/user/:id',          // Route pattern
+    location: '/user/123',       // Actual URL path
+    querystring: 'tab=profile',  // Query string
+    params: { id: '123' },       // Extracted params (field is "params",
+                                 //   NOT "routeParams")
+    userData: { /* custom */ }   // From wrap() / createRoute()
 }
+
+Inside the condition:
+    async (detail) => {
+        const id = detail.params.id          // ✓ correct
+        const token = detail.userData?.token // ✓ correct
+        // detail.routeParams                 ✗ does not exist
+    }
 
 MULTIPLE CONDITIONS
 -------------------
@@ -136,18 +144,58 @@ const currentUser = userData.currentUser
 
 LOADING COMPONENT
 -----------------
-Show loading while async conditions run:
+Show loading while async conditions run / async component loads:
 
 wrap({
     asyncComponent: () => import('./Dashboard.svelte'),
     loadingComponent: Loading,
     conditions: [
         async (detail) => {
-            await delay(1000)  // Simulating check
+            await delay(1000)  // simulating check
             return true
         }
     ]
 })
+
+The loadingComponent is auto-hidden once the route is ready.
+
+shouldDisplayLoadingOnRouteLoad (different contract!)
+------------------------------------------------------
+For multi-zone layouts where the Router should keep loadingComponent
+visible until the real component signals it has finished loading data,
+set shouldDisplayLoadingOnRouteLoad: true:
+
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/document/:id': createRoute({
+        component: () => import('./DocumentDetail.svelte'),
+        loadingComponent: Loading,
+        shouldDisplayLoadingOnRouteLoad: true
+    })
+}
+
+⚠️ THE COMPONENT MUST CALL hideLoading() WHEN READY.
+
+import { onMount } from 'svelte'
+import { hideLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+let { routeParams } = $props()
+
+onMount(async () => {
+    try {
+        await fetchDocument(routeParams.id)
+    } finally {
+        hideLoading()  // ALWAYS call — even on error
+    }
+})
+
+If hideLoading() is never called (forgotten, thrown before reaching it,
+conditional code path didn't run), the loading screen stays up forever
+and the real component never appears. In dev, a console.warn fires after
+10 seconds. Production has no automatic recovery.
+
+See route-metadata.txt for the full loading/metadata API.
 
 COMMON GUARD PATTERNS
 ---------------------

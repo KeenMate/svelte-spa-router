@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed (docs)
+- **README split into a slim entry point plus `docs/*.md`** — the README had grown to ~2,300 lines mixing install instructions with deep-dive content for every feature. Trimmed it to the basics (features, What's new, install, quick start, docs index, license) and moved the rest into 14 domain-specific files under `docs/`: `imports.md`, `routing-modes.md`, `routes.md`, `navigation.md`, `route-params.md`, `querystring-filters.md`, `loading-metadata.md`, `route-guards.md`, `permissions.md`, `navigation-guards.md`, `hierarchical-routes.md`, `error-handling.md`, `logging.md`, `advanced.md`. All original content is preserved; cross-references use relative links. The new README is 157 lines.
+
 ## [5.2.0-rc02] - 2026-05-01 [PUBLISHED]
 
 ### Fixed

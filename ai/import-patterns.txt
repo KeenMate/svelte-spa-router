@@ -10,6 +10,7 @@ CORRECT MAIN IMPORTS
 ✅ import { push, replace, pop, goBack } from '@keenmate/svelte-spa-router'
 ✅ import { location, querystring, routeParams } from '@keenmate/svelte-spa-router'
 ✅ import { navigationContext, link } from '@keenmate/svelte-spa-router'
+✅ import { revalidateCurrentRoute } from '@keenmate/svelte-spa-router'
 
 ❌ import { routeParams } from '@keenmate/svelte-spa-router/stores'  // NO /stores path!
 ❌ import { params } from '@keenmate/svelte-spa-router'  // Wrong name, use routeParams
@@ -30,7 +31,8 @@ UTILS/CONFIG
     setHashRoutingEnabled,
     setBasePath,
     setIncludeReferrer,
-    setParamReplacementPlaceholder
+    setParamReplacementPlaceholder,
+    setHierarchicalRoutesEnabled
 } from '@keenmate/svelte-spa-router'
 
 Alternative:
@@ -38,21 +40,35 @@ Alternative:
 
 ROUTE WRAPPING
 --------------
-✅ import { wrap } from '@keenmate/svelte-spa-router/wrap'
-✅ import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+✅ import { wrap, createRoute, createRouteDefinition } from '@keenmate/svelte-spa-router/wrap'
+
+(createRoute returns a ready-to-use wrapped component. wrap is the
+lower-level primitive. Most apps want createRoute.)
 
 ACTIVE LINK
 -----------
-✅ import { active } from '@keenmate/svelte-spa-router/active'
+active is a DEFAULT export:
+
+✅ import active from '@keenmate/svelte-spa-router/active'
+
+❌ import { active } from '@keenmate/svelte-spa-router/active'   // wrong
 
 NAMED ROUTES
 ------------
-✅ import { registerRoutes, routeUrl, hasRoute } from '@keenmate/svelte-spa-router/routes'
+✅ import {
+    defineRoutes,       // recommended: type-safe routes + nav/paths helpers
+    registerRoutes,     // lower-level: name → path mapping
+    buildUrl,           // build URL string from name + params + query
+    hasRoute,           // check if a name is registered
+    getRouteByName      // get the path pattern for a name
+} from '@keenmate/svelte-spa-router/routes'
 
 PERMISSIONS
 -----------
 ✅ import {
     configurePermissions,
+    setCurrentUser,         // recommended: push user state, reactivity-by-default
+    getCurrentUser,         // read current user (for partial updates)
     createProtectedRoute,
     createProtectedRouteDefinition,
     hasPermission
@@ -60,7 +76,12 @@ PERMISSIONS
 
 NAVIGATION GUARDS
 -----------------
-✅ import { createNavigationGuard } from '@keenmate/svelte-spa-router/helpers/navigation-guard'
+✅ import {
+    registerBeforeLeave,
+    unregisterBeforeLeave,
+    NavigationCancelledError,
+    createDirtyCheckGuard
+} from '@keenmate/svelte-spa-router/helpers/navigation-guard'
 
 HIERARCHY
 ---------
@@ -73,19 +94,64 @@ ERROR HANDLING
     configureGlobalErrorHandler,
     restart,
     navigate,
-    showError
+    showError,
+    canRestart,
+    getRestartCount
 } from '@keenmate/svelte-spa-router/helpers/error-handler'
 
-✅ import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler.svelte'
-✅ import ErrorDisplay from '@keenmate/svelte-spa-router/helpers/ErrorDisplay.svelte'
+✅ import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
+✅ import ErrorDisplay from '@keenmate/svelte-spa-router/helpers/ErrorDisplay'
+
+(The .svelte extension is optional — the export map handles both.)
 
 URL HELPERS
 -----------
 ✅ import { joinPaths } from '@keenmate/svelte-spa-router/helpers/url-helpers'
 
-QUERYSTRING
------------
-✅ import { parse, stringify } from '@keenmate/svelte-spa-router/helpers/querystring'
+QUERYSTRING (REACTIVE + HELPERS)
+---------------------------------
+Configured + reactive accessor:
+✅ import {
+    configureQuerystring,
+    query                   // reactive parsed querystring accessor
+} from '@keenmate/svelte-spa-router/helpers/querystring'
+
+Stateless parsers + updater:
+✅ import {
+    parseQuerystring,
+    stringifyQuerystring,
+    updateQuerystring
+} from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+(See querystring-filters.txt for the full reactive query/filter API.)
+
+FILTERS (FLAT or STRUCTURED/ODATA)
+-----------------------------------
+✅ import {
+    configureFilters,
+    filters,                // reactive filter accessor
+    updateFilters
+} from '@keenmate/svelte-spa-router/helpers/filters'
+
+ROUTE METADATA + LOADING STATE
+-------------------------------
+✅ import {
+    // Loading state control
+    showLoading,
+    hideLoading,
+    routeIsLoading,
+    // Metadata updates
+    updateTitle,
+    updateBreadcrumb,
+    updateRouteMetadata,
+    // Reactive metadata accessors
+    routeTitle,
+    routeBreadcrumbs,
+    routeContext
+} from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+(See route-metadata.txt for the full API and the
+shouldDisplayLoadingOnRouteLoad contract.)
 
 LOGGING
 -------
@@ -106,19 +172,24 @@ CONSTANTS
 
 ALL AVAILABLE EXPORT PATHS
 ---------------------------
-@keenmate/svelte-spa-router                        // Main (Router, push, location, etc.)
-@keenmate/svelte-spa-router/utils                  // Alternative for utils
-@keenmate/svelte-spa-router/wrap                   // Route wrapping
-@keenmate/svelte-spa-router/active                 // Active link action
-@keenmate/svelte-spa-router/routes                 // Named routes
-@keenmate/svelte-spa-router/helpers/permissions    // Permission system
-@keenmate/svelte-spa-router/helpers/navigation-guard  // Navigation guards
-@keenmate/svelte-spa-router/helpers/hierarchy      // Hierarchical routes
-@keenmate/svelte-spa-router/helpers/error-handler  // Error handling
-@keenmate/svelte-spa-router/helpers/url-helpers    // URL utilities
-@keenmate/svelte-spa-router/helpers/querystring    // Query string parsing
-@keenmate/svelte-spa-router/logger                 // Debug logging
-@keenmate/svelte-spa-router/constants              // Navigation constants
+@keenmate/svelte-spa-router                          // Main (Router, push, location, etc.)
+@keenmate/svelte-spa-router/utils                    // Alternative for utils
+@keenmate/svelte-spa-router/wrap                     // Route wrapping / createRoute
+@keenmate/svelte-spa-router/active                   // Active link action (default export)
+@keenmate/svelte-spa-router/routes                   // Named routes + defineRoutes
+@keenmate/svelte-spa-router/constants                // Navigation constants
+@keenmate/svelte-spa-router/logger                   // Debug logging
+@keenmate/svelte-spa-router/helpers/permissions      // Permission system
+@keenmate/svelte-spa-router/helpers/navigation-guard // beforeLeave guards
+@keenmate/svelte-spa-router/helpers/hierarchy        // createHierarchy
+@keenmate/svelte-spa-router/helpers/error-handler    // Error handling config
+@keenmate/svelte-spa-router/helpers/GlobalErrorHandler  // <GlobalErrorHandler>
+@keenmate/svelte-spa-router/helpers/ErrorDisplay     // <ErrorDisplay>
+@keenmate/svelte-spa-router/helpers/url-helpers      // joinPaths
+@keenmate/svelte-spa-router/helpers/querystring      // configureQuerystring, query()
+@keenmate/svelte-spa-router/helpers/querystring-helpers  // parse/stringify/updateQuerystring
+@keenmate/svelte-spa-router/helpers/filters          // configureFilters, filters(), updateFilters
+@keenmate/svelte-spa-router/helpers/route-metadata   // title/breadcrumbs/loading helpers
 
 NO /stores PATH!
 @keenmate/svelte-spa-router/stores  // ❌ DOES NOT EXIST
@@ -155,6 +226,12 @@ Fix: Use camelCase (v5 naming)
 ❌ <Router onrouteLoaded={...} />
 ✅ <Router onRouteLoaded={...} />
 
+Error: "active is not exported"
+Fix: active is a default export
+
+❌ import { active } from '@keenmate/svelte-spa-router/active'
+✅ import active from '@keenmate/svelte-spa-router/active'
+
 MIGRATION FROM V3/V4
 --------------------
 Old (v3/v4):
@@ -166,7 +243,7 @@ import { routeParams } from '@keenmate/svelte-spa-router'
 const params = $derived(routeParams())
 const userId = $derived(params.id)
 
-Or in component:
+Or as props in a route component:
 let { routeParams = {} } = $props()
 const userId = $derived(routeParams.id)
 
@@ -179,20 +256,26 @@ import {
     setBasePath,
     setIncludeReferrer
 } from '@keenmate/svelte-spa-router'
-import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
-import { configurePermissions } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { configurePermissions, setCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { configureGlobalErrorHandler } from '@keenmate/svelte-spa-router/helpers/error-handler'
 import { enableLogging } from '@keenmate/svelte-spa-router/logger'
 import App from './App.svelte'
 
-// App.svelte
-import Router from '@keenmate/svelte-spa-router'
-import { push } from '@keenmate/svelte-spa-router'
-import { wrap } from '@keenmate/svelte-spa-router/wrap'
+// routes.js
+import { defineRoutes } from '@keenmate/svelte-spa-router/routes'
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
 import { createProtectedRoute } from '@keenmate/svelte-spa-router/helpers/permissions'
 
-// Component
-import { link, active } from '@keenmate/svelte-spa-router/active'
-import { location, routeParams, navigationContext } from '@keenmate/svelte-spa-router'
+// App.svelte
+import Router from '@keenmate/svelte-spa-router'
+import { push, link } from '@keenmate/svelte-spa-router'
+import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler'
+
+// Route component
+import { routeParams, navigationContext } from '@keenmate/svelte-spa-router'
+import active from '@keenmate/svelte-spa-router/active'
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { hasPermission } from '@keenmate/svelte-spa-router/helpers/permissions'
 
 TYPESCRIPT TYPES
 ----------------
@@ -218,3 +301,6 @@ BEST PRACTICES
 - Call functions (location()), don't use $ syntax
 - Import only what you need
 - Use TypeScript types for better DX
+- For named routes, prefer defineRoutes() — single source of truth
+- For permissions, prefer setCurrentUser() over a custom getCurrentUser
+  store-getter (avoids the non-reactive read footgun)

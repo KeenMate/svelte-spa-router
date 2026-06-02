@@ -1,6 +1,11 @@
 UTILITIES
 =========
 
+SEE ALSO: querystring-filters.txt for the modern reactive querystring/
+filter API (configureQuerystring + query() + updateQuerystring, and
+configureFilters + filters() + updateFilters). This file covers the
+stateless utility functions and low-level helpers.
+
 URL HELPERS
 -----------
 import { joinPaths } from '@keenmate/svelte-spa-router/helpers/url-helpers'
@@ -27,95 +32,113 @@ Rules:
 - Removes trailing slash
 - Handles empty strings
 
-QUERYSTRING PARSING
--------------------
-import { parse } from '@keenmate/svelte-spa-router/helpers/querystring'
+QUERYSTRING PARSING (STATELESS)
+--------------------------------
+import { parseQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
 
-parse(queryString)
+parseQuerystring(queryString, options?)
 
 Parse query string to object:
 
-parse('tab=settings&page=2')
+parseQuerystring('tab=settings&page=2')
 // Result: { tab: 'settings', page: '2' }
 
-parse('?tab=settings&page=2')
+parseQuerystring('?tab=settings&page=2')
 // Result: { tab: 'settings', page: '2' } (leading ? stripped)
 
-parse('')
+parseQuerystring('')
 // Result: {}
 
-parse('search=hello%20world')
+parseQuerystring('search=hello%20world')
 // Result: { search: 'hello world' } (URL decoded)
 
-QUERYSTRING BUILDING
---------------------
-import { stringify } from '@keenmate/svelte-spa-router/helpers/querystring'
+parseQuerystring('tags=foo,bar,baz', { arrayFormat: 'auto' })
+// Result: { tags: ['foo', 'bar', 'baz'] }
 
-stringify(object)
+parseQuerystring('tags=foo&tags=bar', { arrayFormat: 'repeat' })
+// Result: { tags: ['foo', 'bar'] }
+
+QUERYSTRING BUILDING (STATELESS)
+---------------------------------
+import { stringifyQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+stringifyQuerystring(object, options?)
 
 Build query string from object:
 
-stringify({ tab: 'settings', page: 2 })
+stringifyQuerystring({ tab: 'settings', page: 2 })
 // Result: 'tab=settings&page=2'
 
-stringify({ search: 'hello world' })
+stringifyQuerystring({ search: 'hello world' })
 // Result: 'search=hello%20world' (URL encoded)
 
-stringify({})
+stringifyQuerystring({})
 // Result: ''
 
-stringify({ foo: null, bar: undefined })
-// Result: '' (null/undefined omitted)
+stringifyQuerystring({ foo: null, bar: undefined })
+// Result: '' (null/undefined omitted by default)
 
-stringify({ ids: [1, 2, 3] })
-// Result: 'ids=1&ids=2&ids=3' (array handling)
+stringifyQuerystring({ ids: [1, 2, 3] })
+// Result: 'ids=1&ids=2&ids=3' (default: repeat format)
+
+stringifyQuerystring({ ids: [1, 2, 3] }, { arrayFormat: 'comma' })
+// Result: 'ids=1,2,3'
 
 ACCESSING CURRENT QUERYSTRING
 ------------------------------
+Raw string:
 import { querystring } from '@keenmate/svelte-spa-router'
-import { parse } from '@keenmate/svelte-spa-router/helpers/querystring'
 
-const qs = $derived(querystring())  // Raw string
-const params = $derived(parse(qs))  // Parsed object
+const qs = $derived(querystring())   // 'tab=settings&page=2'
 
-const tab = $derived(params.tab)
-const page = $derived(parseInt(params.page || '1', 10))
+Parsed object (stateless):
+import { parseQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+const params = $derived(parseQuerystring(qs))
+
+Parsed reactive (configured, recommended):
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+
+const q = $derived(query())   // already parsed + array-format aware
+// See querystring-filters.txt for the full reactive API.
 
 NAVIGATION WITH QUERYSTRING
 ----------------------------
-import { push } from '@keenmate/svelte-spa-router'
+Use push()/replace() with a query object — the router serializes it:
 
 await push('/search', {}, { q: 'svelte', page: 2 })
-// Result: /search?q=svelte&page=2
+// URL: /search?q=svelte&page=2
 
-await push('/user/:id', { id: 123 }, { tab: 'profile' })
-// Result: /user/123?tab=profile
+await push('userProfile', { userId: 123 }, { tab: 'settings' })
+// URL: /user/123?tab=settings
 
 QUERYSTRING IN LINK ACTION
 ---------------------------
 import { link } from '@keenmate/svelte-spa-router'
 
-<a href="#" use:link={['/search', {}, { q: 'svelte', page: 2 }]}>
-    Search Svelte
-</a>
+<a href="/search?q=svelte&page=2" use:link>Search</a>
 
-UPDATING QUERYSTRING
---------------------
-import { push, querystring } from '@keenmate/svelte-spa-router'
-import { parse, stringify } from '@keenmate/svelte-spa-router/helpers/querystring'
+// With named-route binding:
+<a use:link={['search', {}, { q: 'svelte', page: 2 }]}>Search</a>
 
-// Get current params
-const currentParams = parse(querystring())
+UPDATING QUERYSTRING (MERGE WITH CURRENT URL)
+----------------------------------------------
+import { updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
 
-// Update one param
-const updatedParams = { ...currentParams, page: 3 }
+// Merge new params with current (default behavior)
+await updateQuerystring({ page: 3 })
 
-// Navigate with updated params
-await push(location(), {}, updatedParams)
+// Remove a parameter
+await updateQuerystring({ category: undefined })
+
+// Replace entire querystring (don't merge)
+await updateQuerystring({ q: 'new' }, { merge: false })
 
 CLEARING QUERYSTRING
 --------------------
-await push(location(), {}, {})  // Empty object clears query
+Navigate to the same path with empty query:
+
+await push(location(), {}, {})
 
 QUERYSTRING IN REFERRER
 -----------------------
@@ -126,216 +149,193 @@ const referrer = $derived(navContext?.referrer)
 const previousQuery = $derived(referrer?.querystring)
 
 if (previousQuery) {
-    const params = parse(previousQuery)
-    // Access previous query params
+    const params = parseQuerystring(previousQuery)
+    // Use previous params (e.g., return to filtered list)
 }
 
-LOC() HELPER
-------------
+LOC() — FULL LOCATION OBJECT
+-----------------------------
 import { loc } from '@keenmate/svelte-spa-router'
 
-loc()
-
-Returns complete location object:
-
-const fullLoc = $derived(loc())
-
-{
-    location: '/user/123',
-    querystring: 'tab=profile',
-    route: '/user/:id',
-    params: { id: '123' },
-    routeName: 'userProfile'
-}
-
-Convenient for accessing everything at once.
+const location = $derived(loc())
+// {
+//     location: '/user/123',
+//     querystring: 'tab=settings'
+// }
 
 LOCATION PARTS
 --------------
-import { location, querystring, routeParams } from '@keenmate/svelte-spa-router'
+import { location, querystring } from '@keenmate/svelte-spa-router'
 
-const path = $derived(location())        // '/user/123'
-const query = $derived(querystring())    // 'tab=profile'
-const params = $derived(routeParams())   // { id: '123' }
+const path = $derived(location())          // '/user/123'
+const query = $derived(querystring())      // 'tab=settings'
+const fullUrl = $derived(`${path}?${query}`)
 
-const fullUrl = $derived(`${path}?${query}`)  // '/user/123?tab=profile'
+BUILDING URLS (FROM NAMED ROUTES)
+----------------------------------
+import { buildUrl } from '@keenmate/svelte-spa-router/routes'
 
-BUILDING URLS
--------------
-import { routeUrl } from '@keenmate/svelte-spa-router/routes'
+const url = buildUrl('userProfile', { userId: 123 }, { tab: 'settings' })
+// '/user/123?tab=settings'
 
-const url = routeUrl('userProfile', { userId: 123 })
-// Result: '/user/123'
-
-const urlWithQuery = routeUrl('userProfile', { userId: 123 }, { tab: 'settings' })
-// Result: '/user/123?tab=settings'
-
-Use for:
-- Href attributes
-- API calls
-- Canonical URLs
+(With defineRoutes, prefer the typed paths.userProfile({ userId: 123 })
+helper — see named-routes.txt.)
 
 MANUAL URL PARSING
 ------------------
-const url = '/user/123?tab=profile&page=2'
+For complex parsing, use URL API:
 
-const [path, query] = url.split('?')
-// path: '/user/123'
-// query: 'tab=profile&page=2'
-
-const params = parse(query)
-// { tab: 'profile', page: '2' }
+const url = new URL(window.location.href)
+const path = url.pathname
+const query = url.search.slice(1)
+const params = parseQuerystring(query)
 
 ARRAY QUERY PARAMS
 ------------------
-Multiple values for same key:
-
-parse('ids=1&ids=2&ids=3')
+parseQuerystring('ids=1&ids=2&ids=3', { arrayFormat: 'auto' })
 // Result: { ids: ['1', '2', '3'] }
 
-stringify({ ids: [1, 2, 3] })
+stringifyQuerystring({ ids: [1, 2, 3] }, { arrayFormat: 'repeat' })
 // Result: 'ids=1&ids=2&ids=3'
 
-NESTED OBJECTS (not supported)
+stringifyQuerystring({ ids: [1, 2, 3] }, { arrayFormat: 'comma' })
+// Result: 'ids=1,2,3'
+
+NESTED OBJECTS (NOT SUPPORTED)
 -------------------------------
-Querystring helpers don't support nested objects:
+Querystring helpers handle flat key/value pairs only:
 
-❌ { user: { name: 'John', age: 30 } }
-✅ { userName: 'John', userAge: 30 }
+stringifyQuerystring({ user: { id: 123, name: 'Alice' } })
+// Result: 'user=%5Bobject+Object%5D' — NOT what you want
 
-Flatten objects before stringifying.
+Flatten objects before stringifying:
+
+stringifyQuerystring({
+    'user.id': 123,
+    'user.name': 'Alice'
+})
+// Result: 'user.id=123&user.name=Alice'
 
 URL ENCODING
 ------------
-Special characters automatically encoded:
+Both parse and stringify handle URL encoding automatically:
 
-stringify({ search: 'hello world' })
+stringifyQuerystring({ search: 'hello world' })
 // Result: 'search=hello%20world'
 
-parse('search=hello%20world')
+parseQuerystring('search=hello%20world')
 // Result: { search: 'hello world' }
 
 BOOLEAN PARAMS
 --------------
-Booleans converted to strings:
+Booleans are stringified to strings, parsed as strings:
 
-stringify({ active: true })
+stringifyQuerystring({ active: true })
 // Result: 'active=true'
 
-parse('active=true')
-// Result: { active: 'true' } (string!)
+parseQuerystring('active=true')
+// Result: { active: 'true' }  ← STRING, not boolean
 
-Convert back:
+// Convert manually:
 const active = params.active === 'true'
 
 NUMERIC PARAMS
 --------------
-Numbers converted to strings:
+Numbers are stringified to strings, parsed as strings:
 
-stringify({ page: 2 })
+stringifyQuerystring({ page: 2 })
 // Result: 'page=2'
 
-parse('page=2')
-// Result: { page: '2' } (string!)
+parseQuerystring('page=2')
+// Result: { page: '2' }  ← STRING, not number
 
-Convert back:
+// Convert manually:
 const page = parseInt(params.page, 10)
 
 NULL/UNDEFINED HANDLING
 -----------------------
-stringify({ foo: null, bar: undefined, baz: '' })
-// Result: 'baz=' (null/undefined omitted, empty string kept)
+By default, null and undefined are dropped:
 
-REACTIVE QUERYSTRING
---------------------
-<script>
+stringifyQuerystring({ foo: null, bar: undefined, baz: '' })
+// Result: 'baz=' (empty string preserved)
+
+REACTIVE QUERYSTRING (LIVE UPDATES)
+------------------------------------
 import { querystring } from '@keenmate/svelte-spa-router'
-import { parse } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { parseQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
 
-const params = $derived(parse(querystring()))
+const params = $derived(parseQuerystring(querystring()))
 const page = $derived(parseInt(params.page || '1', 10))
-const search = $derived(params.q || '')
+const search = $derived(params.search || '')
 
-$effect(() => {
-    console.log('Query changed:', params)
-})
-</script>
+(Or use the configured reactive accessor — see querystring-filters.txt.)
 
-SEARCH PARAMS API (alternative)
---------------------------------
-Browser native URLSearchParams:
+SEARCH PARAMS API ALTERNATIVE
+------------------------------
+You can use the browser's URLSearchParams directly:
 
 const params = new URLSearchParams(querystring())
-const page = params.get('page')
-const search = params.get('q')
+const search = params.get('search')
+params.set('page', '2')
 
-For iteration:
-for (const [key, value] of params) {
-    console.log(key, value)
-}
+But the helpers handle SPA-mode quirks (hash prefix, base path) and
+array/null behavior consistently, so prefer them for in-app code.
 
 HASH FRAGMENTS
 --------------
-Hash fragments (#section) not handled by router:
+In hash routing mode, the URL hash IS the path. To use additional hash
+fragments for scrolling, append after the path:
 
-URL: /about#team
-location(): '/about'
-window.location.hash: '#team'
+http://example.com/#/page#section
+// path = /page, hash fragment = #section
 
-Access manually:
-const hash = window.location.hash.slice(1)  // 'team'
+window.location.hash    // Includes everything
+document.getElementById(fragmentId)?.scrollIntoView()
+
+In history mode, regular hash fragments work as expected.
 
 COMMON PATTERNS
 ---------------
 Pagination:
-const params = $derived(parse(querystring()))
+import { querystring, push } from '@keenmate/svelte-spa-router'
+import { parseQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+const params = $derived(parseQuerystring(querystring()))
 const page = $derived(parseInt(params.page || '1', 10))
 
 function nextPage() {
     push(location(), {}, { ...params, page: page + 1 })
 }
 
-Search:
-const params = $derived(parse(querystring()))
-const query = $derived(params.q || '')
+Tab navigation:
+const tab = $derived(params.tab || 'overview')
 
-function updateSearch(newQuery) {
-    push('/search', {}, { q: newQuery })
+function switchTab(newTab) {
+    push(location(), {}, { ...params, tab: newTab })
 }
 
-Filters:
-const params = $derived(parse(querystring()))
-const filters = $derived({
-    category: params.category,
-    status: params.status,
-    tags: params.tags ? params.tags.split(',') : []
-})
+(For both of the above, prefer updateQuerystring({ ... }) — it auto-
+merges and handles encoding.)
 
-function updateFilters(newFilters) {
-    push(location(), {}, {
-        category: newFilters.category,
-        status: newFilters.status,
-        tags: newFilters.tags.join(',')
-    })
-}
+DEBUGGING URL ISSUES
+---------------------
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
 
-Tabs:
-const params = $derived(parse(querystring()))
-const activeTab = $derived(params.tab || 'overview')
+setCategoryLevel('ROUTER:NAVIGATION', 'debug')
+setCategoryLevel('ROUTER:ROUTES', 'debug')
 
-function selectTab(tab) {
-    push(location(), routeParams(), { tab })
-}
+Logs show:
+- URL parsing
+- Querystring serialization
+- Navigation calls
+- Route matching
 
 BEST PRACTICES
 --------------
-- Use parse() to convert querystring to object
-- Use stringify() to build querystring
-- Parse numbers/booleans from string params
-- Flatten nested objects before stringify
-- Handle missing params with defaults
-- Update query params with spread operator
-- Keep query params simple (avoid complex objects)
-- Use URLSearchParams for advanced parsing
-- Don't rely on query param order
-- URL encode special characters
+- Use parseQuerystring/stringifyQuerystring (not the browser's URLSearchParams)
+  for SPA-aware behavior
+- For reactive UIs, prefer the configured query() accessor (see
+  querystring-filters.txt) — it tracks array formats and stays in sync
+- Convert string params to numbers/booleans explicitly
+- Don't store sensitive data in querystrings — use navigationContext for that
+- For nested data, flatten with dot notation or use navigationContext

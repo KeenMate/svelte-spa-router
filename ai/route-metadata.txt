@@ -1,0 +1,237 @@
+ROUTE METADATA & LOADING STATE
+==============================
+
+The route-metadata helper exposes reactive access to the currently-mounted
+route's title, breadcrumbs, and arbitrary routeContext, plus write helpers
+for updating them after data loads, plus loading-state primitives that
+work with the shouldDisplayLoadingOnRouteLoad wrap option.
+
+IMPORT
+------
+import {
+    // Reactive accessors (call as functions in $derived)
+    routeTitle,
+    routeBreadcrumbs,
+    routeContext,
+
+    // Mutators
+    updateTitle,
+    updateBreadcrumb,
+    updateRouteMetadata,
+
+    // Loading state
+    showLoading,
+    hideLoading,
+    routeIsLoading
+} from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+REACTIVE METADATA ACCESS
+------------------------
+<script>
+import { routeTitle, routeBreadcrumbs, routeContext } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+import { link } from '@keenmate/svelte-spa-router'
+
+const title = $derived(routeTitle())
+const breadcrumbs = $derived(routeBreadcrumbs())
+const ctx = $derived(routeContext())
+</script>
+
+<h1>{title || 'Default Title'}</h1>
+
+{#if breadcrumbs?.length}
+    <nav>
+        {#each breadcrumbs as crumb}
+            {#if crumb.path}
+                <a href={crumb.path} use:link>{crumb.label}</a>
+            {:else}
+                <span>{crumb.label}</span>
+            {/if}
+        {/each}
+    </nav>
+{/if}
+
+DEFINING METADATA IN ROUTES
+---------------------------
+Pass title and breadcrumbs to wrap() or createRoute() at route-definition
+time — they become reachable via routeTitle() / routeBreadcrumbs() once
+the route is matched:
+
+import { createRoute } from '@keenmate/svelte-spa-router/wrap'
+
+const routes = {
+    '/document/:id': createRoute({
+        component: () => import('./Document.svelte'),
+        title: 'Document',
+        breadcrumbs: [
+            { label: 'Home', path: '/' },
+            { label: 'Documents', path: '/documents' },
+            { id: 'documentDetail', label: 'Loading...', path: '/document/:id' }
+        ]
+    })
+}
+
+DYNAMIC UPDATES (AFTER DATA LOADS)
+-----------------------------------
+updateTitle(title)
+    Replace the current title.
+
+updateBreadcrumb(id, updates)
+    Patch one breadcrumb entry, matched by its `id` field.
+    `updates` is partial — { label: 'New' } updates only the label.
+
+updateRouteMetadata({ title?, breadcrumbs? })
+    Replace the full metadata in one call.
+
+<script>
+import { onMount } from 'svelte'
+import {
+    updateTitle,
+    updateBreadcrumb,
+    hideLoading
+} from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+let { routeParams } = $props()
+let doc = $state(null)
+
+onMount(async () => {
+    doc = await fetchDocument(routeParams.id)
+
+    updateTitle(doc.name)
+    updateBreadcrumb('documentDetail', {
+        label: doc.name,
+        path: `/document/${routeParams.id}`
+    })
+
+    hideLoading()    // see Pattern 1 below
+})
+</script>
+
+LOADING STATE — THREE PATTERNS
+-------------------------------
+Pattern 1 — Router-managed loading (zone-specific)
+
+Use loadingComponent + shouldDisplayLoadingOnRouteLoad: true. The Router
+mounts the real component immediately but keeps it hidden under
+loadingComponent and waits for the real component to call hideLoading()
+before revealing it.
+
+const routes = {
+    '/document/:id': createRoute({
+        component: () => import('./Document.svelte'),
+        loadingComponent: Loading,
+        shouldDisplayLoadingOnRouteLoad: true,
+        title: 'Document'
+    })
+}
+
+⚠️ THE COMPONENT MUST CALL hideLoading() WHEN READY.
+If it doesn't (forgotten, threw before reaching it, conditional code path
+didn't run), the loading screen stays up forever and the real component
+never appears — the route is effectively bricked until the user navigates
+away. In development, a console.warn fires after 10 seconds to surface
+this. Production has no automatic recovery.
+
+Pattern 2 — Component-managed loading (default)
+
+No special config. Component manages its own `loading` flag.
+
+<script>
+let loading = $state(true)
+onMount(async () => {
+    data = await fetchData()
+    loading = false
+})
+</script>
+
+{#if loading}<Spinner />{:else}<View {data} />{/if}
+
+Pattern 3 — Global loading overlay
+
+App.svelte renders an overlay tied to routeIsLoading() and components call
+showLoading() / hideLoading() around their async work.
+
+<!-- App.svelte -->
+<script>
+import { routeIsLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+const isLoading = $derived(routeIsLoading())
+</script>
+
+{#if isLoading}<GlobalOverlay />{/if}
+<Router {routes} />
+
+<!-- Component -->
+<script>
+import { showLoading, hideLoading } from '@keenmate/svelte-spa-router/helpers/route-metadata'
+
+async function loadData() {
+    showLoading()
+    try { data = await fetch(...) }
+    finally { hideLoading() }
+}
+</script>
+
+COMBINING PATTERN 1 + PATTERN 3
+-------------------------------
+A route configured with shouldDisplayLoadingOnRouteLoad: true ALSO triggers
+the global overlay — so you get both the zone-specific loadingComponent
+and the App.svelte overlay until hideLoading() fires.
+
+API SUMMARY
+-----------
+routeTitle(): string | null
+    Reactive — current title for the mounted route.
+
+routeBreadcrumbs(): Array<{ id?, label, path? }> | null
+    Reactive — current breadcrumb chain.
+
+routeContext(): any
+    Reactive — full routeContext object passed to wrap() / createRoute().
+    (Note: not the same as navigationContext() — that's the runtime data
+    passed via push().)
+
+updateTitle(title: string): void
+    Replace the title.
+
+updateBreadcrumb(id: string, updates: Partial<Breadcrumb>): void
+    Patch one entry by id.
+
+updateRouteMetadata({ title?, breadcrumbs? }): void
+    Replace title and/or breadcrumbs.
+
+showLoading(): void
+    Force routeIsLoading() to true.
+
+hideLoading(): void
+    Force routeIsLoading() to false. REQUIRED to call from inside the
+    route component when shouldDisplayLoadingOnRouteLoad: true.
+
+routeIsLoading(): boolean
+    Reactive — true while loading.
+
+DEBUGGING
+---------
+Enable metadata logs:
+
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+setCategoryLevel('ROUTER:METADATA', 'debug')
+
+Logs show:
+- Metadata commits per navigation
+- updateTitle / updateBreadcrumb writes
+- Loading state transitions
+- The 10s "hideLoading() never called" warning
+
+BEST PRACTICES
+--------------
+- Define title and breadcrumbs at route level — keep components dumb
+- Use breadcrumb `id` so updateBreadcrumb() can target one entry
+- For Pattern 1, put hideLoading() in onMount AFTER your data fetch.
+  Always call it — even in the error path
+- For Pattern 3, wrap your async with try/finally so hideLoading() runs
+  on errors too
+- For Pattern 1, also use the title/breadcrumb 'Loading...' placeholder
+  trick so the breadcrumb chain doesn't blink empty
+- Don't update metadata from $effect — it can cause loops. Use onMount or
+  event handlers
+- routeContext() returns the route-definition data, not navigation context
+  — for the latter, use navigationContext() from the main module

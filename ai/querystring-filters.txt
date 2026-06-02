@@ -1,0 +1,226 @@
+QUERYSTRING & FILTER HELPERS
+============================
+
+Two helper modules for working with URL query parameters in a reactive,
+type-safe way. Both have a stateless API (parse/stringify functions) AND a
+configured reactive API (query() / filters() accessors).
+
+Querystring helpers are general-purpose. Filter helpers add a structured
+"OData mode" for APIs that put filter expressions in a single param.
+
+QUERYSTRING — REACTIVE API
+---------------------------
+// main.js — configure once
+import { configureQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring'
+
+configureQuerystring({
+    arrayFormat: 'auto'   // 'auto' (default), 'repeat', or 'comma'
+})
+
+// Component — use reactively
+<script>
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+import { updateQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+interface SearchQuery {
+    search?: string
+    page?: number
+    category?: string
+    tags?: string[]
+}
+
+const q = $derived(query<SearchQuery>())
+const search = $derived(q.search || '')
+const page = $derived(q.page ? Number(q.page) : 1)
+const tags = $derived(q.tags || [])
+
+async function handleSearch(value) {
+    // Merges with existing params; undefined removes a key.
+    await updateQuerystring({ search: value || undefined, page: 1 })
+}
+</script>
+
+QUERYSTRING — STATELESS API
+----------------------------
+import {
+    parseQuerystring,
+    stringifyQuerystring,
+    updateQuerystring
+} from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+
+// Parse
+const parsed = parseQuerystring('search=foo&tags=a,b,c', { arrayFormat: 'auto' })
+// → { search: 'foo', tags: ['a', 'b', 'c'] }
+
+// Stringify
+const qs = stringifyQuerystring({ search: 'foo', tags: ['a', 'b'] }, { arrayFormat: 'repeat' })
+// → 'search=foo&tags=a&tags=b'
+
+// Update current URL's querystring (async — triggers navigation)
+await updateQuerystring({ page: 2 })
+
+ARRAY FORMAT
+------------
+Three modes for array values in querystrings:
+
+'auto' (default)
+    Detect on parse: ?tags=foo&tags=bar OR ?tags=foo,bar,baz both produce
+    { tags: [...] }. On stringify, uses 'repeat' format.
+
+'repeat'
+    ?tags=foo&tags=bar — each value as its own key=value pair.
+
+'comma'
+    ?tags=foo,bar,baz — values joined with commas.
+
+// Per-call override
+parseQuerystring(qs, { arrayFormat: 'comma' })
+stringifyQuerystring(obj, { arrayFormat: 'comma' })
+
+NULL VS UNDEFINED
+-----------------
+updateQuerystring distinguishes the two:
+
+// undefined — removes the parameter entirely
+await updateQuerystring({ search: undefined })
+// URL: ?(no search)
+
+// null — behavior depends on dropNull option
+await updateQuerystring({ search: null }, { dropNull: true })   // removes (default)
+await updateQuerystring({ search: null }, { dropNull: false })  // keeps as ?search=null
+
+FILTERS — TWO MODES
+-------------------
+The filter helpers wrap querystring with two modes for API compatibility:
+
+Flat mode (default)
+    Each filter is a separate query parameter.
+    Result URL: ?search=java&category=books&status=active
+
+Structured mode (e.g. OData)
+    All filters serialize into a single parameter.
+    Result URL: ?$filter=search eq 'java' AND status eq 'active'
+
+CONFIGURE FILTERS — FLAT
+-------------------------
+// main.js
+import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+configureFilters({ mode: 'flat' })
+
+// Component
+<script>
+import { filters, updateFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+interface ProductFilters {
+    search?: string
+    category?: string
+    status?: 'active' | 'discontinued'
+}
+
+const f = $derived(filters<ProductFilters>())
+const search = $derived(f.search || '')
+
+async function handleSearchChange(value) {
+    await updateFilters<ProductFilters>({ search: value || undefined })
+}
+
+async function clearAll() {
+    await updateFilters<ProductFilters>(
+        { search: undefined, category: undefined, status: undefined },
+        { merge: false }   // replace mode instead of merge
+    )
+}
+</script>
+
+CONFIGURE FILTERS — STRUCTURED (ODATA)
+---------------------------------------
+import { configureFilters } from '@keenmate/svelte-spa-router/helpers/filters'
+
+configureFilters({
+    mode: 'structured',
+    paramName: '$filter',
+    parse: (filterString) => {
+        // Parse "displayName eq 'john' AND status eq 'active'"
+        const parts = filterString.split(' AND ')
+        const result = {}
+        parts.forEach(part => {
+            const [field, , value] = part.split(' ')
+            result[field] = value.replace(/'/g, '')
+        })
+        return result
+    },
+    stringify: (obj) => {
+        return Object.entries(obj)
+            .filter(([, v]) => v !== null && v !== undefined)
+            .map(([k, v]) => `${k} eq '${v}'`)
+            .join(' AND ')
+    }
+})
+
+// Component — same API regardless of mode
+const f = $derived(filters())
+await updateFilters({ search: 'java', status: 'active' })
+// URL: ?$filter=search eq 'java' AND status eq 'active'
+
+NULL VS UNDEFINED IN FILTERS
+-----------------------------
+// undefined — always removes the parameter
+await updateFilters({ search: undefined })
+
+// null — keeps with empty value
+await updateFilters({ search: null })
+// Flat mode URL: ?search=
+// Structured mode: included in the serialized string with empty value
+
+API SUMMARY
+-----------
+QUERYSTRING (`@keenmate/svelte-spa-router/helpers/querystring`)
+configureQuerystring(options)
+    options: { arrayFormat: 'auto' | 'repeat' | 'comma' }
+
+query<T>(): T
+    Reactive — parsed current querystring as a typed object.
+
+QUERYSTRING HELPERS (`@keenmate/svelte-spa-router/helpers/querystring-helpers`)
+parseQuerystring(qs: string, options?): object
+stringifyQuerystring(obj: object, options?): string
+updateQuerystring(updates: object, options?): Promise<void>
+    options: { arrayFormat, merge, dropNull }
+    merge: true (default) — merge with existing params
+           false — replace entire querystring
+
+FILTERS (`@keenmate/svelte-spa-router/helpers/filters`)
+configureFilters(options)
+    options: { mode: 'flat' | 'structured', paramName?, parse?, stringify? }
+
+filters<T>(): T
+    Reactive — parsed current filters as a typed object.
+
+updateFilters<T>(updates: Partial<T>, options?): Promise<void>
+    options: { merge: true (default) | false }
+
+DEBUGGING
+---------
+Enable filter logs:
+
+import { setCategoryLevel } from '@keenmate/svelte-spa-router/logger'
+setCategoryLevel('ROUTER:FILTERS', 'debug')
+
+Logs show:
+- Filter parse/stringify
+- Update calls
+- Mode resolution
+
+BEST PRACTICES
+--------------
+- Configure querystring/filters once in main.js before app mount
+- Use typed generics: query<MyType>() / filters<MyType>() — TypeScript
+  flows through to your component
+- Prefer updateQuerystring/updateFilters over building URLs by hand —
+  they handle encoding, merging, and array formats
+- Use undefined to remove, not empty string
+- For OData/Microsoft Graph APIs, use structured mode with a custom
+  parse/stringify pair
+- query() and filters() coexist — filters is just an opinionated layer on
+  top of the same URL

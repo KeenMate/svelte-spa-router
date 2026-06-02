@@ -11,8 +11,16 @@ import App from './App.svelte'
 
 configureGlobalErrorHandler({
     strategy: 'navigateSafe',
-    fallbackRoute: '/',
-    maxRestarts: 3
+    safeRoute: '/',
+    maxRestarts: 3,
+    restartWindow: 60000,           // 1 minute
+    isDevelopment: import.meta.env.DEV,
+    onError: (error, errorInfo, context) => {
+        // Wire up your own notification UI here (toast, snackbar, etc.)
+        toast.error(`Something went wrong: ${error.message}`)
+        // Log to Sentry, LogRocket, etc.
+        Sentry.captureException(error, { extra: errorInfo })
+    }
 })
 
 mount(GlobalErrorHandler, {
@@ -23,7 +31,7 @@ mount(GlobalErrorHandler, {
 STRATEGIES
 ----------
 navigateSafe (default):
-- Navigate to fallbackRoute on error
+- Navigate to safeRoute on error
 - Safe recovery without reload
 - Best for most apps
 
@@ -33,50 +41,42 @@ restart:
 - Use for unrecoverable errors
 
 showError:
-- Display error UI
+- Display error component
 - User can choose action
 - Good for development
 
 custom:
-- Your own recovery function
+- Your own recovery function (onRecover)
 - Full control
 
-CONFIGURATION
--------------
-configureGlobalErrorHandler({
-    strategy: 'navigateSafe',
-    fallbackRoute: '/',
-    maxRestarts: 3,
-    errorFilter: /network|timeout/i,
-    customRecovery: async (error) => {
-        // Your recovery logic
-        await logError(error)
-        await push('/')
-    }
-})
-
-OPTIONS
--------
-strategy: 'navigateSafe' | 'restart' | 'showError' | 'custom'
-fallbackRoute: string (default: '/')
-maxRestarts: number (default: 3)
-errorFilter: RegExp | string (match errors to handle)
-customRecovery: async (error) => void
+CONFIGURATION OPTIONS
+---------------------
+strategy:           'navigateSafe' | 'restart' | 'showError' | 'custom'
+safeRoute:          string (default: '/')
+maxRestarts:        number (default: 3)
+restartWindow:      number ms (default: 60000)
+autoRestart:        boolean (default: false)
+restartDelay:       number ms (default: 5000)
+showErrorComponent: boolean (default: false)
+ignoreErrors:       Array of RegExp | string patterns to ignore
+isDevelopment:      boolean — shows stack traces in ErrorDisplay
+onError:            (error, errorInfo, context) => void
+onRecover:          (error, errorInfo, context, helpers) => void
 
 RESTART LOOP PREVENTION
 -----------------------
 Tracks restart count in sessionStorage:
 - Restart count incremented on each restart
-- Cleared after successful navigation
-- Max 3 restarts by default
-- Shows error UI after max reached
+- Cleared on successful navigation
+- Max 3 restarts by default within restartWindow
+- After max reached, falls back to showError
 
 import { canRestart, getRestartCount } from '@keenmate/svelte-spa-router/helpers/error-handler'
 
 if (canRestart()) {
     await restart()
 } else {
-    console.error('Max restarts reached')
+    console.error('Max restarts reached — surfacing error UI instead')
 }
 
 HELPER FUNCTIONS
@@ -89,63 +89,97 @@ import {
     getRestartCount
 } from '@keenmate/svelte-spa-router/helpers/error-handler'
 
-restart(): Promise<void>
-- Full page reload
-- Increments restart count
+restart(): void
+- Full page reload, increments restart count
 
 navigate(route: string): Promise<void>
-- Navigate to route safely
+- Navigate via push() — safe SPA navigation
 
-showError(error: Error): void
-- Display error UI
+showError(): void
+- Force the error component to render (without changing the strategy)
 
 canRestart(): boolean
-- Check if restart allowed
+- True if restart count is below maxRestarts within restartWindow
 
 getRestartCount(): number
 - Current restart count
 
-ERROR FILTERING
----------------
-Handle specific errors only:
+ERROR FILTERING (ignoreErrors)
+-------------------------------
+Skip handling for known non-critical errors:
 
-// By regex
 configureGlobalErrorHandler({
     strategy: 'navigateSafe',
-    errorFilter: /network|timeout|api/i
+    ignoreErrors: [
+        /ResizeObserver loop limit exceeded/,
+        'ChunkLoadError',           // string match (case-sensitive includes)
+        /network.*timeout/i
+    ]
 })
 
-// By string (case-insensitive)
+Matched errors bypass the handler entirely — browser default behavior
+applies (typically: log to console and move on).
+
+ONERROR CALLBACK
+----------------
+Called for EVERY caught error, before any recovery strategy runs. Use it
+for observability (Sentry, LogRocket, analytics) and notification UI
+(toast, snackbar) — the router intentionally does not render its own toast.
+
 configureGlobalErrorHandler({
-    strategy: 'navigateSafe',
-    errorFilter: 'network error'
+    onError: (error, errorInfo, context) => {
+        // error      — the thrown Error object
+        // errorInfo  — { message, stack, route, timestamp, ... }
+        // context    — current router context
+
+        // Telemetry
+        Sentry.captureException(error, { extra: errorInfo })
+
+        // Notification — use YOUR app's toast library
+        toast.error(error.message)
+
+        // Analytics
+        gtag('event', 'exception', {
+            description: error.message,
+            fatal: false
+        })
+    }
 })
 
-Unmatched errors use default browser handling.
+CUSTOM RECOVERY (onRecover)
+---------------------------
+For strategy: 'custom', implement your own recovery flow with full access
+to the helper functions:
 
-CUSTOM RECOVERY
----------------
 configureGlobalErrorHandler({
     strategy: 'custom',
-    customRecovery: async (error) => {
-        // Log to service
-        await logErrorToService(error)
+    onRecover: (error, errorInfo, context, helpers) => {
+        const { restart, navigate, showError, canRestart } = helpers
 
-        // Try to recover
-        if (error.message.includes('auth')) {
-            await push('/login')
+        if (error.name === 'ChunkLoadError') {
+            // New deployment — reload to pull fresh assets
+            if (canRestart()) restart()
+            else showError()
+        } else if (error.message.includes('auth')) {
+            navigate('/login')
         } else if (error.message.includes('network')) {
-            await showToast('Network error, retrying...')
-            await retryLastRequest()
+            // Notify and stay put — your onError already toasted
+            return
         } else {
-            await push('/')
+            navigate('/')
         }
     }
 })
 
+NOTE: The built-in error toast was removed in v5.2.0-rc02. Earlier versions
+had a `showToast` config flag and rendered a `.error-toast` element from
+inside GlobalErrorHandler. Notification UI is now the consumer's
+responsibility — wire it up inside onError. If you have old code passing
+`showToast: true`, remove it (TypeScript will flag it).
+
 COMPONENT USAGE
 ---------------
-// App.svelte (root)
+// main.js
 import { mount } from 'svelte'
 import GlobalErrorHandler from '@keenmate/svelte-spa-router/helpers/GlobalErrorHandler.svelte'
 import App from './App.svelte'
@@ -157,70 +191,56 @@ mount(GlobalErrorHandler, {
     }
 })
 
-GlobalErrorHandler catches all unhandled errors from children.
+GlobalErrorHandler catches:
+- Render errors
+- $effect errors
+- Event handler errors
+- Unhandled promise rejections
+- Async errors that bubble up
 
 DEFAULT ERROR UI
 ----------------
 Uses ErrorDisplay.svelte:
 - Full-page error display
 - Shows error message
-- Stack trace (dev mode only)
+- Stack trace (when isDevelopment: true)
 - Actions: Go Home, Reload, Continue
-
-DEFAULT ERROR COMPONENT
------------------------
-import ErrorDisplay from '@keenmate/svelte-spa-router/helpers/ErrorDisplay.svelte'
-
-Features:
-- Beautiful centered layout
-- Error details
-- Recovery actions
-- Restart count warning
+- Warning when multiple errors detected in session
 
 CUSTOM ERROR COMPONENT
 ----------------------
-Pass your own error component:
+Pass your own component for branded error UI:
 
 // CustomError.svelte
 <script>
-let { error = null, onContinue = () => {}, onReload = () => {} } = $props()
+let { error = null, onContinue = () => {}, onReload = () => {}, onGoHome = () => {} } = $props()
 </script>
 
 <div class="error">
-    <h1>Oops! {error.message}</h1>
+    <h1>Oops! {error?.message}</h1>
     <button onclick={onContinue}>Continue</button>
     <button onclick={onReload}>Reload</button>
+    <button onclick={onGoHome}>Go Home</button>
 </div>
 
-// App.svelte
-<GlobalErrorHandler
-    component={App}
-    errorComponent={CustomError}
-/>
+// main.js
+mount(GlobalErrorHandler, {
+    target: document.getElementById('app'),
+    props: {
+        component: App,
+        errorComponent: CustomError
+    }
+})
 
 ERROR COMPONENT PROPS
 ---------------------
 {
     error: Error,
-    onContinue: () => void,
-    onReload: () => void,
-    onGoHome: () => void
+    errorInfo: { message, stack, route, timestamp, ... },
+    onContinue: () => void,    // clears error and stays on route
+    onReload: () => void,      // full page reload
+    onGoHome: () => void       // navigates to safeRoute
 }
-
-TOAST NOTIFICATIONS
--------------------
-The router does not render its own toast. Use your existing toast/snackbar
-library from the `onError` callback — it's the supported integration point
-for any notification UI, observability tooling, or analytics pipeline:
-
-configureGlobalErrorHandler({
-    strategy: 'navigateSafe',
-    safeRoute: '/',
-    onError: (error, errorInfo) => {
-        toast.error(`Something went wrong: ${error.message}`)
-        Sentry.captureException(error, { extra: errorInfo })
-    }
-})
 
 DEVELOPMENT VS PRODUCTION
 --------------------------
@@ -228,43 +248,26 @@ Different strategies per environment:
 
 if (import.meta.env.DEV) {
     configureGlobalErrorHandler({
-        strategy: 'showError'  // Show full error UI in dev
+        strategy: 'showError',
+        isDevelopment: true       // show stack traces
     })
 } else {
     configureGlobalErrorHandler({
-        strategy: 'navigateSafe',  // Navigate away in prod
-        fallbackRoute: '/'
+        strategy: 'navigateSafe',
+        safeRoute: '/',
+        onError: (err, info) => Sentry.captureException(err, { extra: info })
     })
 }
 
-LOGGING ERRORS
---------------
-configureGlobalErrorHandler({
-    strategy: 'navigateSafe',
-    customRecovery: async (error) => {
-        // Log before recovering
-        await fetch('/api/log-error', {
-            method: 'POST',
-            body: JSON.stringify({
-                message: error.message,
-                stack: error.stack,
-                url: window.location.href
-            })
-        })
-
-        await navigate('/')
-    }
-})
-
 COMBINING WITH ROUTE CONDITIONS
 --------------------------------
-Route conditions can trigger global error handler:
+Throwing inside a condition is caught by GlobalErrorHandler:
 
 import { wrap } from '@keenmate/svelte-spa-router/wrap'
 
 const routes = {
     '/protected': wrap({
-        component: Protected,
+        asyncComponent: () => import('./Protected.svelte'),
         conditions: [
             async (detail) => {
                 const valid = await checkAuth()
@@ -277,7 +280,9 @@ const routes = {
     })
 }
 
-Error caught by GlobalErrorHandler, recovery strategy applied.
+For "expected" failure paths (auth, permission denied), prefer returning
+false from the condition + onConditionsFailed event over throwing — the
+error handler is for unexpected exceptions.
 
 TESTING ERROR HANDLING
 ----------------------
@@ -294,21 +299,19 @@ async function triggerError() {
 PERFORMANCE
 -----------
 - No overhead when no errors
-- Single event listener (window.addEventListener)
+- Single window event listener
 - SessionStorage for restart tracking
 - Minimal DOM changes
 
 BEST PRACTICES
 --------------
 - Configure before app mount
+- Wire onError to your telemetry AND notification UI
 - Use navigateSafe for most cases
-- Set appropriate maxRestarts
-- Filter errors if needed
-- Log errors in production
-- Test recovery strategies
-- Provide custom error UI for branding
-- Clear restart count on successful navigation
-- Use showError strategy in development
+- Set appropriate maxRestarts / restartWindow
+- Filter known non-critical errors via ignoreErrors
+- Use showError + isDevelopment in development for stack traces
+- Provide custom errorComponent for branding
 
 DEBUGGING
 ---------
@@ -327,6 +330,6 @@ Logs show:
 LIMITATIONS
 -----------
 - Only catches unhandled errors
-- Won't catch syntax errors in initial load
+- Won't catch syntax errors during initial load
 - Requires GlobalErrorHandler component as root
 - SessionStorage required for restart tracking

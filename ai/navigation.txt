@@ -107,19 +107,41 @@ Navigation context cleared on:
 - Browser refresh
 - External navigation
 
+navigationContext() returns null when no user-visible context exists. The
+router internally stores keys like _routeName (for referrer tracking) and
+__scrollBehavior (for scroll control) in the context state, but these are
+filtered out of the public accessor. So patterns like
+
+    {#if !navigationContext()}
+        <DefaultView />
+    {/if}
+
+work as expected after a no-context push() call. (Before v5.2.0-rc02, the
+internal _routeName leaked through and made navigationContext() always
+truthy.)
+
 QUERY STRING HANDLING
 ----------------------
-// Push with query string
+// Push with query string (path + params + query)
 await push('/search', {}, { q: 'svelte', page: 2 })
 // Result: /search?q=svelte&page=2
 
-// Access query string
+// Or with a named route
+await push('search', {}, { q: 'svelte', page: 2 })
+
+// Access raw query string
 import { querystring } from '@keenmate/svelte-spa-router'
 const qs = $derived(querystring())  // "q=svelte&page=2"
 
-// Parse query string
-import { parse } from '@keenmate/svelte-spa-router/helpers/querystring'
-const parsed = parse(querystring())  // { q: 'svelte', page: '2' }
+// Parsed reactive accessor (recommended)
+import { query } from '@keenmate/svelte-spa-router/helpers/querystring'
+const q = $derived(query())  // { q: 'svelte', page: '2' }
+
+// Or parse manually
+import { parseQuerystring } from '@keenmate/svelte-spa-router/helpers/querystring-helpers'
+const parsed = parseQuerystring(querystring())  // { q: 'svelte', page: '2' }
+
+See querystring-filters.txt for the full reactive query + filter helpers.
 
 AWAIT NAVIGATION
 ----------------

@@ -16,6 +16,7 @@ main.js, app.svelte → basic-setup.txt
 Router component, routes object → basic-setup.txt
 svelte 5, runes, $state, $derived → basic-setup.txt
 setHashRoutingEnabled, setBasePath → basic-setup.txt
+relativeLocation, prefix-stripped location → basic-setup.txt
 
 IMPORTS & COMMON ERRORS
 -----------------------
@@ -26,6 +27,7 @@ $routeParams error, store syntax error → import-patterns.txt
 migration, v3, v4, v5 upgrade → import-patterns.txt
 export paths, package exports → import-patterns.txt
 typescript types → import-patterns.txt
+revalidateCurrentRoute import → import-patterns.txt
 
 NAVIGATION
 ----------
@@ -34,14 +36,16 @@ navigate programmatically → navigation.txt
 single parameter, multi parameter → navigation.txt
 array format, object format → navigation.txt
 navigationContext, hidden data → navigation.txt
+navigationContext null filter → navigation.txt
 await navigation, async nav → navigation.txt
 
 NAMED ROUTES
 ------------
+defineRoutes, type-safe routes → named-routes.txt
+nav.X.push, paths.X, buildUrl → named-routes.txt
 registerRoutes, route registration → named-routes.txt
 named route navigation, push by name → named-routes.txt
-routeUrl, URL building → named-routes.txt
-hasRoute, route existence check → named-routes.txt
+hasRoute, getRouteByName → named-routes.txt
 "Route not found in registry" error → named-routes.txt, basic-setup.txt
 
 ROUTE PARAMETERS
@@ -56,19 +60,22 @@ numeric params, string conversion → route-params.txt
 PERMISSIONS & AUTHORIZATION
 ---------------------------
 permissions, RBAC, role-based → permissions.txt
-configurePermissions, getUserPermissions → permissions.txt
+configurePermissions, checkPermissions → permissions.txt
+setCurrentUser, getCurrentUser → permissions.txt
+revalidateCurrentRoute, onRevalidationFailure → permissions.txt
+hasPermission (reactive, sync) → permissions.txt
 createProtectedRoute → permissions.txt
 authorizationCallback, resource-based → permissions.txt
-hasPermission, permission check → permissions.txt
 any, all, permission requirements → permissions.txt
 
 ROUTE GUARDS & CONDITIONS
 -------------------------
 guards, conditions, route protection → guards-conditions.txt
-wrap(), asyncComponent → guards-conditions.txt
+wrap(), asyncComponent, createRoute → guards-conditions.txt
 async guards, authentication check → guards-conditions.txt
 redirect on failure, onConditionsFailed → guards-conditions.txt
 loadingComponent, loading state → guards-conditions.txt
+shouldDisplayLoadingOnRouteLoad, hideLoading() contract → guards-conditions.txt, route-metadata.txt
 userData, passing data to route → guards-conditions.txt
 
 NAVIGATION GUARDS (beforeLeave)
@@ -112,10 +119,12 @@ ERROR HANDLING
 --------------
 GlobalErrorHandler, error boundary → error-handling.txt
 configureGlobalErrorHandler → error-handling.txt
+onError callback, toast integration → error-handling.txt
 recovery strategy, navigateSafe, restart → error-handling.txt
+onRecover, custom recovery → error-handling.txt
 ErrorDisplay, error component → error-handling.txt
 maxRestarts, restart loop → error-handling.txt
-customRecovery, error callback → error-handling.txt
+ignoreErrors, error filtering → error-handling.txt
 
 REFERRER & BACK NAVIGATION
 --------------------------
@@ -128,10 +137,29 @@ scroll restoration → referrer-tracking.txt
 BREADCRUMBS
 -----------
 breadcrumbs, navigation trail → breadcrumbs.txt
-routeBreadcrumbs → breadcrumbs.txt
-updateBreadcrumb, dynamic breadcrumbs → breadcrumbs.txt
-breadcrumb inheritance → breadcrumbs.txt
-hierarchical breadcrumbs → breadcrumbs.txt
+routeBreadcrumbs → breadcrumbs.txt, route-metadata.txt
+updateBreadcrumb, dynamic breadcrumbs → breadcrumbs.txt, route-metadata.txt
+breadcrumb inheritance → hierarchical-routes.txt
+hierarchical breadcrumbs → hierarchical-routes.txt
+
+ROUTE METADATA & LOADING STATE
+-------------------------------
+routeTitle, routeBreadcrumbs, routeContext → route-metadata.txt
+updateTitle, updateBreadcrumb, updateRouteMetadata → route-metadata.txt
+showLoading, hideLoading, routeIsLoading → route-metadata.txt
+shouldDisplayLoadingOnRouteLoad contract → route-metadata.txt, guards-conditions.txt
+loading patterns (zone / component / global) → route-metadata.txt
+dynamic title, dynamic breadcrumbs → route-metadata.txt
+
+QUERYSTRING & FILTERS
+---------------------
+configureQuerystring, query() reactive accessor → querystring-filters.txt
+configureFilters, filters(), updateFilters → querystring-filters.txt
+arrayFormat (auto, repeat, comma) → querystring-filters.txt
+flat mode, structured mode, OData → querystring-filters.txt
+parseQuerystring, stringifyQuerystring (stateless) → utilities.txt
+updateQuerystring → utilities.txt, querystring-filters.txt
+null vs undefined in querystrings → querystring-filters.txt, utilities.txt
 
 DEBUG LOGGING
 -------------
@@ -142,19 +170,18 @@ ROUTER:NAVIGATION, ROUTER:SCROLL → debug-logging.txt
 loglevel, console output → debug-logging.txt
 window.components, runtime logging → debug-logging.txt
 
-URL & QUERYSTRING UTILITIES
----------------------------
-querystring, parse, stringify → utilities.txt
+URL UTILITIES
+-------------
 joinPaths, URL helpers → utilities.txt
 loc(), full location object → utilities.txt
-query parameters, search params → utilities.txt
 URL encoding, special characters → utilities.txt
 
 ROUTER EVENTS
 -------------
 onRouteLoading, onRouteLoaded → basic-setup.txt
 onConditionsFailed → basic-setup.txt, guards-conditions.txt
-onNotFound → basic-setup.txt
+onNotFound (always fires, even with '*') → basic-setup.txt
+relativeLocation field → basic-setup.txt
 
 ROUTER PROPS
 ------------
@@ -164,35 +191,43 @@ router configuration → basic-setup.txt
 FILE DESCRIPTIONS
 -----------------
 basic-setup.txt
-  Foundation: Installation, hash/history modes, route definitions, events
+  Foundation: Installation, hash/history modes, route definitions,
+  Router props, event payload shapes including relativeLocation
   Start here for: Getting started, first-time setup
 
 navigation.txt
-  Navigation: push, replace, pop, goBack, navigation context
+  Navigation: push, replace, pop, goBack, navigation context (with
+  null-when-empty contract), querystring in navigation
   Start here for: Programmatic navigation, passing data between routes
 
 named-routes.txt
-  Route naming: Registration, named navigation, URL building
-  Start here for: Using route names instead of paths
+  Route naming: defineRoutes (recommended), registerRoutes (lower-level),
+  buildUrl, hasRoute, getRouteByName
+  Start here for: Type-safe routes, using route names instead of paths
 
 route-params.txt
   Parameters: Route patterns, :params, wildcards, parameter access
   Start here for: Dynamic routes, extracting URL parameters
 
 permissions.txt
-  Security: Permission system, protected routes, authorization callbacks
-  Start here for: Role-based access control, resource authorization
+  Security: Permission system, setCurrentUser-based reactivity,
+  protected routes, authorization callbacks, revalidateCurrentRoute
+  Start here for: Role-based access control, resource authorization,
+  live permission updates
 
 guards-conditions.txt
-  Route protection: Guards, conditions, async checks, redirects
+  Route protection: Guards, conditions, async checks, redirects,
+  shouldDisplayLoadingOnRouteLoad + hideLoading contract
   Start here for: Authentication checks, conditional routing
 
 navigation-guards.txt
-  Exit guards: beforeLeave, PageWrapper, createDirtyCheckGuard, browser beforeunload
+  Exit guards: beforeLeave, PageWrapper, createDirtyCheckGuard,
+  browser beforeunload
   Start here for: Unsaved-changes warnings, confirm-before-leave dialogs
 
 hierarchical-routes.txt
-  Inheritance: Hierarchical mode, breadcrumb/permission/condition inheritance
+  Inheritance: Hierarchical mode, breadcrumb/permission/condition
+  inheritance
   Start here for: DRY route definitions with parent-child relationships
 
 tree-structure.txt
@@ -204,7 +239,9 @@ link-actions.txt
   Start here for: SPA links, navigation menus, active states
 
 error-handling.txt
-  Error recovery: GlobalErrorHandler, recovery strategies, error UI
+  Error recovery: GlobalErrorHandler (no built-in toast — use onError),
+  recovery strategies (navigateSafe/restart/showError/custom), restart
+  loop prevention, ignoreErrors filtering, ErrorDisplay component
   Start here for: Catching unhandled errors, user-friendly error pages
 
 referrer-tracking.txt
@@ -220,11 +257,27 @@ import-patterns.txt
   Start here for: Import errors, upgrading from v3/v4
 
 utilities.txt
-  Helpers: Query string parsing, URL joining, location utilities
-  Start here for: Working with query parameters, URL manipulation
+  Helpers: joinPaths, stateless parseQuerystring/stringifyQuerystring,
+  loc(), URL utilities. For the reactive query/filter API see
+  querystring-filters.txt.
+  Start here for: Low-level URL manipulation, manual query parsing
+
+querystring-filters.txt
+  Reactive querystring + filters: configureQuerystring + query(),
+  configureFilters + filters() + updateFilters, flat vs structured
+  (OData) mode, arrayFormat handling
+  Start here for: URL-driven UIs, search/filter pages, OData APIs
+
+route-metadata.txt
+  Title, breadcrumbs, routeContext (reactive read), updateTitle/
+  updateBreadcrumb/updateRouteMetadata (write), showLoading/hideLoading/
+  routeIsLoading + shouldDisplayLoadingOnRouteLoad contract
+  Start here for: Dynamic page titles, breadcrumb updates after data
+  loads, three-pattern loading state management
 
 breadcrumbs.txt
-  Navigation trail: Breadcrumb definitions, dynamic updates, inheritance
+  Navigation trail: Breadcrumb definitions, dynamic updates. For the
+  full route-metadata helper API, see route-metadata.txt.
   Start here for: Showing current location in site hierarchy
 
 READING ORDER RECOMMENDATIONS
@@ -235,17 +288,29 @@ Complete beginner:
 3. route-params.txt
 4. link-actions.txt
 
+Type-safe routes from day one:
+1. basic-setup.txt
+2. named-routes.txt   (focus on defineRoutes)
+3. navigation.txt
+4. route-params.txt
+
 Protected routes (authentication):
 1. basic-setup.txt
-2. guards-conditions.txt
-3. permissions.txt
+2. permissions.txt    (use setCurrentUser, not custom getCurrentUser)
+3. guards-conditions.txt
 4. navigation.txt
 
 Large application with hierarchy:
 1. basic-setup.txt
 2. hierarchical-routes.txt (or tree-structure.txt)
 3. permissions.txt
-4. breadcrumbs.txt
+4. route-metadata.txt   (for breadcrumbs)
+
+Search / filter pages:
+1. basic-setup.txt
+2. querystring-filters.txt
+3. navigation.txt
+4. utilities.txt
 
 Migration from v3/v4:
 1. import-patterns.txt
@@ -263,18 +328,29 @@ Features spanning multiple files:
 
 Named Routes
   → basic-setup.txt (enabling named routes in main.js)
-  → named-routes.txt (full named routes API)
+  → named-routes.txt (defineRoutes + registerRoutes API)
   → navigation.txt (navigating with names)
 
 Permissions
-  → permissions.txt (permission system setup)
+  → permissions.txt (permission system + setCurrentUser + revalidate)
   → guards-conditions.txt (combining with conditions)
   → hierarchical-routes.txt (permission inheritance)
+  → import-patterns.txt (setCurrentUser / getCurrentUser imports)
 
-Breadcrumbs
-  → breadcrumbs.txt (breadcrumb definitions)
+Breadcrumbs / Metadata
+  → breadcrumbs.txt (breadcrumb-specific patterns)
+  → route-metadata.txt (full title/breadcrumb/routeContext API + loading)
   → hierarchical-routes.txt (breadcrumb inheritance)
   → tree-structure.txt (breadcrumbs in tree structure)
+
+Loading State
+  → route-metadata.txt (three patterns, the hideLoading contract)
+  → guards-conditions.txt (loadingComponent during conditions)
+
+Querystring
+  → querystring-filters.txt (reactive query() + filter helpers)
+  → utilities.txt (stateless parse/stringify)
+  → navigation.txt (querystring in push/replace)
 
 Route Protection
   → guards-conditions.txt (entry: route conditions)
@@ -290,7 +366,12 @@ Back Navigation
 Hierarchy
   → hierarchical-routes.txt (inheritance mode)
   → tree-structure.txt (createHierarchy helper)
-  → breadcrumbs.txt (breadcrumb inheritance)
+  → route-metadata.txt (breadcrumb inheritance source)
+
+Router Events
+  → basic-setup.txt (event payload shapes including relativeLocation)
+  → guards-conditions.txt (onConditionsFailed)
+  → error-handling.txt (onError callback)
 
 QUICK PROBLEM SOLVING
 ----------------------
@@ -298,7 +379,7 @@ Problem: "Missing './stores' specifier" error
 → import-patterns.txt (no /stores path exists, use main module)
 
 Problem: "Route X not found in registry. Registered routes: []"
-→ named-routes.txt (call registerRoutes() in main.js)
+→ named-routes.txt (call defineRoutes or registerRoutes() in main.js)
 → basic-setup.txt (ENABLING NAMED ROUTES section)
 
 Problem: routeParams is undefined
@@ -306,6 +387,27 @@ Problem: routeParams is undefined
 
 Problem: $routeParams is not defined
 → import-patterns.txt (call as function, not store syntax)
+
+Problem: hasPermission doesn't update in {#if} when permissions change
+→ permissions.txt (use setCurrentUser, avoid get(store) footgun)
+
+Problem: User on protected page when permissions are revoked
+→ permissions.txt (call revalidateCurrentRoute after permission change)
+
+Problem: navigationContext() is never null after push
+→ navigation.txt (fixed in v5.2.0-rc02 — _routeName now filtered)
+
+Problem: push('/path', {}, queryObj) drops the query
+→ Fixed in v5.2.0-rc02. Upgrade if you're on rc01 or earlier.
+
+Problem: onNotFound never fires (despite catch-all '*' route)
+→ Fixed in v5.2.0-rc02. Upgrade if you're on rc01 or earlier.
+→ basic-setup.txt (EVENT PAYLOAD SHAPE)
+
+Problem: Loading screen stays up forever
+→ route-metadata.txt (shouldDisplayLoadingOnRouteLoad requires
+  hideLoading() — check your onMount completes that call)
+→ guards-conditions.txt (same — see the contract callout)
 
 Problem: Navigation not working
 → navigation.txt (check push/replace usage)
@@ -316,11 +418,11 @@ Problem: Route not matching
 → debug-logging.txt (enable ROUTER logs)
 
 Problem: Permissions not checking
-→ permissions.txt (check configurePermissions setup)
+→ permissions.txt (check configurePermissions + setCurrentUser)
 → debug-logging.txt (enable ROUTER:PERMISSIONS logs)
 
 Problem: Conditions not running
-→ guards-conditions.txt (check wrap() usage)
+→ guards-conditions.txt (check wrap() / createRoute() usage)
 → debug-logging.txt (enable ROUTER:CONDITIONS logs)
 
 Problem: User leaves page without confirmation (form changes lost)
@@ -334,23 +436,26 @@ Problem: Scroll not restoring
 → basic-setup.txt (restoreScrollState prop)
 
 Problem: Active link not highlighting
-→ link-actions.txt (check use:active usage)
-→ link-actions.txt (prefix matching for nested routes)
+→ link-actions.txt (check use:active usage, prefix matching)
 
 Problem: Breadcrumbs not inheriting
 → hierarchical-routes.txt (enable hierarchical mode)
-→ breadcrumbs.txt (check inheritBreadcrumbs flag)
+→ route-metadata.txt (breadcrumb API)
 
 Problem: Back button not working
 → referrer-tracking.txt (setIncludeReferrer setup)
 → navigation.txt (goBack function)
 
 Problem: Error not caught
-→ error-handling.txt (GlobalErrorHandler setup)
-→ error-handling.txt (check strategy configuration)
+→ error-handling.txt (GlobalErrorHandler setup, check strategy)
+
+Problem: Error toast not appearing
+→ error-handling.txt (built-in toast removed in rc02 — wire your own
+  via onError callback)
 
 Problem: Query params not parsing
-→ utilities.txt (use parse() function)
+→ utilities.txt (parseQuerystring function)
+→ querystring-filters.txt (reactive query() accessor)
 
 EXAMPLES BY USE CASE
 --------------------
@@ -359,33 +464,40 @@ Simple SPA with navigation:
 → navigation.txt (programmatic nav)
 → link-actions.txt (link action)
 
+Type-safe routes with autocomplete:
+→ basic-setup.txt (setup)
+→ named-routes.txt (defineRoutes, paths.X, nav.X.push)
+
 Admin dashboard with permissions:
 → basic-setup.txt (setup)
-→ permissions.txt (role-based access)
+→ permissions.txt (setCurrentUser + role-based access)
 → guards-conditions.txt (auth checks)
 → hierarchical-routes.txt (inheritance)
 
 E-commerce with breadcrumbs:
 → basic-setup.txt (setup)
-→ breadcrumbs.txt (navigation trail)
+→ route-metadata.txt (dynamic title + breadcrumbs after fetch)
 → tree-structure.txt (nested categories)
 → route-params.txt (product IDs)
+
+Search / filter UI:
+→ basic-setup.txt (setup)
+→ querystring-filters.txt (reactive query/filter helpers)
+→ navigation.txt (query params in navigation)
 
 Multi-tenant application:
 → basic-setup.txt (setup)
 → permissions.txt (resource authorization)
 → guards-conditions.txt (tenant checks)
-→ named-routes.txt (named navigation)
+→ named-routes.txt (typed navigation)
 
 Error-resilient application:
 → basic-setup.txt (setup)
-→ error-handling.txt (error recovery)
+→ error-handling.txt (error recovery, onError integration)
 → referrer-tracking.txt (back navigation)
 
-Search/filter application:
-→ basic-setup.txt (setup)
-→ utilities.txt (querystring handling)
-→ navigation.txt (query params in navigation)
+OData / Microsoft Graph integration:
+→ querystring-filters.txt (structured filter mode)
 
 CONFIGURATION OPTIONS
 ---------------------
@@ -396,8 +508,12 @@ main.js configuration functions:
 → setParamReplacementPlaceholder() - route-params.txt
 → setHierarchicalRoutesEnabled() - hierarchical-routes.txt
 → configurePermissions() - permissions.txt
+→ setCurrentUser() - permissions.txt
+→ revalidateCurrentRoute() - permissions.txt
 → configureGlobalErrorHandler() - error-handling.txt
-→ registerRoutes() - named-routes.txt
+→ configureQuerystring() - querystring-filters.txt
+→ configureFilters() - querystring-filters.txt
+→ defineRoutes() / registerRoutes() - named-routes.txt
 → enableLogging() - debug-logging.txt
 
 SVELTE 5 REMINDERS
@@ -418,10 +534,12 @@ SUPPORT & RESOURCES
 -------------------
 Full API documentation:
 → ../CLAUDE.md (comprehensive reference)
+→ ../docs/*.md (domain-specific guides)
 
 Source code examples:
 → ../example/ (hash mode demo)
 → ../example-history/ (history mode demo)
+→ ../example-permissions/ (permission demo)
 
 Package documentation:
 → ../README.md

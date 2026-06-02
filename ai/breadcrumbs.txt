@@ -1,6 +1,10 @@
 BREADCRUMBS
 ===========
 
+SEE ALSO: route-metadata.txt for the full route-metadata helper API,
+including title, routeContext, and loading-state primitives.
+Breadcrumbs are one slice of the route-metadata module.
+
 WHAT ARE BREADCRUMBS
 --------------------
 Navigation trail showing current page's position in site hierarchy:

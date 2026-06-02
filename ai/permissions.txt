@@ -125,7 +125,7 @@ const routes = {
         permissions: { any: ['documents.read'] },
         // Resource-based: Check document access (slow API call)
         authorizationCallback: async (detail) => {
-            const docId = detail.routeParams.id
+            const docId = detail.params.id
             const hasAccess = await api.checkDocumentAccess(docId)
 
             if (!hasAccess) {
@@ -149,14 +149,22 @@ Benefits:
 
 AUTHORIZATION CALLBACK DETAIL
 ------------------------------
-authorizationCallback receives detail object:
+authorizationCallback receives the same detail object passed to every
+condition function:
 {
     route: '/document/:id',
     location: '/document/123',
     querystring: 'tab=edit',
-    routeParams: { id: '123' },
-    userData: { /* from wrap() */ }
+    params: { id: '123' },
+    userData: { /* from wrap() / createRoute() */ }
 }
+
+The field name is "params" (not "routeParams"). Inside the callback:
+
+    authorizationCallback: async (detail) => {
+        const docId = detail.params.id
+        // ...
+    }
 
 LOADING COMPONENT
 -----------------
@@ -183,18 +191,20 @@ authorizationCallback: async (detail) => {
 
 UI-LEVEL PERMISSION CHECK
 --------------------------
+hasPermission() is synchronous and reactive. Call it from any reactive
+context ({#if}, $derived, $effect) — it tracks the internal user state and
+re-evaluates automatically when setCurrentUser() is called.
+
 import { hasPermission } from '@keenmate/svelte-spa-router/helpers/permissions'
 
-const canEdit = $derived(await hasPermission({ any: ['edit', 'admin'] }))
-
-{#if canEdit}
+{#if hasPermission({ any: ['edit', 'admin'] })}
     <button>Edit</button>
 {/if}
 
-// Sync usage (if permissions already loaded)
-import { hasPermissionSync } from '@keenmate/svelte-spa-router/helpers/permissions'
+// Or as a derived value if you reuse it
+const canEdit = $derived(hasPermission({ any: ['edit', 'admin'] }))
 
-const canDelete = hasPermissionSync({ any: ['delete', 'admin'] })
+There is no separate hasPermissionSync — hasPermission() IS the sync API.
 
 ADVANCED: createProtectedRouteDefinition
 -----------------------------------------
@@ -220,39 +230,44 @@ const routes = {
     })
 }
 
-PERMISSION CACHING
-------------------
-Permissions fetched once and cached.
-Re-fetch on login/logout:
+LOGIN / LOGOUT FLOW
+-------------------
+The library does NOT fetch permissions for you — the consumer owns
+authentication and decides when to push the user state into the router.
 
-import { configurePermissions } from '@keenmate/svelte-spa-router/helpers/permissions'
+import { setCurrentUser } from '@keenmate/svelte-spa-router/helpers/permissions'
 
 // On login
-await configurePermissions({
-    getUserPermissions: async () => {
-        return await fetchUserPermissions()
-    }
-})
+async function login(credentials) {
+    const { user, permissions } = await api.login(credentials)
+    setCurrentUser({ ...user, permissions })
+}
 
 // On logout
-await configurePermissions({
-    getUserPermissions: async () => []
+function logout() {
+    setCurrentUser(null)
+}
+
+// On websocket permission update
+socket.on('permissions:updated', (newPerms) => {
+    setCurrentUser({ ...getCurrentUser(), permissions: newPerms })
+    revalidateCurrentRoute()  // re-check the active route, see above
 })
 
 ERROR HANDLING
 --------------
-getUserPermissions errors:
-- Return empty array [] on error
-- Log error for debugging
-- User blocked from protected routes
+checkPermissions runs synchronously and should not throw — return false on
+any uncertain state and let the configured onUnauthorized handler redirect.
 
-getUserPermissions: async () => {
-    try {
-        return await fetchPermissions()
-    } catch (error) {
-        console.error('Permission fetch failed:', error)
-        return []
-    }
+If you fetch permissions asynchronously on login, handle the fetch failure
+in your login flow, not inside checkPermissions:
+
+try {
+    const { permissions } = await api.fetchPermissions()
+    setCurrentUser({ permissions })
+} catch (error) {
+    console.error('Permission fetch failed:', error)
+    setCurrentUser(null)  // logged-out fallback blocks protected routes
 }
 
 HIERARCHICAL INHERITANCE
@@ -288,9 +303,13 @@ createProtectedRoute({
 BEST PRACTICES
 --------------
 - Use granular permissions: 'documents.read', 'users.edit'
-- Keep getUserPermissions fast (cache on backend)
-- Use authorizationCallback for resource checks
-- Show loading component during checks
-- Handle unauthorized in authorizationCallback (push to error page)
+- Push user state via setCurrentUser() once on login; rely on $state-backed
+  reactivity instead of calling configurePermissions repeatedly
+- Use authorizationCallback for resource checks (slow API calls)
+- Show loading component during async authorization checks
+- Handle unauthorized in authorizationCallback (push to error page or
+  return false and let onUnauthorized handle it)
+- Call revalidateCurrentRoute() after out-of-band permission changes
+  (websocket updates, token refresh, role-switching UI)
 - Test with different permission sets
 - Log permission denials for audit

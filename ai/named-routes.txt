@@ -5,11 +5,124 @@ PURPOSE
 -------
 Navigate using names instead of paths:
 - Refactor paths without changing navigation calls
-- Type-safe route names
+- Type-safe route names (with defineRoutes)
 - Centralized route definitions
 
-REGISTRATION
-------------
+TWO APIs
+--------
+defineRoutes() — recommended (rc01+):
+- Single source of truth for routes + name registration
+- Generates nav.X.push() / paths.X() helpers
+- TypeScript autocomplete on names AND :params
+- Calls registerRoutes() automatically
+
+registerRoutes() — lower-level:
+- Just registers name → path mapping
+- Separate from <Router> route definitions
+- Use when you already have a routes object and want names added
+
+DEFINEROUTES (RECOMMENDED)
+--------------------------
+// routes.js
+import { defineRoutes } from '@keenmate/svelte-spa-router/routes'
+import Home from './Home.svelte'
+
+const { routes, nav, paths } = defineRoutes({
+    home: {
+        path: '/',
+        component: Home
+    },
+    about: {
+        path: '/about',
+        component: () => import('./About.svelte')
+    },
+    userProfile: {
+        path: '/user/:userId',
+        component: () => import('./User.svelte'),
+        conditions: [checkAuth],
+        breadcrumbs: [{ label: 'Users' }, { label: 'Profile' }]
+    },
+    documentDetail: {
+        path: '/documents/:docId',
+        component: () => import('./Document.svelte'),
+        permissions: { any: ['documents.read'] }
+    }
+})
+
+export { routes, nav, paths }
+
+USAGE
+-----
+// App.svelte
+<script>
+import Router from '@keenmate/svelte-spa-router'
+import { link } from '@keenmate/svelte-spa-router'
+import { routes, nav, paths } from './routes'
+</script>
+
+<Router {routes} />
+
+<!-- Links with type-safe href -->
+<a href={paths.userProfile({ userId: 123 })} use:link>User 123</a>
+<a href={paths.about()} use:link>About</a>
+
+<!-- Programmatic navigation with autocomplete -->
+<button onclick={() => nav.userProfile.push({ userId: 42 })}>Profile</button>
+<button onclick={() => nav.documentDetail.replace({ docId: 7 }, { tab: 'edit' })}>
+    Edit Document
+</button>
+
+<!-- use:link with named-route binding -->
+<a use:link={nav.userProfile.link({ userId: 99 })}>User 99</a>
+
+WHAT DEFINEROUTES RETURNS
+--------------------------
+routes
+    Standard routes object for <Router {routes} />
+
+nav.X.push(params?, query?, navigationContext?)
+    Navigate to X (calls push() internally)
+
+nav.X.replace(params?, query?, navigationContext?)
+    Replace with X (calls replace() internally)
+
+nav.X.link(params?, query?)
+    Returns { route, params, query } for use:link action
+
+nav.X.path
+    Raw path pattern (e.g. '/user/:userId')
+
+paths.X(params?, query?)
+    Build URL string for href attributes
+
+TYPESCRIPT
+----------
+defineRoutes extracts :param names from path patterns at the type level:
+
+const { nav, paths } = defineRoutes({
+    user: { path: '/user/:id', component: UserPage }
+})
+
+nav.user.push({ id: 123 })       // ✓ TypeScript knows 'id' is required
+nav.user.push({ userId: 123 })   // ✗ Type error — 'userId' doesn't exist
+nav.user.push()                  // ✓ OK — params optional at runtime
+paths.user({ id: 123 })          // ✓ Returns '/user/123'
+
+SUPPORTED OPTIONS
+-----------------
+Each route in defineRoutes() accepts path, component, and all wrap() /
+createRoute() options:
+- loadingComponent, loadingParams
+- conditions, props
+- routeContext, title, breadcrumbs
+- shouldDisplayLoadingOnRouteLoad
+- permissions, authorizationCallback
+- inheritBreadcrumbs, inheritPermissions, inheritConditions
+
+REGISTERROUTES (LOWER-LEVEL)
+-----------------------------
+When you already have a routes object and just want named navigation:
+
 // main.js or routes.js
 import { registerRoutes } from '@keenmate/svelte-spa-router/routes'
 
@@ -23,6 +136,8 @@ registerRoutes({
 
 NAVIGATION WITH NAMES
 ---------------------
+Works with either API (defineRoutes auto-registers names):
+
 import { push, replace } from '@keenmate/svelte-spa-router'
 
 // Single name (no params)
@@ -50,20 +165,23 @@ await push({
     query: { mode: 'preview' }
 })
 
-URL BUILDING
-------------
-Build URLs from route names:
+URL BUILDING (MANUAL)
+---------------------
+Build URLs without navigation:
 
-import { routeUrl } from '@keenmate/svelte-spa-router/routes'
+import { buildUrl } from '@keenmate/svelte-spa-router/routes'
 
-const url = routeUrl('userProfile', { userId: 123 })
+const url = buildUrl('userProfile', { userId: 123 })
 // Result: "/user/123"
 
-const urlWithQuery = routeUrl('documentDetail', { docId: 456 }, { tab: 'edit' })
+const urlWithQuery = buildUrl('documentDetail', { docId: 456 }, { tab: 'edit' })
 // Result: "/documents/456?tab=edit"
 
+(With defineRoutes, prefer paths.userProfile({ userId: 123 }) — gives you
+TypeScript autocomplete on the params object.)
+
 Use for:
-- Href attributes
+- href attributes (when not using use:link)
 - API calls
 - External links
 
@@ -80,6 +198,12 @@ if (currentRouteName === 'userProfile') {
 
 LINK ACTION WITH NAMED ROUTES
 ------------------------------
+With defineRoutes (recommended):
+
+<a use:link={nav.userProfile.link({ userId: 123 })}>Profile</a>
+
+Without (manual array form):
+
 import { link } from '@keenmate/svelte-spa-router'
 
 <a href="#" use:link={['userProfile', { userId: 123 }]}>Profile</a>
@@ -128,6 +252,13 @@ if (hasRoute('userProfile')) {
     console.error('Route not registered')
 }
 
+GETTING ROUTE PATTERN BY NAME
+------------------------------
+import { getRouteByName } from '@keenmate/svelte-spa-router/routes'
+
+const pattern = getRouteByName('userProfile')
+// Returns: '/user/:userId' (or undefined if not registered)
+
 ROUTE NAME IN REFERRER
 -----------------------
 import { navigationContext } from '@keenmate/svelte-spa-router'
@@ -141,9 +272,12 @@ if (referrer?.routeName === 'documentList') {
 
 BEST PRACTICES
 --------------
-- Register routes in main.js before app mount
+- Prefer defineRoutes() over registerRoutes() in new code — single
+  source of truth + TypeScript autocomplete
+- Register routes in main.js (or a routes.js module) before app mount
 - Use camelCase for route names: 'userProfile', 'documentDetail'
 - Match name to component/feature: 'adminUsers' → AdminUsers.svelte
 - Don't duplicate names
-- Optional: Add names only for routes you navigate to programmatically
-- Routes without names still work, just can't be navigated to by name
+- Routes without names still work — they just can't be navigated to
+  programmatically by name
+- With createHierarchy(), only add name to nodes you navigate to by name
