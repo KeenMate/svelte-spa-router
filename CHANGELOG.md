@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [5.2.1] - 2026-06-03 [PUBLISHED]
+
+### Fixed
+- **`"Invalid component object"` thrown for every bare-function route under Svelte 5 + plugin-svelte 6 + Vite 7** — `Router.svelte`'s component validator was written as a nested boolean expression: `if (!c || (typeof c != 'function' && (typeof c != 'object' || c._sveltesparouter !== true)))`. The Svelte 5 compiler (verified in `5.39.12` and `5.56.1`, both runes and non-runes modes) drops the inner parens around `(typeof c != 'object' || c._sveltesparouter !== true)` when generating the IR, producing `!c || A && B || C` which under JS precedence parses as `!c || (A && B) || C`. For a function value (every Svelte 5 default-imported `.svelte` component), `C` evaluates `true` (`undefined !== true`), so the whole condition is `true` and the validator throws — even though the source logic is correct. `wrap()`-ed routes accidentally avoid the bug because their `_sveltesparouter` is `true`, making `C` evaluate `false`.
+  - **Symptom in consumer apps:** `pageerror: Invalid component object` on first route render. `wrap({ component: Foo })` works as a workaround, bare `{ '/': Foo }` does not.
+  - **Why it never showed in the router's own test suite:** the example app pins `vite@^5 + plugin-svelte@^4 + svelte@5.39`, where the same compiler output is produced but apparently smoothed over somewhere in the older plugin/runtime pipeline. Newer consumer stacks (`vite@^7 + plugin-svelte@^6 + svelte@5.5x`) hit it in both dev and prod.
+  - **Fix:** in `Router.svelte` `RouteItem` constructor, hoist the type checks into named locals (`isComponentFn`, `isWrappedRoute`) and use positive checks. The resulting `if (!c || (!isFn && !isWrapped))` is single-nesting and immune to the compiler's lossy paren elision.
+  - Comment block preserved at the call site so the rewrite isn't accidentally "simplified" back. Full lesson written up in [`docs/pitfalls.md`](./docs/pitfalls.md) — the workaround pattern (named locals + positive checks) is a general rule for guards in `.svelte` script blocks.
+
 ## [5.2.0] - 2026-06-02 [PUBLISHED]
 
 ### Changed (docs)

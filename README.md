@@ -23,6 +23,11 @@ MIT licensed.
 
 ## What's new
 
+### v5.2.1
+
+- **Unblocks bare-function routes on modern stacks** — `{ '/': Home }` (without `wrap()`) now works under `vite@^7 + @sveltejs/vite-plugin-svelte@^6 + svelte@5.5x`, where the Router's component validator was previously throwing `Invalid component object` at first route render. Pure runtime fix — no API change, no consumer-side migration.
+- **Root cause was an upstream Svelte compiler quirk**, not a router design issue — the nested-OR shape of the original validator got its inner parens dropped during compilation, flipping the boolean. Detailed write-up in [`docs/pitfalls.md`](./docs/pitfalls.md).
+
 ### v5.2.0
 
 - **Breaking — built-in toast removed from `GlobalErrorHandler`** — notification UI belongs in your stack. Wire your own toast/snackbar inside the `onError` callback. The `showToast` config field is gone.
@@ -31,12 +36,6 @@ MIT licensed.
 - **Comprehensive test coverage** — 347 vitest cases across 16 files plus a 16-spec / 103-test Playwright e2e suite with dedicated browser-level fixtures
 - **Docs reorganization** — README trimmed from ~2,300 to 157 lines, deep-dive content split into 14 domain-specific files under `docs/`; 15-file AI-assistant reference set under `ai/` for Claude / Cursor / Copilot
 - **Several router fixes + diagnostics** — routed components are no longer wrapped in a layout-breaking `<div style="display: block">` (broke flexbox/grid for routes that didn't use loading); `push('/path', {}, queryObj)` was dropping the query; `onNotFound` never fired when `'*'` catch-all was configured; `navigationContext()` leaked the internal `_routeName` key (so `!ctx` was never true); new 10-second warning when `shouldDisplayLoadingOnRouteLoad` routes forget to call `hideLoading()`; `relativeLocation` now on every Router event payload for prefix-stripped nested-router reasoning
-
-### v5.1.1
-
-- **Breadcrumbs preserved on querystring-only navigation** — fixed breadcrumbs resetting to "Loading..." when only the querystring changes (e.g., tab switching via `replace('/items/1', {}, { tab: 'settings' })`)
-- **TabsDemo example** — shows the correct `replace()`-for-tabs pattern with dynamic breadcrumbs that persist across tab switches
-- **AI documentation index** — `ai/INDEX.txt` for keyword lookup, organized by topic with reading-order recommendations and a quick problem-solving guide
 
 Full details in [CHANGELOG.md](./CHANGELOG.md).
 

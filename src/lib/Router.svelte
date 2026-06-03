@@ -65,7 +65,21 @@ let {
  */
 class RouteItem {
     constructor(path, component) {
-        if (!component || (typeof component != 'function' && (typeof component != 'object' || component._sveltesparouter !== true))) {
+        // Hoisted into named locals on purpose. The Svelte 5 compiler (≥5.5
+        // via @sveltejs/vite-plugin-svelte ≥6) rewrites `!=` / `!==` inside
+        // .svelte files into reactive-aware helpers (`$.equals(...)`,
+        // `$.strict_equals(...)`) and, when doing so, drops the inner
+        // parens around a nested OR. The inlined form
+        //     !c || (typeof c != 'function' && (typeof c != 'object' || c._spar !== true))
+        // gets emitted as
+        //     !c || $.equals(typeof c, 'function', false) && $.equals(typeof c, 'object', false) || $.strict_equals(c._spar, true, false)
+        // which under JS precedence parses as `!c || (A && B) || C` — so any
+        // bare function-valued component (every Svelte 5 default-imported
+        // .svelte file) trips the C arm and throws. Positive checks in named
+        // locals defeat the lossy rewrite.
+        const isComponentFn = typeof component === 'function'
+        const isWrappedRoute = typeof component === 'object' && component !== null && component._sveltesparouter === true
+        if (!component || (!isComponentFn && !isWrappedRoute)) {
             throw Error('Invalid component object')
         }
 
