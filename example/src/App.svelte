@@ -48,6 +48,8 @@ import TabsDemo from './routes/TabsDemo.svelte'
 import DefineRoutesDemo from './routes/DefineRoutesDemo.svelte'
 import RouteContextDemo from './routes/RouteContextDemo.svelte'
 import RouteContextTarget from './routes/RouteContextTarget.svelte'
+import NavTreeDemo from './routes/NavTreeDemo.svelte'
+import { navTree, walkTree } from './routes/nav-tree.svelte.js'
 import TestIndex from './routes/test/TestIndex.svelte'
 import NavigationTest from './routes/test/NavigationTest.svelte'
 import NamedRoutesTest from './routes/test/NamedRoutesTest.svelte'
@@ -396,6 +398,19 @@ const routes = {
     '/test/params/wild/*': RouteParamsTest,
     '/test/links': LinkActionsTest,
     '/test/links/target': LinkActionsTest,
+    // Sidebar/submenu fixture — see e2e/link-actions.spec.ts "sidebar with submenu"
+    '/test/links/sidebar': LinkActionsTest,
+    '/test/links/sidebar/users': LinkActionsTest,
+    '/test/links/sidebar/users/list': LinkActionsTest,
+    '/test/links/sidebar/users/:id': LinkActionsTest,
+    '/test/links/sidebar/users/:id/edit': LinkActionsTest,
+
+    // Tree-driven nav demo — registers one route per node in nav-tree.js,
+    // all pointing at the same demo component. The component reads location()
+    // to render the active page content.
+    ...Object.fromEntries(
+        Array.from(walkTree(navTree)).map((node) => [node.path, NavTreeDemo])
+    ),
     '/test/perms': PermissionsTest,
     '/test/perms/needs-read': createProtectedRoute({
         component: PermissionsProtected,
@@ -640,6 +655,7 @@ function handleToggleUser() {
                     <a href="/metadata-demo" use:link use:active>Metadata</a>
                     <a href="/loading-demo" use:link use:active>Loading</a>
                     <a href="/multi-zone-demo" use:link use:active>Zones</a>
+                    <a href="/nav-tree-demo" use:link use:active={/^\/nav-tree-demo(\/|$)/}>Tree-driven nav</a>
                 </div>
             </div>
             <div class="nav-group">

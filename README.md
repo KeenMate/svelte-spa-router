@@ -23,19 +23,19 @@ MIT licensed.
 
 ## What's new
 
+### v5.3.0-rc01 (release candidate)
+
+- **`helpers/nav-tree` — permission-aware filtering for auto-generated sidebars** — `filterByPermissions(navTree, { mode })` drops or marks-as-disabled nodes the current user can't reach. Two modes (`hide` / `disable`), cascading parent hiding, ancestor permission inheritance, and a polymorphic `isHidden: boolean | () => boolean` per node for static or reactive overrides (e.g. dev-only features via `isHidden: () => !import.meta.env.DEV`). Reactive end-to-end — `$derived(filterByPermissions(navTree))` re-runs when `setCurrentUser()` fires or any `isHidden` getter reads `$state` that mutates. No subscription wiring.
+- **`subtree: true` on `use:active`** — sidebar parents stay highlighted on their own index page AND every nested URL from a single action call, no regex required. The action reads the link's `href` and registers both patterns internally. Pairs with `nav-tree` filtering for the full "one tree drives both routes AND sidebar with permissions" pattern — see `/nav-tree-demo`.
+- **`subtreeClassName` option** — pair with `className` for a distinct CSS class on "parent of an active child" vs "really active" links (e.g. `link-active` / `sublink-active`) in one action call instead of two stacked `use:active`.
+- **Stacked `use:active` actions on the same node now cooperate** — class management rewritten from per-entry remove-then-conditionally-add to a per-node aggregate sync. Fixes a silent bug where the common "parent + descendants" pattern (`use:active use:active={'/foo/*'}`) failed on the bare path because the second action stripped the class the first added.
+- **`/nav-tree-demo` + `<NavLink>` reference implementation** — one tree drives both the sidebar (filtered via `filterByPermissions`, walked via `<NavLink subtree={!!children} forbidden={_forbidden}>`) and the route registration. Three live toggles demonstrate every filter behavior side-by-side: user (Donna ↔ Audrey), mode (hide ↔ disable), and a runtime feature-flag rune that flips an `isHidden` getter — the pattern you'd wire to a real feature-flag service in production.
+- **`ai/link-actions.txt` rewritten** — previous PREFIX MATCHING section was wrong about `/foo/*` matching bare `/foo`. New BRANCH MATCHING, SIDEBAR WITH SUBMENU, TWO-CLASS PARENT/CHILD, GENERATING NAV FROM ROUTE TREE, and FILTERING BY PERMISSIONS sections. Same expansion in the showcase site.
+
 ### v5.2.1
 
 - **Unblocks bare-function routes on modern stacks** — `{ '/': Home }` (without `wrap()`) now works under `vite@^7 + @sveltejs/vite-plugin-svelte@^6 + svelte@5.5x`, where the Router's component validator was previously throwing `Invalid component object` at first route render. Pure runtime fix — no API change, no consumer-side migration.
 - **Root cause was an upstream Svelte compiler quirk**, not a router design issue — the nested-OR shape of the original validator got its inner parens dropped during compilation, flipping the boolean. Detailed write-up in [`docs/pitfalls.md`](./docs/pitfalls.md).
-
-### v5.2.0
-
-- **Breaking — built-in toast removed from `GlobalErrorHandler`** — notification UI belongs in your stack. Wire your own toast/snackbar inside the `onError` callback. The `showToast` config field is gone.
-- **`defineRoutes()`** — type-safe route definitions with IDE autocomplete on route names and params, plus generated `nav.X.push(params)` and `paths.X(params)` helpers
-- **Permissions reactivity by default** — `setCurrentUser()` makes `hasPermission()` updates live in `{#if}` blocks without subscription wiring; `revalidateCurrentRoute()` + `onRevalidationFailure` re-check the currently mounted route on out-of-band user changes (websocket permission updates, token refresh)
-- **Comprehensive test coverage** — 347 vitest cases across 16 files plus a 16-spec / 103-test Playwright e2e suite with dedicated browser-level fixtures
-- **Docs reorganization** — README trimmed from ~2,300 to 157 lines, deep-dive content split into 14 domain-specific files under `docs/`; 15-file AI-assistant reference set under `ai/` for Claude / Cursor / Copilot
-- **Several router fixes + diagnostics** — routed components are no longer wrapped in a layout-breaking `<div style="display: block">` (broke flexbox/grid for routes that didn't use loading); `push('/path', {}, queryObj)` was dropping the query; `onNotFound` never fired when `'*'` catch-all was configured; `navigationContext()` leaked the internal `_routeName` key (so `!ctx` was never true); new 10-second warning when `shouldDisplayLoadingOnRouteLoad` routes forget to call `hideLoading()`; `relativeLocation` now on every Router event payload for prefix-stripped nested-router reasoning
 
 Full details in [CHANGELOG.md](./CHANGELOG.md).
 

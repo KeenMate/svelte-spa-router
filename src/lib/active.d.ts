@@ -4,7 +4,7 @@
 export interface ActiveOptions {
     /**
      * Path expression that makes the link active when matched (must start with '/' or '*')
-     * Default is the link's href attribute
+     * Default is the link's href attribute. Ignored when `subtree: true`.
      */
     path?: string | RegExp;
 
@@ -18,6 +18,25 @@ export interface ActiveOptions {
      * CSS class to apply to the element when inactive
      */
     inactiveClassName?: string;
+
+    /**
+     * Match the link's `href` exactly AND every descendant path.
+     *
+     * Sidebar parents stay highlighted on their own index page AND when any
+     * nested URL under them is open — without writing a regex. Equivalent to
+     * stacking `use:active use:active={'<href>/*'}` by hand.
+     *
+     * Requires the element to have an `href` attribute.
+     */
+    subtree?: boolean;
+
+    /**
+     * CSS class used for the descendants pattern when `subtree: true`.
+     * Defaults to `className`. Set distinct from `className` to style the
+     * "really active" link differently from a "parent of active" link
+     * (e.g. `className: 'link-active'`, `subtreeClassName: 'sublink-active'`).
+     */
+    subtreeClassName?: string;
 }
 
 /**

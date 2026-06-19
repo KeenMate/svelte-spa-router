@@ -13,6 +13,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [5.3.0-rc01] - 2026-06-19 [PUBLISHED]
+
+### Added
+- **`subtree: true` option on `use:active`** — Registers both an exact `href` match AND a `/href/*` descendants pattern from a single action call, derived from the link's `href`. Sidebar parents stay highlighted on their own index page AND every nested URL without writing a regex or stacking two `use:active` calls by hand. Designed for menus generated from a route tree (e.g. the same tree you pass to `createHierarchy()`) where the path is already a variable — no per-parent regex composition.
+- **`subtreeClassName` option** — Companion to `subtree: true`. Adds a distinct CSS class on descendant URLs while `className` stays on the exact-href match. Lets you style the "really active" link (e.g. `link-active`, red) differently from a "parent of an active child" link (e.g. `sublink-active`, orange) in one action call. The two-class long-hand (two stacked `use:active` with different `className`s) still works and is now equivalent thanks to the stacked-action fix below.
+- TypeScript declarations in `src/lib/active.d.ts` document `subtree` / `subtreeClassName` with usage notes and the relationship to existing `path` / `className` / `inactiveClassName`.
+
+- **`helpers/nav-tree` — permission-aware filtering for tree-shaped navigation menus** — New module exported at `@keenmate/svelte-spa-router/helpers/nav-tree`. Lets consumers drive an auto-generated sidebar from a route tree without writing per-app filtering logic, and supports the two patterns every admin-style sidebar needs:
+  - `filterByPermissions(tree, options)` — walks the tree, runs `hasPermission()` per node, and either drops inaccessible nodes (`mode: 'hide'`, default) or marks them with `_forbidden: true` for styled disabled rendering (`mode: 'disable'`). Cascades: a parent whose visible children are all filtered out is itself dropped in hide mode, or flagged forbidden in disable mode.
+  - Ancestor permissions enforced via sequential `hasPermission()` checks (one per level), not by merging spec objects — `any: []` semantics can't be combined by concatenation, so the filter chains calls instead. Mirrors the router's own hierarchical-mode pipeline. Toggle via `inheritPermissions: false` for nav structures that don't mirror an access hierarchy.
+  - **`isHidden: boolean | (node) => boolean`** — per-node override that's always-destructive in both modes. The getter form is the "reactive thingy" pattern: any reactive state read inside (env vars, `$state`, feature flags, user state) makes the filter result reactive when called inside a `$derived` — no separate `Callback`-suffixed prop, no OR-semantics decision tree.
+  - **`keepIfEmpty: true`** per-node opt-in to render a parent even when all its children get filtered out (useful for pure section headers).
+  - `walkTree(tree)` and `findNodeByPath(tree, path)` promoted from the example app to the library so consumers can reuse them for the same-tree-drives-both-routes-and-nav pattern.
+  - `isNodeHidden(node)` exported for consumers who want to compose their own walkers.
+  - TypeScript declarations in `helpers/nav-tree.d.ts`: `NavTreeNode`, `PermissionSpec`, `FilterOptions`, `IsHiddenCallback`.
+  - 21 vitest cases in `src/tests/nav-tree.test.js` covering both modes, isHidden static + getter, permission denial + inheritance + opt-out, cascade behavior, `keepIfEmpty`, custom `forbiddenClassName`, the reactivity model (filter produces different output across user changes), and `walkTree` / `findNodeByPath`.
+
+- **`subtree: true` option on `use:active`** plus the `nav-tree` helper above unlock the full "single tree drives both routes AND sidebar with permissions" pattern. See `/nav-tree-demo` for the reference implementation.
+
+- **Example: `/nav-tree-demo` showcase + `<NavLink>` helper component** — `example/src/routes/NavTreeDemo.svelte` walks the permission-filtered tree (`$derived(filterByPermissions(navTree, { mode }))`) to render a sidebar; `App.svelte` walks the unfiltered tree (`Object.fromEntries(walkTree(navTree).map(...))`) to register routes — one source of truth drives both. Three toggles in the sidebar make every filter behavior observable side-by-side:
+  - **user toggle** — Donna (limited perms) ↔ Audrey (full access)
+  - **mode toggle** — hide ↔ disable
+  - **show new features toggle** — flips a `flags.showNewFeatures` rune that the Preview features node reads inside its `isHidden` getter, demonstrating the runtime-reactive feature-flag pattern (in production this would be hydrated from your feature-flag service)
+  - `example/src/routes/nav-tree.svelte.js` exports both the tree definition and the `flags` rune so consumers can copy the pattern directly. `example/src/components/NavLink.svelte` is the reference wrapper around `use:link` + `use:active` that handles the `subtree` and `forbidden` flags — when forbidden, renders a non-interactive `<span class="forbidden" aria-disabled="true">` instead of an `<a>`. Not in the published package — purely a reference implementation for consumers building generated nav.
+
+- **9 new e2e tests in `e2e/nav-tree-demo.spec.ts`** verifying the demo end-to-end: hide vs disable mode for both users, user-toggle live re-filtering with no page reload, mode-toggle in-place swap, parent-active highlighting through the filtered children, feature-flag toggle (Preview features appears/disappears live in both modes). Confirms that `$derived(filterByPermissions(...))` plus reactive `hasPermission()` plus `flags.X` runes inside `isHidden` getters together produce a fully live-updating sidebar without subscription wiring.
+
+### Fixed
+- **Stacked `use:active` actions on the same element no longer fight each other** — Two `use:active` calls on one node with the same `className` were order-dependent: each invocation's `toggleClasses` unconditionally removed the class before re-checking its own pattern, so the last registered action won. The common workaround for "parent stays active on /foo AND on /foo/bar" (`use:active use:active={'/foo/*'}`) silently broke on the bare path — the prefix action stripped the `active` class the default action just added.
+  - Replaced `toggleClasses` with `syncClassesForNode`, which aggregates across every entry on the node: an active class is present iff ANY entry's pattern matches; an inactive class is present iff NO controlling entry that declared it matches (so a single non-matching entry no longer flips on the inactive class while a sibling action says the element IS active). Stacked actions now cooperate cleanly.
+  - Backward compatible for the single-entry-per-node case (the overwhelmingly common case) — the prior unit test continues to pass unchanged.
+  - The new `subtree: true` option above is implemented as syntactic sugar that pushes two entries internally, so it depends directly on this aggregation model.
+  - 5 new vitest cases in `src/tests/active-action.test.js` covering `subtree` exact match / descendants / unrelated URL / `subtreeClassName` on exact / `subtreeClassName` on descendants.
+  - 17 new e2e cases in `e2e/link-actions.spec.ts` across `use:active — sidebar with submenu`, `two-class parent/child pattern`, and `subtree option` — full truth tables across 5 URL depths plus SPA-click verification that classes flip cleanly without a page reload.
+
+### Changed
+- **`ai/link-actions.txt` PREFIX MATCHING corrected and expanded** — Previous version claimed `<a href="/docs/*" use:active>` matched bare `/docs`. It doesn't: `regexparam@2.0.2` compiles `/docs/*` to `/^\/docs\/(.*)\/?$/i`, which requires the slash after "docs", so bare `/docs` falls through. Rewritten as "descendants only" with the regexparam quirk explained against a worked example. New BRANCH MATCHING section ranks `subtree: true` (recommended), regex form, and stacked actions as three equivalent approaches. New SIDEBAR WITH SUBMENU, TWO-CLASS PARENT/CHILD PATTERN, GENERATING NAV FROM ROUTE TREE, and FILTERING BY PERMISSIONS sections cover the four patterns this release is designed to enable. Same expansion propagated to the showcase site's link-actions feature page (separate repo) — including a Reactivity section explaining how `$derived(filterByPermissions(...))` participates in the user-state reactivity chain.
+
 ## [5.2.1] - 2026-06-03 [PUBLISHED]
 
 ### Fixed

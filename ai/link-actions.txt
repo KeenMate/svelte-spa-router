@@ -130,27 +130,355 @@ Route: /about
 Link: /about → active ✓
 Link: /about/team → not active ✗
 
-PREFIX MATCHING
----------------
-Use asterisk for prefix matching:
+PREFIX MATCHING — DESCENDANTS ONLY
+-----------------------------------
+Pass an explicit path with a trailing /* to highlight on descendant URLs:
 
-<a href="/docs/*" use:link use:active>Docs</a>
+<a href="/docs" use:link use:active={'/docs/*'}>Docs</a>
 
-Route: /docs → active ✓
-Route: /docs/guide → active ✓
+Route: /docs              → not active ✗   ← regexparam quirk
+Route: /docs/             → active ✓
+Route: /docs/guide        → active ✓
 Route: /docs/api/reference → active ✓
-Route: /about → not active ✗
+Route: /about             → not active ✗
+
+The `/docs/*` pattern is compiled by regexparam to `/^\/docs\/(.*)\/?$/i`,
+which REQUIRES the slash after "docs". The bare path /docs falls through.
+
+BRANCH MATCHING — BARE PATH + DESCENDANTS
+------------------------------------------
+For sidebar parents that should stay highlighted on /docs AND every child,
+use one of:
+
+1. subtree option (recommended — no path string, no regex):
+<a href="/docs" use:link use:active={{ subtree: true }}>Docs</a>
+
+The action reads the link's href and internally registers both an exact
+match AND a /docs/* descendants pattern. Perfect for generated menus
+where the path is already a variable.
+
+2. Regex form (when you can't or don't want to depend on href):
+<a href="/docs" use:link use:active={/^\/docs(\/|$)/}>Docs</a>
+
+3. Stack two use:active calls (the long-hand of subtree: true):
+<a href="/docs" use:link use:active use:active={'/docs/*'}>Docs</a>
+   ^ default catches bare /docs   ^ prefix catches /docs/anything
+
+All three yield:
+Route: /docs              → active ✓
+Route: /docs/guide        → active ✓
+Route: /docs/api/reference → active ✓
+Route: /about             → not active ✗
+
+The stacked form works because the active action manages its className
+state by aggregating across every entry on the node — a class is present
+iff any entry's pattern matches, so the two actions cooperate instead of
+fighting. `subtree: true` is just sugar that pushes the two entries for you.
 
 MULTIPLE LINKS
 --------------
 <nav>
     <a href="/" use:link use:active>Home</a>
     <a href="/about" use:link use:active>About</a>
-    <a href="/docs/*" use:link use:active>Docs</a>
+    <a href="/docs" use:link use:active={/^\/docs(\/|$)/}>Docs</a>
     <a href="/contact" use:link use:active>Contact</a>
 </nav>
 
-Only matching link gets 'active' class.
+Each link gets 'active' only when its own pattern matches. Use the regex
+form for "branch active" parents in a sidebar — see SIDEBAR WITH SUBMENU below.
+
+SIDEBAR WITH SUBMENU
+--------------------
+Parent stays active on its index page AND when any child route is open;
+children only highlight on their exact path:
+
+<nav class="sidebar">
+    <a href="/" use:link use:active>Home</a>
+
+    <div class="group">
+        <!-- Parent: regex matches /users AND /users/anything -->
+        <a href="/users" use:link use:active={/^\/users(\/|$)/}>Users</a>
+        <div class="submenu">
+            <!-- Children: default exact match -->
+            <a href="/users" use:link use:active>All users</a>
+            <a href="/users/new" use:link use:active>Create user</a>
+        </div>
+    </div>
+</nav>
+
+Behavior:
+  On /users         → "Users" + "All users" both active
+  On /users/new     → "Users" + "Create user" both active
+  On /users/123     → only "Users" active (no exact child match)
+  On /              → only "Home" active
+
+To distinguish "I am the active route" vs "a descendant of mine is active",
+give the parent a different CSS class via the options form:
+
+<a href="/users"
+   use:link
+   use:active={{ path: /^\/users(\/|$)/, className: 'branch-active' }}
+   use:active>Users</a>
+
+TWO-CLASS PARENT/CHILD PATTERN
+-------------------------------
+Style the "really active" link and the "parent of an active child" link
+differently — e.g. red bold for the exact-match link, orange for the
+parent in the chain.
+
+SHORT FORM (recommended) — use subtree + subtreeClassName:
+
+<a
+    href="/users"
+    use:link
+    use:active={{
+        subtree: true,
+        className: 'link-active',
+        subtreeClassName: 'sublink-active'
+    }}
+>
+    Users
+</a>
+
+Exact href match → adds `link-active`. Descendant URL → adds
+`sublink-active`. The two classes never collide so the parent is
+unambiguously either "really active" or "branch active", never both.
+Children use a single use:active with the same exact-match class.
+
+LONG FORM (equivalent, but two action calls):
+
+<a
+    href="/users"
+    use:link
+    use:active={{ className: 'link-active' }}
+    use:active={{ path: '/users/*', className: 'sublink-active' }}
+>
+    Users
+</a>
+
+Either form, full menu example:
+
+<style>
+    .link-active     { color: red; font-weight: bold; }
+    .sublink-active  { color: orange; }
+</style>
+
+<nav>
+    <a
+        href="/users"
+        use:link
+        use:active={{ subtree: true, className: 'link-active', subtreeClassName: 'sublink-active' }}
+    >
+        Users
+    </a>
+
+    <div class="submenu">
+        <a href="/users" use:link use:active={{ className: 'link-active' }}>All users</a>
+        <a href="/users/new" use:link use:active={{ className: 'link-active' }}>Create</a>
+        <a href="/users/123" use:link use:active={{ className: 'link-active' }}>User 123</a>
+    </div>
+</nav>
+
+Behavior:
+  On /users         → parent .link-active (red, bold)
+                      + the "All users" submenu item .link-active too
+                      (it shares the href /users)
+  On /users/new     → parent .sublink-active (orange)
+                      + "Create" .link-active
+  On /users/123     → parent .sublink-active
+                      + "User 123" .link-active
+
+For a three-level menu, repeat the same pattern at each ancestor depth —
+each ancestor gets its own /depth/* sublink rule:
+
+<a href="/admin"
+   use:link
+   use:active={{ className: 'link-active' }}
+   use:active={{ path: '/admin/*', className: 'sublink-active' }}>Admin</a>
+
+<a href="/admin/users"
+   use:link
+   use:active={{ className: 'link-active' }}
+   use:active={{ path: '/admin/users/*', className: 'sublink-active' }}>Users</a>
+
+<a href="/admin/users/123"
+   use:link
+   use:active={{ className: 'link-active' }}>User 123</a>
+
+On /admin/users/123: grandparent + parent both get sublink-active, the
+leaf gets link-active. Using subtree: true the same chain becomes:
+
+<a href="/admin"
+   use:link
+   use:active={{ subtree: true, className: 'link-active', subtreeClassName: 'sublink-active' }}>Admin</a>
+
+<a href="/admin/users"
+   use:link
+   use:active={{ subtree: true, className: 'link-active', subtreeClassName: 'sublink-active' }}>Users</a>
+
+<a href="/admin/users/123"
+   use:link
+   use:active={{ className: 'link-active' }}>User 123</a>
+
+GENERATING NAV FROM A ROUTE TREE
+---------------------------------
+The `subtree` option exists so you can render menus from a route tree
+(e.g. the same tree you pass to createHierarchy()) without computing
+regexes per parent. The menu walker stays trivial — pass `subtree: true`
+to NavLink whenever a node has children.
+
+Helper component (example/src/components/NavLink.svelte):
+
+<script>
+import { link } from '@keenmate/svelte-spa-router'
+import active from '@keenmate/svelte-spa-router/active'
+
+let {
+    href,
+    subtree = false,
+    className = 'active',
+    subtreeClassName = undefined,
+    children,
+    ...rest
+} = $props()
+</script>
+
+<a {href}
+   use:link
+   use:active={subtree
+     ? { subtree: true, className, subtreeClassName }
+     : { className }}
+   {...rest}>{@render children?.()}</a>
+
+Tree walker:
+
+const navTree = [
+    { path: '/users', title: 'Users', children: [
+        { path: '/users/list', title: 'All users' },
+        { path: '/users/new',  title: 'Create' }
+    ]},
+    { path: '/orders', title: 'Orders', children: [...] }
+]
+
+{#each navTree as item}
+    {#if item.children}
+        <NavLink href={item.path} subtree={true}
+                 className="link-active" subtreeClassName="sublink-active">
+            {item.title}
+        </NavLink>
+        <div class="submenu">
+            {#each item.children as child}
+                <NavLink href={child.path} className="link-active">
+                    {child.title}
+                </NavLink>
+            {/each}
+        </div>
+    {:else}
+        <NavLink href={item.path} className="link-active">{item.title}</NavLink>
+    {/if}
+{/each}
+
+Full demo: example/src/routes/NavTreeDemo.svelte and
+example/src/routes/nav-tree.js — the same array drives the sidebar AND
+the route registration (App.svelte walks it via Object.fromEntries +
+walkTree).
+
+FILTERING BY PERMISSIONS (helpers/nav-tree)
+--------------------------------------------
+Auto-generated sidebars need to deal with permission-gated routes.
+The `helpers/nav-tree` module ships a filter that walks the tree and
+either hides or disables nodes the current user can't reach. Two modes:
+
+  mode: 'hide'    — inaccessible nodes are dropped from the output (default)
+  mode: 'disable' — inaccessible nodes are kept with `_forbidden: true`
+                    and a CSS class for styled disabled rendering
+
+import { filterByPermissions } from '@keenmate/svelte-spa-router/helpers/nav-tree'
+
+const visibleTree = $derived(filterByPermissions(navTree))
+// — or —
+const visibleTree = $derived(filterByPermissions(navTree, {
+    mode: 'disable',
+    forbiddenClassName: 'forbidden'
+}))
+
+NavTree node schema additions:
+
+{
+    path: '/admin',
+    title: 'Admin',
+    permissions: { any: ['admin'] },     // checked by hasPermission()
+    isHidden: false,                      // OR a getter — see below
+    children: [...]
+}
+
+Node-level options:
+
+  permissions  { any?, all? }  — Same shape as wrap()/createProtectedRoute().
+                                  Ancestor permissions also apply when the
+                                  filter runs with inheritPermissions:true
+                                  (default) — sequential hasPermission() calls
+                                  per level, NOT a merged spec object.
+  isHidden     boolean | (node) => boolean
+                                  Always-destructive in both modes. The getter
+                                  is called on every filter pass — any
+                                  reactive state it reads ($state, env vars,
+                                  feature flags) makes the filter result
+                                  reactive when called inside a $derived.
+  keepIfEmpty  boolean           — Force a parent to render even when all its
+                                  children are filtered out. Default behavior
+                                  drops empty parents to avoid orphan section
+                                  headers.
+
+Reactivity model:
+
+  filterByPermissions() calls hasPermission() internally, which reads through
+  the configured user getter — which in turn defaults to a reactive $state
+  rune in helpers/permissions. Therefore:
+
+  const visibleTree = $derived(filterByPermissions(navTree))
+
+  ...automatically updates when:
+    - setCurrentUser() fires (login, logout, role swap)
+    - any isHidden getter reads $state that mutates
+    - any isHidden getter reads import.meta.env (compile-time → constant)
+
+  No subscriptions, no manual invalidation.
+
+Behavior matrix:
+
+  Node state                              | mode 'hide'  | mode 'disable'
+  ----------------------------------------+--------------+----------------
+  isHidden: true (or getter returns true) | gone         | gone
+  User has access                          | shown        | shown
+  User lacks access                        | gone         | shown +
+                                          |              |   _forbidden: true
+                                          |              |   _forbiddenClassName: 'forbidden'
+  All visible children forbidden           | parent gone  | parent forbidden
+                                           | (cascading)  | (cascading)
+
+NavLink helper update (example/src/components/NavLink.svelte):
+
+  <NavLink
+      href={item.path}
+      subtree={!!item.children}
+      forbidden={item._forbidden}
+      forbiddenClassName={item._forbiddenClassName}
+      className="link-active"
+      subtreeClassName="sublink-active"
+  >{item.title}</NavLink>
+
+  When `forbidden` is true, NavLink renders <span class="forbidden"
+  aria-disabled="true"> instead of <a> — no use:link, no navigation,
+  screen-reader-correct.
+
+Example demo: /nav-tree-demo (in `make dev`)
+  - User toggle between Donna (limited) and Audrey (full access)
+  - Mode toggle between hide and disable
+  - Permission-gated nodes (`/admin/*`, `/settings`)
+  - isHidden getter (`/labs` — dev-only)
+  - isHidden boolean (`/secret` — always)
+  - Permission inheritance (Admin children inherit `any: ['admin']`)
 
 COMBINING LINK + ACTIVE + PARAMS
 ---------------------------------
