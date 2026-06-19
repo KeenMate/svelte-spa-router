@@ -28,6 +28,65 @@ const visibleTree = $derived(filterByPermissions(navTree, { mode }))
 const active = $derived(findNodeByPath(navTree, path))
 </script>
 
+<div class="page">
+    <nav class="topbar" aria-label="Tree-driven navbar">
+        {#each visibleTree as item}
+            {#if item.children}
+                <div class="topbar-item">
+                    <NavLink
+                        href={item.path}
+                        subtree={true}
+                        className="link-active"
+                        subtreeClassName="sublink-active"
+                        forbidden={item._forbidden}
+                        forbiddenClassName={item._forbiddenClassName}
+                    >{item.title} <span class="caret" aria-hidden="true">▾</span></NavLink>
+
+                    <div class="dropdown">
+                        {#each item.children as child}
+                            {#if child.children}
+                                <div class="has-sub">
+                                    <NavLink
+                                        href={child.path}
+                                        subtree={true}
+                                        className="link-active"
+                                        subtreeClassName="sublink-active"
+                                        forbidden={child._forbidden}
+                                        forbiddenClassName={child._forbiddenClassName}
+                                    >{child.title} <span class="caret" aria-hidden="true">▸</span></NavLink>
+                                    <div class="dropdown-sub">
+                                        {#each child.children as grandchild}
+                                            <NavLink
+                                                href={grandchild.path}
+                                                className="link-active"
+                                                forbidden={grandchild._forbidden}
+                                                forbiddenClassName={grandchild._forbiddenClassName}
+                                            >{grandchild.title}</NavLink>
+                                        {/each}
+                                    </div>
+                                </div>
+                            {:else}
+                                <NavLink
+                                    href={child.path}
+                                    className="link-active"
+                                    forbidden={child._forbidden}
+                                    forbiddenClassName={child._forbiddenClassName}
+                                >{child.title}</NavLink>
+                            {/if}
+                        {/each}
+                    </div>
+                </div>
+            {:else}
+                <NavLink
+                    href={item.path}
+                    className="link-active"
+                    forbidden={item._forbidden}
+                    forbiddenClassName={item._forbiddenClassName}
+                >{item.title}</NavLink>
+            {/if}
+        {/each}
+    </nav>
+
 <div class="layout">
     <aside class="sidebar">
         <header class="aside-header">
@@ -117,9 +176,14 @@ const active = $derived(findNodeByPath(navTree, path))
     <main class="content">
         <h1>Tree-driven nav demo</h1>
         <p>
-            One <code>navTree</code> drives both the sidebar and the routes.
-            Permission filtering runs inside <code>$derived(filterByPermissions(...))</code>
-            — switching the user re-runs it automatically.
+            One <code>navTree</code> drives the top navbar, the sidebar,
+            <em>and</em> the routes. Permission filtering runs inside
+            <code>$derived(filterByPermissions(...))</code> — switching the
+            user re-runs both renderings automatically.
+        </p>
+        <p class="muted">
+            The tree is three levels deep: hover <strong>Users → User 123</strong>
+            in the navbar (or expand it in the sidebar) to see grandchildren.
         </p>
 
         <div class="card">
@@ -153,6 +217,9 @@ const active = $derived(findNodeByPath(navTree, path))
                 <tr><td>Users → All users</td><td>yes</td><td>yes</td></tr>
                 <tr><td>Users → Create user</td><td><em>no</em> (needs user:edit)</td><td>yes</td></tr>
                 <tr><td>Users → User 123</td><td>yes</td><td>yes</td></tr>
+                <tr><td>Users → User 123 → Profile</td><td>yes</td><td>yes</td></tr>
+                <tr><td>Users → User 123 → Activity</td><td>yes</td><td>yes</td></tr>
+                <tr><td>Users → User 123 → Permissions</td><td><em>no</em> (needs user:edit)</td><td>yes</td></tr>
                 <tr><td>Admin section</td><td><em>no</em> (needs admin)</td><td>yes</td></tr>
                 <tr><td>Settings</td><td><em>no</em> (needs settings:manage)</td><td>yes</td></tr>
                 <tr><td>Labs</td><td>only in dev</td><td>only in dev</td></tr>
@@ -162,14 +229,103 @@ const active = $derived(findNodeByPath(navTree, path))
         </table>
     </main>
 </div>
+</div>
 
 <style>
+    .page {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+    .topbar {
+        display: flex;
+        gap: 0.25rem;
+        align-items: center;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.4rem 0.6rem;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 5;
+    }
+    .topbar-item {
+        position: relative;
+    }
+    .topbar-item .caret {
+        font-size: 0.7em;
+        opacity: 0.6;
+    }
+    .topbar :global(a),
+    .topbar :global(span) {
+        display: inline-block;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.9rem;
+        color: #1d4ed8;
+        text-decoration: none;
+        border-radius: 4px;
+        white-space: nowrap;
+    }
+    .topbar :global(a:hover) { background: #f1f5f9; }
+    .topbar :global(a.link-active) {
+        background: #fee2e2;
+        color: #b91c1c;
+        font-weight: 600;
+    }
+    .topbar :global(a.sublink-active) {
+        background: #ffedd5;
+        color: #c2410c;
+    }
+    .topbar :global(span.forbidden) {
+        color: #94a3b8;
+        text-decoration: line-through;
+        cursor: not-allowed;
+        font-style: italic;
+    }
+
+    .dropdown,
+    .dropdown-sub {
+        display: none;
+        position: absolute;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+        padding: 0.25rem;
+        min-width: 200px;
+        z-index: 10;
+    }
+    .dropdown {
+        top: 100%;
+        left: 0;
+        margin-top: 2px;
+    }
+    .dropdown-sub {
+        top: 0;
+        left: 100%;
+        margin-left: 2px;
+    }
+    .topbar-item:hover > .dropdown,
+    .topbar-item:focus-within > .dropdown {
+        display: block;
+    }
+    .dropdown > :global(a),
+    .dropdown > :global(span),
+    .dropdown-sub > :global(a),
+    .dropdown-sub > :global(span) {
+        display: block;
+    }
+    .has-sub {
+        position: relative;
+    }
+    .has-sub:hover > .dropdown-sub,
+    .has-sub:focus-within > .dropdown-sub {
+        display: block;
+    }
+
     .layout {
         display: grid;
         grid-template-columns: 280px 1fr;
         gap: 1.25rem;
-        max-width: 1100px;
-        margin: 0 auto;
     }
     .sidebar {
         background: white;

@@ -63,7 +63,23 @@ export const navTree = [
             {
                 path: '/nav-tree-demo/users/123',
                 title: 'User 123',
-                permissions: { any: ['user:view'] }
+                permissions: { any: ['user:view'] },
+                children: [
+                    {
+                        path: '/nav-tree-demo/users/123/profile',
+                        title: 'Profile'
+                        // Inherits parent's user:view requirement.
+                    },
+                    {
+                        path: '/nav-tree-demo/users/123/activity',
+                        title: 'Activity'
+                    },
+                    {
+                        path: '/nav-tree-demo/users/123/permissions',
+                        title: 'Permissions',
+                        permissions: { any: ['user:edit'] }   // Audrey only
+                    }
+                ]
             }
         ]
     },
