@@ -1,4 +1,4 @@
-.PHONY: install setup dev build package publish publish-dry clean help podman-run-examples-history podman-run-examples-hash podman-stop-examples
+.PHONY: install setup dev build package publish publish-dry publish-rc publish-dry-rc clean help podman-run-examples-history podman-run-examples-hash podman-stop-examples
 
 # Default target
 .DEFAULT_GOAL := help
@@ -60,7 +60,9 @@ help: ## Show this help message
 	@echo "  lint                    Run linter"
 	@echo "  package                 Package for npm publication"
 	@echo "  publish                 Publish package to npm (use TAG=rc for pre-releases)"
+	@echo "  publish-rc              Publish as rc (shortcut for 'make publish TAG=rc')"
 	@echo "  publish-dry             Dry run of npm publish (use TAG=rc for pre-releases)"
+	@echo "  publish-dry-rc          Dry-run publish as rc (shortcut for 'make publish-dry TAG=rc')"
 	@echo "  setup                   Alias for install"
 	@echo "  test                    Run tests"
 	@echo "  test-e2e                Run Playwright e2e tests against the example app"
@@ -282,6 +284,12 @@ endif
 	$(NPM) publish $(if $(TAG),--tag $(TAG),)
 	@echo ""
 	@echo "Package published successfully!"
+
+publish-rc: ## Publish as rc (shortcut for `make publish TAG=rc`)
+	@$(MAKE) publish TAG=rc
+
+publish-dry-rc: ## Dry-run publish as rc (shortcut for `make publish-dry TAG=rc`)
+	@$(MAKE) publish-dry TAG=rc
 
 clean: ## Clean build artifacts and node_modules
 	@echo "Cleaning build artifacts..."
