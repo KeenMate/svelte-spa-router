@@ -20,6 +20,7 @@
     "vite": "^7.0.0"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.7.6",
     "@keenmate/svelte-spa-router": "file:.."
   }
 }

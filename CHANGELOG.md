@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [5.3.0-rc02] - 2026-06-20 [PUBLISHED]
+
+### Added
+- **Example showcase: rich tooltips in the top navbar of `/nav-tree-demo`** — the `RichTooltip` wrapper (Floating UI based) now also wraps the matching topbar items (Admin / Settings / Marketplace) with `placement="top-start"` so they fly upwards out of the horizontal bar. Mirrors the sidebar pattern (any node with `meta.docsUrl` uses the rich tooltip, everything else uses the plain `title=` attribute via `NavLink`'s `tooltip` prop). A `.rich-tooltip-trigger` pass-through rule was added to the topbar so the wrapper span doesn't double-pad the inner NavLink. Demonstrates the "rich tooltip works in both horizontal and vertical menu layouts from the same `richTooltipContent` snippet" pattern.
+- **Example: route-info bar promoted to the top of the page in `App.svelte`** — was sitting below the blue header with `position: sticky; top: 70px`. Moved to be the first child of `.app` with `position: sticky; top: 0`, so it sits in normal flow initially and pins to the viewport top once the user scrolls past the header. Cosmetic-only — no consumer impact.
+
+### Changed
+- **BREAKING: `NavTreeNode.isHidden` renamed to `hidden`** — aligns with the KeenMate web-components naming convention for data-model boolean fields, which use bare HTML attribute names (`hidden`, `disabled`, `selected`, `checked`, etc.) on single-item shapes. Mirrors the same rename that landed in `@keenmate/web-multiselect` (`MultiSelectOption.isDisabled` → `disabled`). The helper function `isNodeHidden(node)` keeps its `is*` prefix because it's a predicate, not a field.
+  - **Migration:** find-and-replace `isHidden:` → `hidden:` in your nav-tree definitions. The shape is identical otherwise — `boolean | (node) => boolean`, same getter reactivity, same always-destructive semantics.
+- **`NavTreeNode.disabled` now renders the node as forbidden in BOTH modes** — previously disabled items were dropped in hide mode (same as a permission failure). New semantic: `disabled` is a product-level placeholder signal ("coming soon"), not a user-permission concern, so it stays visible regardless of the consumer's hide/disable preference. Ancestor permission denial still hides disabled descendants (you can't see a placeholder in a section you can't enter).
+
+### Fixed
+- **Example: two pre-existing Svelte 5 warnings in `RichTooltip.svelte` silenced** — `triggerEl` / `tooltipEl` now declared with `$state()` so the `$effect` block reads them reactively (was emitting `non_reactive_update`); the trigger `<span>` and the floating `<div>` carry `<!-- svelte-ignore a11y_no_static_element_interactions -->` since the hover handlers are intentional on non-interactive wrappers (the inner NavLink is the real interactive target). Example builds with no warnings.
+
 ## [5.3.0-rc01] - 2026-06-19 [PUBLISHED]
 
 ### Added

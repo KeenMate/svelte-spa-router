@@ -9,15 +9,16 @@
  *
  * `filterByPermissions(tree)` walks the tree and either hides nodes the
  * current user can't reach (default) or keeps them in place with a
- * `_forbidden` flag for "disabled" rendering. `isHidden` (boolean or getter)
+ * `_forbidden` flag for "disabled" rendering. `hidden` (boolean or getter)
  * gives consumers an unconditional way to skip nodes — e.g. feature-flagged
- * dev-only items.
+ * dev-only items. (Field name follows HTML data-model convention — see
+ * naming-conventions.md for why `hidden` instead of `isHidden`.)
  *
  * Reactivity: `hasPermission()` reads the current user via the reactive
  * `currentUserState` rune in helpers/permissions, so calling
  * `filterByPermissions()` inside a `$derived` block makes the entire
  * sidebar update live when the user logs in/out, role changes, or any
- * `isHidden` getter reads `$state` it tracks.
+ * `hidden` getter reads `$state` it tracks.
  */
 
 import { hasPermission } from './permissions.svelte.js'
@@ -33,13 +34,28 @@ import { hasPermission } from './permissions.svelte.js'
  * @property {string} path
  * @property {string} [title]
  * @property {PermissionSpec} [permissions]
- * @property {boolean | ((node: NavTreeNode) => boolean)} [isHidden]
+ * @property {boolean | ((node: NavTreeNode) => boolean)} [hidden]
+ * @property {boolean | ((node: NavTreeNode) => boolean)} [disabled]
+ *   Always-forbidden flag. Unlike permissions, doesn't depend on the current
+ *   user — useful for "coming soon" placeholders, deprecated features, or
+ *   product-level affordances. Self-only: doesn't cascade to descendants'
+ *   permission state. Renders as forbidden in BOTH modes (it's a
+ *   product-level signal, not a user-permission one); only an ancestor's
+ *   permission denial can still hide a disabled item (you can't reach the
+ *   menu section to see the placeholder).
+ * @property {string | ((node: NavTreeNode, ctx: { forbidden: boolean }) => string | null | undefined)} [tooltip]
  * @property {NavTreeNode[]} [children]
  * @property {boolean} [keepIfEmpty]
+ * @property {boolean} [noRoute]  Non-navigable section header — consumer
+ *   skips route registration (`walkTree(tree).filter((n) => !n.noRoute)`)
+ *   and renders it as a `<span>`. The `path` is still useful as an identity
+ *   for breadcrumbs, tooltips, and the forbidden cascade.
  *
- * The filter may also attach `_forbidden: true` on output nodes when running
- * in `mode: 'disable'`. The flag is purely advisory — `<NavLink forbidden>`
- * is the intended consumer.
+ * The filter may attach `_forbidden: true` on output nodes in `mode: 'disable'`,
+ * and `_tooltip` from the `tooltip` field (callbacks are invoked with the
+ * resolved forbidden state so they can return explanation text like
+ * "Requires admin role" or `null` to skip). Both are purely advisory —
+ * `<NavLink>` is the intended consumer.
  */
 
 /**
@@ -57,7 +73,7 @@ import { hasPermission } from './permissions.svelte.js'
  */
 
 /**
- * Evaluate `isHidden` on a node, accepting either a boolean literal or a
+ * Evaluate `hidden` on a node, accepting either a boolean literal or a
  * getter function. Pure — any reactive state the getter reads is picked up by
  * the enclosing `$derived`.
  *
@@ -65,13 +81,26 @@ import { hasPermission } from './permissions.svelte.js'
  * @returns {boolean}
  */
 export function isNodeHidden(node) {
-    const v = node.isHidden
+    const v = node.hidden
     if (typeof v === 'function') return Boolean(v(node))
     return Boolean(v)
 }
 
 /**
- * Filter a nav tree by permissions and the `isHidden` flag.
+ * Evaluate `disabled` on a node — same boolean-or-getter shape as
+ * `hidden`. Self-only: doesn't cascade to descendants.
+ *
+ * @param {NavTreeNode} node
+ * @returns {boolean}
+ */
+export function isNodeDisabled(node) {
+    const v = node.disabled
+    if (typeof v === 'function') return Boolean(v(node))
+    return Boolean(v)
+}
+
+/**
+ * Filter a nav tree by permissions and the `hidden` flag.
  *
  * Modes:
  *   - 'hide' (default) — nodes the user can't reach are dropped from the
@@ -84,7 +113,7 @@ export function isNodeHidden(node) {
  *     parent has access but every visible child is forbidden, the parent
  *     gets `_forbidden: true` as well.
  *
- * `isHidden: true` (or a getter returning true) is always destructive
+ * `hidden: true` (or a getter returning true) is always destructive
  * regardless of mode — it's the "never render this" signal.
  *
  * @param {NavTreeNode[]} tree
@@ -109,7 +138,10 @@ export function filterByPermissions(tree, options = {}) {
         for (const node of nodes) {
             if (isNodeHidden(node)) continue
 
+            const isDisabled = isNodeDisabled(node)
             const ownAllowed = !node.permissions || hasPermission(node.permissions)
+            // `allowed` covers permission-cascade only; `disabled` is self-only
+            // and doesn't propagate to descendants.
             const allowed = ancestorAllowed && ownAllowed
 
             const childNodes = node.children
@@ -123,16 +155,21 @@ export function filterByPermissions(tree, options = {}) {
             const shouldKeepEmpty = node.keepIfEmpty || keepEmpty(node)
 
             if (mode === 'hide') {
+                // Permission denial hides; `disabled` does NOT — disabled is
+                // a product-level placeholder ("coming soon"), visible to
+                // everyone regardless of mode, just as a forbidden span.
+                // Ancestor permission denial still hides disabled children
+                // (you can't reach the menu section in the first place).
                 if (!allowed) continue
                 if (allChildrenFilteredOut && !shouldKeepEmpty) continue
-                out.push(buildOutput(node, filteredChildren, false, forbiddenClassName))
+                out.push(buildOutput(node, filteredChildren, isDisabled, forbiddenClassName))
             } else {
                 // mode === 'disable'
                 if (allChildrenFilteredOut && !shouldKeepEmpty) continue
                 const allVisibleChildrenForbidden = hasChildrenInOriginal
                     && filteredChildren.length > 0
                     && filteredChildren.every((c) => c._forbidden)
-                const forbidden = !allowed || allVisibleChildrenForbidden
+                const forbidden = !allowed || isDisabled || allVisibleChildrenForbidden
                 out.push(buildOutput(node, filteredChildren, forbidden, forbiddenClassName))
             }
         }
@@ -149,7 +186,25 @@ function buildOutput(node, filteredChildren, forbidden, forbiddenClassName) {
         result._forbidden = true
         if (forbiddenClassName) result._forbiddenClassName = forbiddenClassName
     }
+    const tooltip = resolveTooltip(node, forbidden)
+    if (tooltip) result._tooltip = tooltip
     return result
+}
+
+/**
+ * Evaluate `tooltip` on a node, accepting either a string literal or a
+ * callback. The callback receives the node and `{ forbidden }` so it can
+ * tailor the explanation (e.g. "Requires admin role" when forbidden vs
+ * a feature hint otherwise). Returns a non-empty string or `null`.
+ */
+function resolveTooltip(node, forbidden) {
+    const v = node.tooltip
+    if (v == null) return null
+    if (typeof v === 'function') {
+        const result = v(node, { forbidden })
+        return result || null
+    }
+    return v || null
 }
 
 /**

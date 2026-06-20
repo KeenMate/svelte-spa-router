@@ -407,9 +407,12 @@ const routes = {
 
     // Tree-driven nav demo — registers one route per node in nav-tree.js,
     // all pointing at the same demo component. The component reads location()
-    // to render the active page content.
+    // to render the active page content. `noRoute` nodes (pure section
+    // headers like /users) are skipped — they exist only in the menu.
     ...Object.fromEntries(
-        Array.from(walkTree(navTree)).map((node) => [node.path, NavTreeDemo])
+        Array.from(walkTree(navTree))
+            .filter((node) => !node.noRoute)
+            .map((node) => [node.path, NavTreeDemo])
     ),
     '/test/perms': PermissionsTest,
     '/test/perms/needs-read': createProtectedRoute({
@@ -625,6 +628,30 @@ function handleToggleUser() {
     </div>
     {/if}
 
+    <!-- Route info bar — sits above the header in normal flow, sticks to the
+         top of the viewport once the user scrolls past it. -->
+    <div class="route-info">
+        <div class="route-info-content">
+            <div class="route-info-section">
+                <strong>Current route:</strong> <code>{location()}</code>
+            </div>
+            <div class="route-info-section">
+                <strong>Referrer:</strong>
+                {#if referrer}
+                    <code>{referrer.routeName || referrer.location}</code>
+                    {#if referrer.querystring}
+                        <span class="route-info-qs">?{referrer.querystring}</span>
+                    {/if}
+                    {#if referrer.params && Object.keys(referrer.params).length > 0}
+                        <span class="route-info-params">(params: {JSON.stringify(referrer.params)})</span>
+                    {/if}
+                {:else}
+                    <span class="route-info-none">(none)</span>
+                {/if}
+            </div>
+        </div>
+    </div>
+
     <header>
         <h1>@keenmate/svelte-spa-router Example</h1>
         <nav>
@@ -682,29 +709,6 @@ function handleToggleUser() {
             <span class="user-name">{currentUser.name}</span>
         </div>
     </header>
-
-    <!-- Route info bar -->
-    <div class="route-info">
-        <div class="route-info-content">
-            <div class="route-info-section">
-                <strong>Current route:</strong> <code>{location()}</code>
-            </div>
-            <div class="route-info-section">
-                <strong>Referrer:</strong>
-                {#if referrer}
-                    <code>{referrer.routeName || referrer.location}</code>
-                    {#if referrer.querystring}
-                        <span class="route-info-qs">?{referrer.querystring}</span>
-                    {/if}
-                    {#if referrer.params && Object.keys(referrer.params).length > 0}
-                        <span class="route-info-params">(params: {JSON.stringify(referrer.params)})</span>
-                    {/if}
-                {:else}
-                    <span class="route-info-none">(none)</span>
-                {/if}
-            </div>
-        </div>
-    </div>
 
     {#if isZoneRoute}
         <!-- Multi-zone layout -->
@@ -888,13 +892,15 @@ function handleToggleUser() {
         width: 100%;
     }
 
-    /* Route info bar (moved from footer to top) */
+    /* Route info bar — first child of .app, so initial position is the
+       top of the page. `position: sticky; top: 0` is in-flow until the
+       user scrolls past it; then it pins to the viewport top. */
     .route-info {
         background: #f0f9ff;
         padding: 0.75rem 2rem;
         border-bottom: 2px solid #0ea5e9;
         position: sticky;
-        top: 70px;
+        top: 0;
         z-index: 99;
     }
 

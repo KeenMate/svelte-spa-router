@@ -41,12 +41,62 @@ export interface NavTreeNode {
      * `$derived` / `hasPermission()`) makes the filter result reactive when
      * called inside a `$derived` block.
      *
+     * Bare name (no `is*` prefix) matches HTML's `<element hidden>` and
+     * KeenMate's data-model naming convention for boolean fields on
+     * single-item shapes (see naming-conventions.md).
+     *
      * @example
-     *   isHidden: true
-     *   isHidden: () => !import.meta.env.DEV
-     *   isHidden: () => !isInternalUser()
+     *   hidden: true
+     *   hidden: () => !import.meta.env.DEV
+     *   hidden: () => !isInternalUser()
      */
-    isHidden?: boolean | ((node: NavTreeNode) => boolean);
+    hidden?: boolean | ((node: NavTreeNode) => boolean);
+
+    /**
+     * Always-forbidden flag. Unlike `permissions`, doesn't depend on the
+     * current user — useful for "coming soon" placeholders, deprecated
+     * features, or product-level affordances that shouldn't be clickable
+     * for anyone. Self-only: doesn't cascade to descendants' permission
+     * state.
+     *
+     * - Renders as forbidden in BOTH modes — `disabled` is a product-level
+     *   placeholder signal, not a user-permission one, so it stays visible
+     *   regardless of the consumer's hide/disable preference.
+     * - Only an ancestor's permission denial can still hide a disabled
+     *   item (you can't reach the menu section to see the placeholder).
+     * - Pair with `tooltip` or `meta` for explanation copy ("Coming Q3").
+     *
+     * Accepts a boolean literal or a getter — the getter form makes the
+     * flag reactive when read inside a `$derived` block, just like
+     * `hidden`.
+     *
+     * @example
+     *   disabled: true
+     *   disabled: () => !flags.integrationsReleased
+     */
+    disabled?: boolean | ((node: NavTreeNode) => boolean);
+
+    /**
+     * Optional tooltip text exposed on the output as `_tooltip` for
+     * `<NavLink>` to render as a `title=` attribute. Primary use case:
+     * explain *why* a forbidden item is disabled (e.g. "Requires admin role").
+     *
+     * Accepts a string literal or a callback. The callback receives the node
+     * itself and `{ forbidden }` so it can return a different explanation
+     * when the item is currently disabled vs. when it isn't. Return `null`
+     * (or an empty string) to skip rendering a tooltip.
+     *
+     * Reactive: any reactive state the callback reads makes the filter
+     * result reactive when called inside a `$derived` block.
+     *
+     * @example
+     *   tooltip: 'Coming soon'
+     *   tooltip: (node, { forbidden }) =>
+     *       forbidden ? 'You need the admin role to access this' : null
+     */
+    tooltip?:
+        | string
+        | ((node: NavTreeNode, ctx: { forbidden: boolean }) => string | null | undefined);
 
     /**
      * Children nodes. Recursive — children can have their own children.
@@ -60,6 +110,22 @@ export interface NavTreeNode {
     keepIfEmpty?: boolean;
 
     /**
+     * Marks this node as a non-navigable section header. The `path` is kept
+     * (so `findNodeByPath()`, the active cascade, breadcrumbs, and tooltips
+     * still work) but the consumer is expected to:
+     *
+     *   1. Skip the node when registering routes
+     *      (e.g. `walkTree(tree).filter((n) => !n.noRoute)`).
+     *   2. Render it as a non-interactive header (`<span>` instead of `<a>`,
+     *      no `use:link`, no `use:active`). `<NavLink noRoute>` does this
+     *      automatically.
+     *
+     * Combine with `keepIfEmpty: true` for pure section headers that should
+     * always render even when every child is filtered out.
+     */
+    noRoute?: boolean;
+
+    /**
      * Output-only flag set by `filterByPermissions()` in `mode: 'disable'`
      * when the user cannot reach this node. Consumers (e.g. `<NavLink>`)
      * read this to render a non-interactive version of the item.
@@ -68,6 +134,25 @@ export interface NavTreeNode {
 
     /** Output-only — class name supplied to the consumer in disable mode. */
     _forbiddenClassName?: string;
+
+    /**
+     * Output-only — resolved tooltip text from the input `tooltip` field.
+     * Present only when `tooltip` returned a non-empty string. `<NavLink>`
+     * renders this as a `title=` attribute on both `<a>` and `<span>`.
+     */
+    _tooltip?: string;
+
+    /**
+     * Convention (not enforced): a namespace for arbitrary consumer data
+     * — e.g. `meta: { requiredRole, docsUrl, owner }`. Keeps custom fields
+     * off the top level where they'd compete with library-defined props.
+     * Mirrors the router's `routeContext` pattern for route definitions.
+     * Rides through `filterByPermissions()` untouched on the output node.
+     *
+     * Flat top-level custom fields still work — `meta` is the recommended
+     * hygiene choice once you have more than one or two.
+     */
+    meta?: Record<string, unknown>;
 }
 
 /**
@@ -109,7 +194,7 @@ export interface FilterOptions {
 }
 
 /**
- * Filter a nav tree by permissions and the `isHidden` flag.
+ * Filter a nav tree by permissions and the `hidden` flag.
  *
  * Ancestor permissions are enforced via sequential `hasPermission()` checks
  * (one per level), not by merging the spec objects — `any: []` semantics
@@ -122,10 +207,16 @@ export function filterByPermissions(
 ): NavTreeNode[];
 
 /**
- * Evaluate the `isHidden` flag on a node (handles both boolean and getter
+ * Evaluate the `hidden` flag on a node (handles both boolean and getter
  * shapes).
  */
 export function isNodeHidden(node: NavTreeNode): boolean;
+
+/**
+ * Evaluate the `disabled` flag on a node — same boolean-or-getter shape as
+ * `hidden`. Self-only: doesn't cascade to descendants.
+ */
+export function isNodeDisabled(node: NavTreeNode): boolean;
 
 /**
  * Walk a tree depth-first, yielding every node.

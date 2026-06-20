@@ -23,19 +23,22 @@ MIT licensed.
 
 ## What's new
 
-### v5.3.0-rc01 (release candidate)
+### v5.3.0-rc02 (release candidate)
 
-- **`helpers/nav-tree` — permission-aware filtering for auto-generated sidebars** — `filterByPermissions(navTree, { mode })` drops or marks-as-disabled nodes the current user can't reach. Two modes (`hide` / `disable`), cascading parent hiding, ancestor permission inheritance, and a polymorphic `isHidden: boolean | () => boolean` per node for static or reactive overrides (e.g. dev-only features via `isHidden: () => !import.meta.env.DEV`). Reactive end-to-end — `$derived(filterByPermissions(navTree))` re-runs when `setCurrentUser()` fires or any `isHidden` getter reads `$state` that mutates. No subscription wiring.
+- **BREAKING: `NavTreeNode.isHidden` renamed to `hidden`** — aligns with the KeenMate web-components naming convention for data-model boolean fields (bare HTML attribute names: `hidden`, `disabled`, `selected`, `checked`). Same shape, same getter reactivity, same always-destructive semantics. Migration: find-and-replace `isHidden:` → `hidden:` in your nav-tree definitions. The helper predicate `isNodeHidden(node)` keeps its `is*` prefix.
+- **`NavTreeNode.disabled` now renders the node as forbidden in BOTH filter modes** — previously dropped in hide mode (same as a permission failure). New semantic: `disabled` is a product-level placeholder signal ("coming soon", "in private beta"), not a user-permission concern, so it stays visible regardless of the consumer's hide/disable preference. Ancestor permission denial still hides disabled descendants.
+- **Example: rich Floating UI tooltips wired into the `/nav-tree-demo` top navbar** — the same `RichTooltip` wrapper used in the sidebar now also wraps Admin / Settings / Marketplace in the horizontal navbar (`placement="top-start"`). One `richTooltipContent` snippet powers both layouts; nodes with `meta.docsUrl` opt in, everything else falls back to the plain `title=` tooltip via `NavLink`'s `tooltip` prop.
+- **Example: route-info bar promoted above the header in `App.svelte`** — now sticks to the top of the viewport (`position: sticky; top: 0`) once you scroll past the header instead of trailing behind it.
+- Misc: two pre-existing Svelte 5 warnings in `RichTooltip.svelte` silenced (`$state` for `bind:this` refs, `svelte-ignore` for intentional wrapper-span hover handlers).
+
+### v5.3.0-rc01
+
+- **`helpers/nav-tree` — permission-aware filtering for auto-generated sidebars** — `filterByPermissions(navTree, { mode })` drops or marks-as-disabled nodes the current user can't reach. Two modes (`hide` / `disable`), cascading parent hiding, ancestor permission inheritance, and a polymorphic `hidden: boolean | () => boolean` per node for static or reactive overrides (e.g. dev-only features via `hidden: () => !import.meta.env.DEV`). Reactive end-to-end — `$derived(filterByPermissions(navTree))` re-runs when `setCurrentUser()` fires or any `hidden` getter reads `$state` that mutates. No subscription wiring.
 - **`subtree: true` on `use:active`** — sidebar parents stay highlighted on their own index page AND every nested URL from a single action call, no regex required. The action reads the link's `href` and registers both patterns internally. Pairs with `nav-tree` filtering for the full "one tree drives both routes AND sidebar with permissions" pattern — see `/nav-tree-demo`.
 - **`subtreeClassName` option** — pair with `className` for a distinct CSS class on "parent of an active child" vs "really active" links (e.g. `link-active` / `sublink-active`) in one action call instead of two stacked `use:active`.
 - **Stacked `use:active` actions on the same node now cooperate** — class management rewritten from per-entry remove-then-conditionally-add to a per-node aggregate sync. Fixes a silent bug where the common "parent + descendants" pattern (`use:active use:active={'/foo/*'}`) failed on the bare path because the second action stripped the class the first added.
-- **`/nav-tree-demo` + `<NavLink>` reference implementation** — one tree drives both the sidebar (filtered via `filterByPermissions`, walked via `<NavLink subtree={!!children} forbidden={_forbidden}>`) and the route registration. Three live toggles demonstrate every filter behavior side-by-side: user (Donna ↔ Audrey), mode (hide ↔ disable), and a runtime feature-flag rune that flips an `isHidden` getter — the pattern you'd wire to a real feature-flag service in production.
+- **`/nav-tree-demo` + `<NavLink>` reference implementation** — one tree drives both the sidebar (filtered via `filterByPermissions`, walked via `<NavLink subtree={!!children} forbidden={_forbidden}>`) and the route registration. Three live toggles demonstrate every filter behavior side-by-side: user (Donna ↔ Audrey), mode (hide ↔ disable), and a runtime feature-flag rune that flips an `hidden` getter — the pattern you'd wire to a real feature-flag service in production.
 - **`ai/link-actions.txt` rewritten** — previous PREFIX MATCHING section was wrong about `/foo/*` matching bare `/foo`. New BRANCH MATCHING, SIDEBAR WITH SUBMENU, TWO-CLASS PARENT/CHILD, GENERATING NAV FROM ROUTE TREE, and FILTERING BY PERMISSIONS sections. Same expansion in the showcase site.
-
-### v5.2.1
-
-- **Unblocks bare-function routes on modern stacks** — `{ '/': Home }` (without `wrap()`) now works under `vite@^7 + @sveltejs/vite-plugin-svelte@^6 + svelte@5.5x`, where the Router's component validator was previously throwing `Invalid component object` at first route render. Pure runtime fix — no API change, no consumer-side migration.
-- **Root cause was an upstream Svelte compiler quirk**, not a router design issue — the nested-OR shape of the original validator got its inner parens dropped during compilation, flipping the boolean. Detailed write-up in [`docs/pitfalls.md`](./docs/pitfalls.md).
 
 Full details in [CHANGELOG.md](./CHANGELOG.md).
 

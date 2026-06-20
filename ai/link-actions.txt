@@ -408,7 +408,7 @@ NavTree node schema additions:
     path: '/admin',
     title: 'Admin',
     permissions: { any: ['admin'] },     // checked by hasPermission()
-    isHidden: false,                      // OR a getter — see below
+    hidden: false,                      // OR a getter — see below
     children: [...]
 }
 
@@ -419,7 +419,7 @@ Node-level options:
                                   filter runs with inheritPermissions:true
                                   (default) — sequential hasPermission() calls
                                   per level, NOT a merged spec object.
-  isHidden     boolean | (node) => boolean
+  hidden     boolean | (node) => boolean
                                   Always-destructive in both modes. The getter
                                   is called on every filter pass — any
                                   reactive state it reads ($state, env vars,
@@ -440,8 +440,8 @@ Reactivity model:
 
   ...automatically updates when:
     - setCurrentUser() fires (login, logout, role swap)
-    - any isHidden getter reads $state that mutates
-    - any isHidden getter reads import.meta.env (compile-time → constant)
+    - any hidden getter reads $state that mutates
+    - any hidden getter reads import.meta.env (compile-time → constant)
 
   No subscriptions, no manual invalidation.
 
@@ -449,7 +449,7 @@ Behavior matrix:
 
   Node state                              | mode 'hide'  | mode 'disable'
   ----------------------------------------+--------------+----------------
-  isHidden: true (or getter returns true) | gone         | gone
+  hidden: true (or getter returns true) | gone         | gone
   User has access                          | shown        | shown
   User lacks access                        | gone         | shown +
                                           |              |   _forbidden: true
@@ -476,8 +476,8 @@ Example demo: /nav-tree-demo (in `make dev`)
   - User toggle between Donna (limited) and Audrey (full access)
   - Mode toggle between hide and disable
   - Permission-gated nodes (`/admin/*`, `/settings`)
-  - isHidden getter (`/labs` — dev-only)
-  - isHidden boolean (`/secret` — always)
+  - hidden getter (`/labs` — dev-only)
+  - hidden boolean (`/secret` — always)
   - Permission inheritance (Admin children inherit `any: ['admin']`)
 
 COMBINING LINK + ACTIVE + PARAMS

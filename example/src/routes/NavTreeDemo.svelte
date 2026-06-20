@@ -2,16 +2,17 @@
 import { location, push } from '@keenmate/svelte-spa-router'
 import { filterByPermissions } from '@keenmate/svelte-spa-router/helpers/nav-tree'
 import NavLink from '../components/NavLink.svelte'
+import RichTooltip from '../components/RichTooltip.svelte'
 import { navTree, findNodeByPath, flags } from './nav-tree.svelte.js'
 import { user, toggleUser } from '../stores/userStore.svelte.js'
 
 /**
  * Tree-driven nav demo with permission filtering.
  *
- * - `navTree` (./nav-tree.js) carries `permissions` and `isHidden` per node.
+ * - `navTree` (./nav-tree.js) carries `permissions` and `hidden` per node.
  * - The sidebar runs `filterByPermissions(navTree, { mode })` inside a
  *   `$derived`. Because `hasPermission()` reads the reactive user store and
- *   the `isHidden` getter is called on every filter pass, the sidebar
+ *   the `hidden` getter is called on every filter pass, the sidebar
  *   updates live when the user role changes — no extra wiring.
  *
  * Toggles:
@@ -26,21 +27,96 @@ let mode = $state('hide')   // 'hide' | 'disable'
 
 const visibleTree = $derived(filterByPermissions(navTree, { mode }))
 const active = $derived(findNodeByPath(navTree, path))
+
+// Collapsible-section state for noRoute headers. Stores paths of currently
+// COLLAPSED sections; sections default to expanded (so the demo is rich at
+// first glance). Pattern: $state(SvelteSet) — see Svelte 5 deep reactivity.
+// Plain Set works here because we always reassign for reactivity.
+let collapsed = $state(new Set())
+
+function toggleCollapsed(p) {
+    const next = new Set(collapsed)
+    if (next.has(p)) next.delete(p)
+    else next.add(p)
+    collapsed = next
+}
+
+function isExpanded(p) {
+    return !collapsed.has(p)
+}
+
+// Heuristic: any node carrying custom rich-tooltip data uses RichTooltip
+// (with clickable content) instead of NavLink's `title=` attribute. Custom
+// fields live under `meta` by convention — the library doesn't know or
+// care, but it keeps top-level node properties clean.
+function hasRichTooltip(node) {
+    return !!node.meta?.docsUrl
+}
 </script>
+
+{#snippet richTooltipContent(node)}
+    {#if node._forbidden}
+        {#if node.disabled}
+            <span class="badge badge-unavailable">Unavailable</span>
+        {:else}
+            <span class="badge">Access restricted</span>
+        {/if}
+    {/if}
+    <h4>{node.title}</h4>
+    {#if node._forbidden}
+        <p>
+            {#if node.meta?.reason}
+                {node.meta.reason}
+            {:else if node.meta?.requiredRole}
+                Requires the <em>{node.meta.requiredRole}</em> role
+            {:else}
+                Currently disabled.
+            {/if}
+            {#if node.permissions?.any}
+                — permissions: <code>{node.permissions.any.join(', ')}</code>
+            {/if}
+        </p>
+    {:else}
+        <p>You have access. Click anywhere outside to dismiss.</p>
+    {/if}
+    {#if node.meta?.docsUrl}
+        <p>
+            <a href={node.meta.docsUrl} target="_blank" rel="noopener">
+                Read the docs →
+            </a>
+        </p>
+    {/if}
+{/snippet}
 
 <div class="page">
     <nav class="topbar" aria-label="Tree-driven navbar">
         {#each visibleTree as item}
             {#if item.children}
                 <div class="topbar-item">
-                    <NavLink
-                        href={item.path}
-                        subtree={true}
-                        className="link-active"
-                        subtreeClassName="sublink-active"
-                        forbidden={item._forbidden}
-                        forbiddenClassName={item._forbiddenClassName}
-                    >{item.title} <span class="caret" aria-hidden="true">▾</span></NavLink>
+                    {#if hasRichTooltip(item)}
+                        <RichTooltip content={richTooltipContent} data={item} placement="top-start">
+                            <NavLink
+                                href={item.path}
+                                subtree={true}
+                                className="link-active"
+                                subtreeClassName="sublink-active"
+                                forbidden={item._forbidden}
+                                forbiddenClassName={item._forbiddenClassName}
+                                noRoute={item.noRoute}
+                            >{item.title} <span class="caret" aria-hidden="true">▾</span></NavLink>
+                        </RichTooltip>
+                    {:else}
+                        <NavLink
+                            href={item.path}
+                            subtree={true}
+                            className="link-active"
+                            subtreeClassName="sublink-active"
+                            forbidden={item._forbidden}
+                            forbiddenClassName={item._forbiddenClassName}
+                            tooltip={item._tooltip}
+                            noRoute={item.noRoute}
+                        >{item.title} <span class="caret" aria-hidden="true">▾</span></NavLink>
+                    {/if}
 
                     <div class="dropdown">
                         {#each item.children as child}
@@ -53,6 +129,8 @@ const active = $derived(findNodeByPath(navTree, path))
                                         subtreeClassName="sublink-active"
                                         forbidden={child._forbidden}
                                         forbiddenClassName={child._forbiddenClassName}
+                                        tooltip={child._tooltip}
+                                        noRoute={child.noRoute}
                                     >{child.title} <span class="caret" aria-hidden="true">▸</span></NavLink>
                                     <div class="dropdown-sub">
                                         {#each child.children as grandchild}
@@ -61,6 +139,8 @@ const active = $derived(findNodeByPath(navTree, path))
                                                 className="link-active"
                                                 forbidden={grandchild._forbidden}
                                                 forbiddenClassName={grandchild._forbiddenClassName}
+                                                tooltip={grandchild._tooltip}
+                                                noRoute={grandchild.noRoute}
                                             >{grandchild.title}</NavLink>
                                         {/each}
                                     </div>
@@ -71,18 +151,34 @@ const active = $derived(findNodeByPath(navTree, path))
                                     className="link-active"
                                     forbidden={child._forbidden}
                                     forbiddenClassName={child._forbiddenClassName}
+                                    tooltip={child._tooltip}
+                                    noRoute={child.noRoute}
                                 >{child.title}</NavLink>
                             {/if}
                         {/each}
                     </div>
                 </div>
             {:else}
-                <NavLink
-                    href={item.path}
-                    className="link-active"
-                    forbidden={item._forbidden}
-                    forbiddenClassName={item._forbiddenClassName}
-                >{item.title}</NavLink>
+                {#if hasRichTooltip(item)}
+                    <RichTooltip content={richTooltipContent} data={item} placement="top-start">
+                        <NavLink
+                            href={item.path}
+                            className="link-active"
+                            forbidden={item._forbidden}
+                            forbiddenClassName={item._forbiddenClassName}
+                            noRoute={item.noRoute}
+                        >{item.title}</NavLink>
+                    </RichTooltip>
+                {:else}
+                    <NavLink
+                        href={item.path}
+                        className="link-active"
+                        forbidden={item._forbidden}
+                        forbiddenClassName={item._forbiddenClassName}
+                        tooltip={item._tooltip}
+                        noRoute={item.noRoute}
+                    >{item.title}</NavLink>
+                {/if}
             {/if}
         {/each}
     </nav>
@@ -116,6 +212,22 @@ const active = $derived(findNodeByPath(navTree, path))
             {#each visibleTree as item}
                 {#if item.children}
                     <div class="group">
+                        {#if hasRichTooltip(item)}
+                            <RichTooltip content={richTooltipContent} data={item} placement="right">
+                                <NavLink
+                                    href={item.path}
+                                    subtree={true}
+                                    className="link-active"
+                                    subtreeClassName="sublink-active"
+                                    forbidden={item._forbidden}
+                                    forbiddenClassName={item._forbiddenClassName}
+                                    noRoute={item.noRoute}
+                                    collapsible={item.noRoute}
+                                    expanded={isExpanded(item.path)}
+                                    onclick={item.noRoute ? () => toggleCollapsed(item.path) : undefined}
+                                >{item.title}{#if item.noRoute}<span class="chev" aria-hidden="true">▾</span>{/if}</NavLink>
+                            </RichTooltip>
+                        {:else}
                         <NavLink
                             href={item.path}
                             subtree={true}
@@ -123,8 +235,15 @@ const active = $derived(findNodeByPath(navTree, path))
                             subtreeClassName="sublink-active"
                             forbidden={item._forbidden}
                             forbiddenClassName={item._forbiddenClassName}
-                        >{item.title}</NavLink>
+                            tooltip={item._tooltip}
+                            noRoute={item.noRoute}
+                            collapsible={item.noRoute}
+                            expanded={isExpanded(item.path)}
+                            onclick={item.noRoute ? () => toggleCollapsed(item.path) : undefined}
+                        >{item.title}{#if item.noRoute}<span class="chev" aria-hidden="true">▾</span>{/if}</NavLink>
+                        {/if}
 
+                        {#if !item.noRoute || isExpanded(item.path)}
                         <div class="submenu">
                             {#each item.children as child}
                                 {#if child.children}
@@ -135,6 +254,8 @@ const active = $derived(findNodeByPath(navTree, path))
                                         subtreeClassName="sublink-active"
                                         forbidden={child._forbidden}
                                         forbiddenClassName={child._forbiddenClassName}
+                                        tooltip={child._tooltip}
+                                        noRoute={child.noRoute}
                                     >{child.title}</NavLink>
                                     <div class="submenu">
                                         {#each child.children as grandchild}
@@ -143,6 +264,8 @@ const active = $derived(findNodeByPath(navTree, path))
                                                 className="link-active"
                                                 forbidden={grandchild._forbidden}
                                                 forbiddenClassName={grandchild._forbiddenClassName}
+                                                tooltip={grandchild._tooltip}
+                                                noRoute={grandchild.noRoute}
                                             >{grandchild.title}</NavLink>
                                         {/each}
                                     </div>
@@ -152,18 +275,35 @@ const active = $derived(findNodeByPath(navTree, path))
                                         className="link-active"
                                         forbidden={child._forbidden}
                                         forbiddenClassName={child._forbiddenClassName}
+                                        tooltip={child._tooltip}
+                                        noRoute={child.noRoute}
                                     >{child.title}</NavLink>
                                 {/if}
                             {/each}
                         </div>
+                        {/if}
                     </div>
                 {:else}
+                    {#if hasRichTooltip(item)}
+                        <RichTooltip content={richTooltipContent} data={item} placement="right">
+                            <NavLink
+                                href={item.path}
+                                className="link-active"
+                                forbidden={item._forbidden}
+                                forbiddenClassName={item._forbiddenClassName}
+                                noRoute={item.noRoute}
+                            >{item.title}</NavLink>
+                        </RichTooltip>
+                    {:else}
                     <NavLink
                         href={item.path}
                         className="link-active"
                         forbidden={item._forbidden}
                         forbiddenClassName={item._forbiddenClassName}
+                        tooltip={item._tooltip}
+                        noRoute={item.noRoute}
                     >{item.title}</NavLink>
+                    {/if}
                 {/if}
             {/each}
         </nav>
@@ -201,10 +341,15 @@ const active = $derived(findNodeByPath(navTree, path))
         <ul>
             <li><strong>Permissions inherited from parents</strong> — the Admin submenu items have no explicit permissions; they ride on the parent's <code>any: ['admin']</code>.</li>
             <li><strong>Cascading parent hide</strong> — when the user can't reach <em>any</em> Admin child, the Admin header itself disappears in <code>hide</code> mode.</li>
-            <li><strong><code>isHidden</code> getter — env-gated</strong> — the Labs section only renders when <code>import.meta.env.DEV</code> is true (i.e. in <code>make dev</code>, not in a production build).</li>
-            <li><strong><code>isHidden</code> getter — runtime-reactive</strong> — Preview features reads a <code>$state</code> rune. Flip the "show new features" checkbox above and watch the whole section appear or disappear, no page reload. This is the feature-flag pattern: in production you'd hydrate the flag from your feature-flag service.</li>
-            <li><strong><code>isHidden: true</code></strong> — Secret ops never renders for anyone.</li>
+            <li><strong><code>hidden</code> getter — env-gated</strong> — the Labs section only renders when <code>import.meta.env.DEV</code> is true (i.e. in <code>make dev</code>, not in a production build).</li>
+            <li><strong><code>hidden</code> getter — runtime-reactive</strong> — Preview features reads a <code>$state</code> rune. Flip the "show new features" checkbox above and watch the whole section appear or disappear, no page reload. This is the feature-flag pattern: in production you'd hydrate the flag from your feature-flag service.</li>
+            <li><strong><code>hidden: true</code></strong> — Secret ops never renders for anyone.</li>
             <li><strong><code>disable</code> mode</strong> — same filter, but forbidden items render as <code>&lt;span class="forbidden"&gt;</code> instead of vanishing.</li>
+            <li><strong><code>tooltip</code> callback explains why</strong> — switch to <code>disable</code> mode and hover over <em>Create user</em>, <em>Admin</em>, <em>Settings</em>, or <em>User 123 → Permissions</em>. Each node's <code>tooltip: (_, &#123; forbidden &#125;) =&gt; ...</code> is resolved by the filter and surfaced as a <code>title=</code> attribute via <code>NavLink</code>. Returning <code>null</code> when not forbidden keeps the title off accessible items.</li>
+            <li><strong><code>noRoute: true</code> — menu-only section header</strong> — the <em>Users</em> node has no real page. <code>App.svelte</code> filters <code>noRoute</code> nodes out of route registration; <code>NavLink</code> renders them as <code>&lt;span class="nav-header"&gt;</code> instead of <code>&lt;a&gt;</code>. The path stays useful for breadcrumbs, the active cascade, and tooltips. Try navigating to <code>/nav-tree-demo/users</code> directly — you'll get a 404, but clicking its children still works.</li>
+            <li><strong>Collapsible noRoute sections</strong> — pair <code>noRoute</code> with the <code>collapsible</code> + <code>expanded</code> + <code>onclick</code> props on <code>NavLink</code> and it renders as a <code>&lt;button aria-expanded&gt;</code> with a rotating chevron. Click <em>Users</em> in the sidebar to expand/collapse its submenu. The state lives in the consumer (a single <code>$state</code> Set), so persistence/animation are the consumer's call.</li>
+            <li><strong><code>disabled: true</code> — product-level forbidden flag</strong> — <em>Integrations</em> ("Coming feature..") and <em>Marketplace</em> ("In private beta...") use this. <code>disabled</code> is "permanently forbidden, regardless of user" — a product-level placeholder, not a user-permission check. So unlike <code>permissions</code>, it stays visible in <strong>both</strong> hide and disable modes. Different from <code>hidden</code> (which removes the item entirely). Toggle the hide/disable radio buttons — these two items don't disappear in hide mode the way Admin and Settings do for Donna. The only thing that can hide a disabled item is an ancestor's permission denial (you can't see a placeholder in a section you can't enter).</li>
+            <li><strong>Rich (clickable) tooltips via <code>meta</code> + Floating UI</strong> — hover <em>Admin</em> or <em>Settings</em> in the sidebar to see a rich tooltip with a clickable "Read the docs →" link. The <code>meta: &#123; requiredRole, docsUrl &#125;</code> custom-fields convention keeps consumer data off the top level (mirrors the router's <code>routeContext</code> pattern). Custom fields ride through <code>filterByPermissions()</code> untouched, so the tooltip body can use them and the resolved <code>_forbidden</code> flag in one place. The <code>RichTooltip</code> wrapper uses <code>@floating-ui/dom</code> for positioning and survives mouseovers into the tooltip body so links are actually clickable.</li>
         </ul>
 
         <h3>What each user sees</h3>
@@ -214,6 +359,7 @@ const active = $derived(findNodeByPath(navTree, path))
             </thead>
             <tbody>
                 <tr><td>Overview</td><td>yes</td><td>yes</td></tr>
+                <tr><td>Users (section header — no page)</td><td>visible, not clickable</td><td>visible, not clickable</td></tr>
                 <tr><td>Users → All users</td><td>yes</td><td>yes</td></tr>
                 <tr><td>Users → Create user</td><td><em>no</em> (needs user:edit)</td><td>yes</td></tr>
                 <tr><td>Users → User 123</td><td>yes</td><td>yes</td></tr>
@@ -222,6 +368,8 @@ const active = $derived(findNodeByPath(navTree, path))
                 <tr><td>Users → User 123 → Permissions</td><td><em>no</em> (needs user:edit)</td><td>yes</td></tr>
                 <tr><td>Admin section</td><td><em>no</em> (needs admin)</td><td>yes</td></tr>
                 <tr><td>Settings</td><td><em>no</em> (needs settings:manage)</td><td>yes</td></tr>
+                <tr><td>Marketplace</td><td><em>disabled for everyone</em> + rich tooltip (no permissions, uses meta.reason)</td><td><em>disabled for everyone</em> + rich tooltip</td></tr>
+                <tr><td>Integrations</td><td><em>disabled for everyone</em> (Coming feature..)</td><td><em>disabled for everyone</em> (Coming feature..)</td></tr>
                 <tr><td>Labs</td><td>only in dev</td><td>only in dev</td></tr>
                 <tr><td>Preview features</td><td>only when toggled on</td><td>only when toggled on</td></tr>
                 <tr><td>Secret ops</td><td>never</td><td>never</td></tr>
@@ -236,50 +384,85 @@ const active = $derived(findNodeByPath(navTree, path))
         max-width: 1100px;
         margin: 0 auto;
     }
+    /* ===========================================================
+       Topbar
+       Every item — <a>, <span>, <button> — gets the same display/padding/
+       line-height so baselines match. State classes only touch color,
+       background, and decoration — never layout.
+       =========================================================== */
     .topbar {
         display: flex;
         gap: 0.25rem;
-        align-items: center;
+        align-items: stretch;
         background: white;
         border: 1px solid #e2e8f0;
         border-radius: 8px;
-        padding: 0.4rem 0.6rem;
+        padding: 0.35rem 0.5rem;
         margin-bottom: 1rem;
         position: relative;
         z-index: 5;
     }
     .topbar-item {
         position: relative;
-    }
-    .topbar-item .caret {
-        font-size: 0.7em;
-        opacity: 0.6;
+        display: flex;
     }
     .topbar :global(a),
-    .topbar :global(span) {
-        display: inline-block;
+    .topbar :global(span),
+    .topbar :global(button) {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
         padding: 0.4rem 0.7rem;
         font-size: 0.9rem;
+        line-height: 1.4;
+        font-weight: 500;
+        font-family: inherit;
         color: #1d4ed8;
-        text-decoration: none;
+        background: transparent;
+        border: 0;
         border-radius: 4px;
+        text-decoration: none;
         white-space: nowrap;
+        cursor: pointer;
     }
-    .topbar :global(a:hover) { background: #f1f5f9; }
+    .topbar :global(a:hover),
+    .topbar :global(button:not([disabled]):hover) {
+        background: #f1f5f9;
+    }
     .topbar :global(a.link-active) {
         background: #fee2e2;
         color: #b91c1c;
-        font-weight: 600;
     }
     .topbar :global(a.sublink-active) {
         background: #ffedd5;
         color: #c2410c;
     }
-    .topbar :global(span.forbidden) {
+    .topbar :global(span.forbidden),
+    .topbar :global(button.forbidden) {
         color: #94a3b8;
         text-decoration: line-through;
         cursor: not-allowed;
         font-style: italic;
+    }
+    .topbar :global(.nav-header) {
+        color: #475569;
+        cursor: default;
+    }
+    .topbar :global(.caret) {
+        font-size: 0.7em;
+        opacity: 0.55;
+    }
+    /* RichTooltip wraps its trigger in <span class="rich-tooltip-trigger">.
+       Strip the topbar's default span styling from it so padding/color/border
+       come from the inner NavLink, not the wrapper. The wrapper just sits
+       in flex flow and forwards hover/focus events. */
+    .topbar :global(.rich-tooltip-trigger) {
+        display: inline-flex;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        font-weight: inherit;
+        border-radius: 0;
     }
 
     .dropdown,
@@ -308,11 +491,18 @@ const active = $derived(findNodeByPath(navTree, path))
     .topbar-item:focus-within > .dropdown {
         display: block;
     }
+    /* Dropdown items override inline-flex → flex (block-level) so they
+       fill the dropdown width. justify-content lays out the optional
+       caret on the right of has-sub items. */
     .dropdown > :global(a),
     .dropdown > :global(span),
+    .dropdown > :global(button),
     .dropdown-sub > :global(a),
-    .dropdown-sub > :global(span) {
-        display: block;
+    .dropdown-sub > :global(span),
+    .dropdown-sub > :global(button) {
+        display: flex;
+        width: 100%;
+        justify-content: space-between;
     }
     .has-sub {
         position: relative;
@@ -372,32 +562,73 @@ const active = $derived(findNodeByPath(navTree, path))
     .controls button:hover { background: #1d4ed8; }
     .controls label { display: flex; align-items: center; gap: 0.2rem; cursor: pointer; }
 
-    nav :global(a),
-    nav :global(span) {
-        display: block;
-        padding: 0.35rem 0.5rem;
+    /* ===========================================================
+       Sidebar nav
+       Same discipline as the topbar: every <a>, <span>, <button> shares
+       one box layout. State classes only adjust color / background /
+       decoration. `nav-header` is the one exception that intentionally
+       changes typography — but keeps the box dimensions identical.
+       =========================================================== */
+    .sidebar nav :global(a),
+    .sidebar nav :global(span),
+    .sidebar nav :global(button) {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.4rem 0.55rem;
         font-size: 0.9rem;
+        line-height: 1.4;
+        font-weight: 500;
+        font-family: inherit;
         color: #1d4ed8;
-        text-decoration: none;
+        background: transparent;
+        border: 0;
         border-radius: 4px;
+        text-align: left;
+        text-decoration: none;
+        cursor: pointer;
+        box-sizing: border-box;
     }
-    nav :global(a:hover) { background: #f1f5f9; }
-
-    nav :global(a.link-active) {
+    .sidebar nav :global(a:hover),
+    .sidebar nav :global(button:not([disabled]):hover) {
+        background: #f1f5f9;
+    }
+    .sidebar nav :global(a.link-active) {
         background: #fee2e2;
         color: #b91c1c;
-        font-weight: 600;
     }
-    nav :global(a.sublink-active) {
+    .sidebar nav :global(a.sublink-active) {
         background: #ffedd5;
         color: #c2410c;
     }
-    /* forbidden state — non-clickable */
-    nav :global(span.forbidden) {
+    .sidebar nav :global(span.forbidden),
+    .sidebar nav :global(button.forbidden) {
         color: #94a3b8;
         text-decoration: line-through;
         cursor: not-allowed;
         font-style: italic;
+    }
+    /* noRoute section header — same box dimensions, distinct typography */
+    .sidebar nav :global(.nav-header) {
+        color: #475569;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+    }
+    .sidebar nav :global(span.nav-header) { cursor: default; }
+    /* Collapsible variant lays out chevron on the right */
+    .sidebar nav :global(button.nav-header) {
+        justify-content: space-between;
+    }
+    .sidebar nav :global(button.nav-header) :global(.chev) {
+        transition: transform 0.15s ease;
+        font-size: 0.95em;
+        opacity: 0.6;
+    }
+    .sidebar nav :global(button.nav-header[aria-expanded="false"]) :global(.chev) {
+        transform: rotate(-90deg);
     }
 
     .group .submenu {

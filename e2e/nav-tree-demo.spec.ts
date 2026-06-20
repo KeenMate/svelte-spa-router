@@ -14,17 +14,18 @@ import { test, expect, type Page } from '@playwright/test'
  *
  * Tree from `example/src/routes/nav-tree.js`:
  *   /nav-tree-demo                       public
- *   /nav-tree-demo/users                 user:view
+ *   /nav-tree-demo/users                 user:view, noRoute (header only)
  *     /users/list                        user:view
  *     /users/new                         user:edit (Audrey only)
  *     /users/123                         user:view
+ *       /users/123/profile, activity, permissions
  *   /nav-tree-demo/admin                 admin (Audrey only)
  *     /admin/dashboard
  *     /admin/audit
  *   /nav-tree-demo/settings              settings:manage (Audrey only)
- *   /nav-tree-demo/labs                  isHidden: () => !DEV (visible in dev)
+ *   /nav-tree-demo/labs                  hidden: () => !DEV (visible in dev)
  *     /labs/beta-feature
- *   /nav-tree-demo/secret                isHidden: true (never)
+ *   /nav-tree-demo/secret                hidden: true (never)
  */
 
 const DEMO = '/nav-tree-demo'
@@ -57,7 +58,11 @@ test.describe('nav-tree-demo — Donna (limited permissions)', () => {
 
         // Visible
         await expect(nav.locator('a', { hasText: /^Overview$/ })).toBeVisible()
-        await expect(nav.locator('a', { hasText: /^Users$/ })).toBeVisible()
+        // Users is noRoute + collapsible → renders as <button class="nav-header">,
+        // not a link. The dedicated noRoute test below asserts the button shape.
+        // (Substring `hasText: 'Users'` because the button's text content
+        // includes a chevron span: "Users▾".)
+        await expect(nav.locator('button.nav-header').filter({ hasText: 'Users' })).toBeVisible()
         await expect(nav.locator('a', { hasText: /^All users$/ })).toBeVisible()
         await expect(nav.locator('a', { hasText: /^User 123$/ })).toBeVisible()
         // Labs is dev-only — but dev server IS what Playwright runs against,
@@ -81,25 +86,26 @@ test.describe('nav-tree-demo — Donna (limited permissions)', () => {
 
         const nav = page.locator('aside.sidebar nav')
 
-        // Admin is forbidden — rendered as <span> with the forbidden class.
-        // (Casting under <nav>'s scoped class — match by class substring.)
-        const adminSpan = nav.locator('span').filter({ hasText: /^Admin$/ })
+        // Admin is forbidden — rendered as <span class="forbidden">. Admin is
+        // also wrapped in RichTooltip (because it has meta.docsUrl), so a
+        // bare `span:has-text("Admin")` selector resolves to BOTH the wrapper
+        // and the forbidden span. Scope to `span.forbidden` directly.
+        const adminSpan = nav.locator('span.forbidden').filter({ hasText: /^Admin$/ })
         await expect(adminSpan).toBeVisible()
         await expect(adminSpan).toHaveAttribute('aria-disabled', 'true')
-        await expect(adminSpan).toHaveClass(/forbidden/)
 
         // No <a> for Admin — confirms it's not a link
         await expect(nav.locator('a', { hasText: /^Admin$/ })).toHaveCount(0)
 
         // Settings forbidden too
-        const settingsSpan = nav.locator('span').filter({ hasText: /^Settings$/ })
-        await expect(settingsSpan).toHaveClass(/forbidden/)
+        const settingsSpan = nav.locator('span.forbidden').filter({ hasText: /^Settings$/ })
+        await expect(settingsSpan).toBeVisible()
 
         // Create user forbidden
-        const createSpan = nav.locator('span').filter({ hasText: /^Create user$/ })
-        await expect(createSpan).toHaveClass(/forbidden/)
+        const createSpan = nav.locator('span.forbidden').filter({ hasText: /^Create user$/ })
+        await expect(createSpan).toBeVisible()
 
-        // Secret ops still hidden (isHidden takes precedence even in disable mode)
+        // Secret ops still hidden (hidden takes precedence even in disable mode)
         await expect(nav.locator('span').filter({ hasText: /^Secret ops$/ })).toHaveCount(0)
     })
 })
@@ -116,13 +122,22 @@ test.describe('nav-tree-demo — Audrey (full permissions)', () => {
         await expect(nav.locator('a', { hasText: /^Create user$/ })).toBeVisible()
     })
 
-    test('disable mode: nothing is forbidden for the full-access user', async ({ page }) => {
+    test('disable mode: nothing PERMISSION-gated is forbidden for the full-access user', async ({ page }) => {
         await gotoDemo(page)
         await ensureUser(page, 'Audrey Horne')
         await setMode(page, 'disable')
 
         const nav = page.locator('aside.sidebar nav')
-        await expect(nav.locator('span.forbidden')).toHaveCount(0)
+        // Permission-gated items (Admin, Settings, Create user, Permissions tab)
+        // are all accessible to Audrey, so none of them render as forbidden.
+        await expect(nav.locator('span.forbidden').filter({ hasText: /^Admin$/ })).toHaveCount(0)
+        await expect(nav.locator('span.forbidden').filter({ hasText: /^Settings$/ })).toHaveCount(0)
+        await expect(nav.locator('span.forbidden').filter({ hasText: /^Create user$/ })).toHaveCount(0)
+        // Product-level `disabled: true` items (Marketplace, Integrations) still
+        // render as forbidden — `disabled` is a product signal independent of
+        // who's logged in. This is the rc02 semantic change.
+        await expect(nav.locator('span.forbidden').filter({ hasText: /^Marketplace$/ })).toBeVisible()
+        await expect(nav.locator('span.forbidden').filter({ hasText: /^Integrations$/ })).toBeVisible()
     })
 })
 
@@ -156,18 +171,20 @@ test.describe('nav-tree-demo — live reactivity', () => {
 
         const nav = page.locator('aside.sidebar nav')
 
-        // Hide: Admin is gone entirely
+        // Hide: Admin is gone entirely (no link, no forbidden span — the
+        // RichTooltip wrapper span also isn't rendered because the whole
+        // subtree is filtered out).
         await setMode(page, 'hide')
         await expect(nav.locator('a', { hasText: /^Admin$/ })).toHaveCount(0)
-        await expect(nav.locator('span').filter({ hasText: /^Admin$/ })).toHaveCount(0)
+        await expect(nav.locator('span.forbidden').filter({ hasText: /^Admin$/ })).toHaveCount(0)
 
         // Disable: Admin reappears as forbidden span
         await setMode(page, 'disable')
-        await expect(nav.locator('span').filter({ hasText: /^Admin$/ })).toHaveClass(/forbidden/)
+        await expect(nav.locator('span.forbidden').filter({ hasText: /^Admin$/ })).toBeVisible()
     })
 })
 
-test.describe('nav-tree-demo — feature-flag toggle (runtime-reactive isHidden)', () => {
+test.describe('nav-tree-demo — feature-flag toggle (runtime-reactive hidden)', () => {
     test('Preview features is hidden by default and appears when toggled on', async ({ page }) => {
         await gotoDemo(page)
         await ensureUser(page, 'Audrey Horne')   // full permissions so no other gates interfere
@@ -179,7 +196,7 @@ test.describe('nav-tree-demo — feature-flag toggle (runtime-reactive isHidden)
         // Default: flags.showNewFeatures === false → hidden
         await expect(preview).toHaveCount(0)
 
-        // Flip the checkbox — the isHidden getter reads the flag at filter
+        // Flip the checkbox — the hidden getter reads the flag at filter
         // time, so the whole branch should appear with no page reload.
         await page.evaluate(() => { (window as unknown as { __sentinel: boolean }).__sentinel = true })
         await page.getByTestId('toggle-new-features').click()
@@ -200,7 +217,7 @@ test.describe('nav-tree-demo — feature-flag toggle (runtime-reactive isHidden)
         await expect(preview).toHaveCount(0)
     })
 
-    test('toggle works in disable mode too — isHidden takes precedence over mode', async ({ page }) => {
+    test('toggle works in disable mode too — hidden takes precedence over mode', async ({ page }) => {
         await gotoDemo(page)
         await ensureUser(page, 'Audrey Horne')
         await setMode(page, 'disable')
@@ -209,7 +226,7 @@ test.describe('nav-tree-demo — feature-flag toggle (runtime-reactive isHidden)
         const preview = nav.locator('a').filter({ hasText: /^Preview features$/ })
         const previewSpan = nav.locator('span').filter({ hasText: /^Preview features$/ })
 
-        // Default off: neither <a> nor <span> appears — isHidden is always-destructive
+        // Default off: neither <a> nor <span> appears — hidden is always-destructive
         await expect(preview).toHaveCount(0)
         await expect(previewSpan).toHaveCount(0)
 
@@ -220,17 +237,48 @@ test.describe('nav-tree-demo — feature-flag toggle (runtime-reactive isHidden)
 })
 
 test.describe('nav-tree-demo — active highlighting still works on filtered items', () => {
-    test('navigating to a permitted descendant highlights the parent', async ({ page }) => {
-        // Donna can see Users → User 123. Navigate there; parent should get
-        // .sublink-active.
-        await page.goto(`${DEMO}/users/123`)
+    test('navigating to a permitted grandchild highlights the routable parent', async ({ page }) => {
+        // Donna can see User 123 → Profile. Navigate there; the routable
+        // parent (User 123) should get .sublink-active via subtree mode.
+        // The grandparent (Users) is `noRoute: true` so it renders as a
+        // span.nav-header and is not part of the active cascade — verified
+        // separately below.
+        await page.goto(`${DEMO}/users/123/profile`)
         await ensureUser(page, 'Donna Hayward')
 
         const nav = page.locator('aside.sidebar nav')
-        const usersParent = nav.locator('a', { hasText: /^Users$/ })
-        await expect(usersParent).toHaveClass(/sublink-active/)
-
         const userDetail = nav.locator('a', { hasText: /^User 123$/ })
-        await expect(userDetail).toHaveClass(/link-active/)
+        await expect(userDetail).toHaveClass(/sublink-active/)
+
+        const profile = nav.locator('a', { hasText: /^Profile$/ })
+        await expect(profile).toHaveClass(/link-active/)
+    })
+})
+
+test.describe('nav-tree-demo — noRoute section header', () => {
+    test('Users renders as a non-link span.nav-header in the sidebar', async ({ page }) => {
+        await gotoDemo(page)
+        await ensureUser(page, 'Donna Hayward')
+
+        const nav = page.locator('aside.sidebar nav')
+        // No <a> for Users — it's a section header, not a link
+        await expect(nav.locator('a', { hasText: /^Users$/ })).toHaveCount(0)
+        // NavLink renders a noRoute item as either <span class="nav-header">
+        // (plain) or <button class="nav-header"> (collapsible). The demo
+        // makes Users collapsible, so it's a button. Substring match because
+        // the button text includes a chevron span (e.g. "Users▾").
+        const usersHeader = nav.locator('button.nav-header').filter({ hasText: 'Users' })
+        await expect(usersHeader).toBeVisible()
+    })
+
+    test('children of noRoute parent are still real routes', async ({ page }) => {
+        // Sanity check that App.svelte registers /users/list even though
+        // /users itself is noRoute. (Direct navigation to the child should
+        // load NavTreeDemo, not the 404 catch-all.)
+        await page.goto(`${DEMO}/users/list`)
+        await ensureUser(page, 'Donna Hayward')
+
+        const nav = page.locator('aside.sidebar nav')
+        await expect(nav.locator('a.link-active', { hasText: /^All users$/ })).toBeVisible()
     })
 })

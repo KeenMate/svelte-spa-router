@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
     filterByPermissions,
     isNodeHidden,
+    isNodeDisabled,
     walkTree,
     findNodeByPath
 } from '../lib/helpers/nav-tree.svelte.js'
@@ -64,16 +65,16 @@ describe('isNodeHidden', () => {
     })
 
     it('returns true for static true', () => {
-        expect(isNodeHidden({ path: '/', isHidden: true })).toBe(true)
+        expect(isNodeHidden({ path: '/', hidden: true })).toBe(true)
     })
 
     it('calls the getter and returns its result', () => {
-        expect(isNodeHidden({ path: '/', isHidden: () => true })).toBe(true)
-        expect(isNodeHidden({ path: '/', isHidden: () => false })).toBe(false)
+        expect(isNodeHidden({ path: '/', hidden: () => true })).toBe(true)
+        expect(isNodeHidden({ path: '/', hidden: () => false })).toBe(false)
     })
 
     it('passes the node to the getter', () => {
-        const node = { path: '/foo', isHidden: (n) => n.path === '/foo' }
+        const node = { path: '/foo', hidden: (n) => n.path === '/foo' }
         expect(isNodeHidden(node)).toBe(true)
     })
 })
@@ -106,21 +107,21 @@ describe('filterByPermissions — mode: hide (default)', () => {
         expect(result.map((n) => n.path)).toEqual(['/'])   // only public Overview remains
     })
 
-    it('drops nodes with isHidden: true regardless of user permissions', () => {
+    it('drops nodes with hidden: true regardless of user permissions', () => {
         currentUser = USERS.audrey
         const tree = [
             ...makeTree(),
-            { path: '/secret', title: 'Secret', isHidden: true }
+            { path: '/secret', title: 'Secret', hidden: true }
         ]
         const result = filterByPermissions(tree)
         expect(result.find((n) => n.path === '/secret')).toBeUndefined()
     })
 
-    it('respects isHidden getter form', () => {
+    it('respects hidden getter form', () => {
         currentUser = USERS.audrey
         const tree = [
-            { path: '/visible',   title: 'V', isHidden: () => false },
-            { path: '/dev-only',  title: 'D', isHidden: () => true }   // simulated env-gate
+            { path: '/visible',   title: 'V', hidden: () => false },
+            { path: '/dev-only',  title: 'D', hidden: () => true }   // simulated env-gate
         ]
         const result = filterByPermissions(tree)
         expect(result.map((n) => n.path)).toEqual(['/visible'])
@@ -197,11 +198,11 @@ describe('filterByPermissions — mode: disable', () => {
         expect(overview._forbidden).toBeUndefined()
     })
 
-    it('still drops isHidden: true nodes (hide takes precedence over disable)', () => {
+    it('still drops hidden: true nodes (hide takes precedence over disable)', () => {
         currentUser = USERS.audrey
         const tree = [
             ...makeTree(),
-            { path: '/secret', title: 'Secret', isHidden: true }
+            { path: '/secret', title: 'Secret', hidden: true }
         ]
         const result = filterByPermissions(tree, { mode: 'disable' })
         expect(result.find((n) => n.path === '/secret')).toBeUndefined()
@@ -229,6 +230,212 @@ describe('filterByPermissions — reactivity to user changes', () => {
 
         expect(donnaResult.find((n) => n.path === '/admin')).toBeUndefined()
         expect(audreyResult.find((n) => n.path === '/admin')).toBeDefined()
+    })
+})
+
+describe('filterByPermissions — tooltip resolution', () => {
+    it('resolves a static string tooltip onto every output node that declares it', () => {
+        currentUser = USERS.audrey
+        const tree = [
+            { path: '/', title: 'Home', tooltip: 'Go home' }
+        ]
+        const [root] = filterByPermissions(tree)
+        expect(root._tooltip).toBe('Go home')
+    })
+
+    it('invokes callback tooltips with the resolved forbidden state', () => {
+        currentUser = USERS.donna
+        const calls = []
+        const tree = [
+            {
+                path: '/admin',
+                title: 'Admin',
+                permissions: { any: ['admin'] },
+                tooltip: (node, ctx) => {
+                    calls.push({ path: node.path, forbidden: ctx.forbidden })
+                    return ctx.forbidden ? 'Locked' : null
+                }
+            }
+        ]
+        const [adminDisabled] = filterByPermissions(tree, { mode: 'disable' })
+        expect(calls).toEqual([{ path: '/admin', forbidden: true }])
+        expect(adminDisabled._forbidden).toBe(true)
+        expect(adminDisabled._tooltip).toBe('Locked')
+    })
+
+    it('callback returning null leaves _tooltip off the output', () => {
+        currentUser = USERS.audrey
+        const tree = [
+            {
+                path: '/users',
+                title: 'Users',
+                permissions: { any: ['user:view'] },
+                tooltip: (_node, { forbidden }) => (forbidden ? 'Locked' : null)
+            }
+        ]
+        const [users] = filterByPermissions(tree, { mode: 'disable' })
+        expect(users._forbidden).toBeUndefined()
+        expect(users._tooltip).toBeUndefined()
+    })
+
+    it('hide mode still resolves tooltips on visible nodes', () => {
+        currentUser = USERS.audrey
+        const tree = [
+            { path: '/', title: 'Home', tooltip: () => 'Hover me' }
+        ]
+        const [root] = filterByPermissions(tree, { mode: 'hide' })
+        expect(root._tooltip).toBe('Hover me')
+    })
+
+    it('empty-string tooltip is treated as no tooltip', () => {
+        currentUser = USERS.audrey
+        const tree = [{ path: '/', title: 'Home', tooltip: '' }]
+        const [root] = filterByPermissions(tree)
+        expect(root._tooltip).toBeUndefined()
+    })
+})
+
+describe('filterByPermissions — disabled flag', () => {
+    it('renders disabled nodes as forbidden in hide mode — product-level placeholders are always visible', () => {
+        currentUser = USERS.audrey
+        const tree = [{ path: '/coming', title: 'Coming', disabled: true }]
+        const [n] = filterByPermissions(tree, { mode: 'hide' })
+        expect(n.path).toBe('/coming')
+        expect(n._forbidden).toBe(true)
+    })
+
+    it('ancestor permission denial still hides disabled descendants in hide mode', () => {
+        currentUser = USERS.donna   // lacks 'admin'
+        const tree = [
+            {
+                path: '/admin',
+                title: 'Admin',
+                permissions: { any: ['admin'] },
+                children: [
+                    { path: '/admin/integrations', title: 'Integrations', disabled: true }
+                ]
+            }
+        ]
+        // Parent denied → entire subtree gone, even the disabled child:
+        // you can't see a placeholder for a section you can't enter.
+        expect(filterByPermissions(tree, { mode: 'hide' })).toEqual([])
+    })
+
+    it('marks disabled nodes as forbidden in disable mode', () => {
+        currentUser = USERS.audrey
+        const tree = [{ path: '/coming', title: 'Coming', disabled: true }]
+        const [n] = filterByPermissions(tree, { mode: 'disable' })
+        expect(n._forbidden).toBe(true)
+        expect(n._forbiddenClassName).toBe('forbidden')
+    })
+
+    it('disabled getter is reactive — re-evaluated on each filter call', () => {
+        currentUser = USERS.audrey
+        let released = false
+        const tree = [
+            { path: '/x', title: 'X', disabled: () => !released }
+        ]
+        // Before release: shows as forbidden (the placeholder)
+        const [pre] = filterByPermissions(tree, { mode: 'hide' })
+        expect(pre._forbidden).toBe(true)
+        // After release: shows as a normal link
+        released = true
+        const [post] = filterByPermissions(tree, { mode: 'hide' })
+        expect(post._forbidden).toBeUndefined()
+    })
+
+    it('disabled is self-only — does not cascade to children permissions', () => {
+        currentUser = USERS.audrey
+        const tree = [
+            {
+                path: '/parent',
+                title: 'P',
+                disabled: true,
+                children: [
+                    { path: '/parent/child', title: 'C' }
+                ]
+            }
+        ]
+        // disable mode keeps the parent (forbidden) and the child too —
+        // child isn't disabled, parent doesn't propagate the flag.
+        const [parent] = filterByPermissions(tree, { mode: 'disable' })
+        expect(parent._forbidden).toBe(true)
+        expect(parent.children).toHaveLength(1)
+        expect(parent.children[0]._forbidden).toBeUndefined()
+    })
+
+    it('passes resolved forbidden=true to the tooltip callback', () => {
+        currentUser = USERS.audrey
+        const tree = [
+            {
+                path: '/coming',
+                title: 'Coming',
+                disabled: true,
+                tooltip: (_n, { forbidden }) => (forbidden ? 'Coming soon' : null)
+            }
+        ]
+        const [n] = filterByPermissions(tree, { mode: 'disable' })
+        expect(n._tooltip).toBe('Coming soon')
+    })
+
+    it('isNodeDisabled handles both boolean and getter shapes', () => {
+        expect(isNodeDisabled({ path: '/' })).toBe(false)
+        expect(isNodeDisabled({ path: '/', disabled: true })).toBe(true)
+        expect(isNodeDisabled({ path: '/', disabled: () => true })).toBe(true)
+        expect(isNodeDisabled({ path: '/', disabled: () => false })).toBe(false)
+    })
+})
+
+describe('filterByPermissions — noRoute pass-through', () => {
+    it('preserves noRoute on output nodes so consumers can branch on it', () => {
+        currentUser = USERS.audrey
+        const tree = [
+            {
+                path: '/users',
+                title: 'Users',
+                noRoute: true,
+                children: [
+                    { path: '/users/list', title: 'All' }
+                ]
+            }
+        ]
+        const [users] = filterByPermissions(tree)
+        expect(users.noRoute).toBe(true)
+        expect(users.children).toHaveLength(1)
+        expect(users.children[0].noRoute).toBeUndefined()
+    })
+
+    it('walkTree yields noRoute nodes so the consumer can filter at registration', () => {
+        const tree = [
+            { path: '/', title: 'Home' },
+            {
+                path: '/users',
+                title: 'Users',
+                noRoute: true,
+                children: [{ path: '/users/list', title: 'All' }]
+            }
+        ]
+        const routable = Array.from(walkTree(tree))
+            .filter((n) => !n.noRoute)
+            .map((n) => n.path)
+        expect(routable).toEqual(['/', '/users/list'])
+    })
+
+    it('noRoute parent still forbidden-cascades when every visible child is forbidden', () => {
+        currentUser = USERS.guest
+        const tree = [
+            {
+                path: '/users',
+                title: 'Users',
+                noRoute: true,
+                children: [
+                    { path: '/users/list', title: 'All', permissions: { any: ['user:view'] } }
+                ]
+            }
+        ]
+        const [users] = filterByPermissions(tree, { mode: 'disable' })
+        expect(users.noRoute).toBe(true)
+        expect(users._forbidden).toBe(true)
     })
 })
 
