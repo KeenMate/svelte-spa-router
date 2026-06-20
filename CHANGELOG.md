@@ -13,11 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-## [5.3.0-rc02] - 2026-06-20 [PUBLISHED]
+## [5.3.0-rc02] - 2026-06-20
 
 ### Added
+- **`FilterOptions.disabledClassName` — distinct CSS class for product-level disabled items** — new optional filter option on `filterByPermissions()`. When set, nodes whose forbidden state comes from `disabled: true` get this class on `_forbiddenClassName` instead of the default `forbiddenClassName`. Lets consumers style "coming soon" placeholders (amber "Unavailable") distinctly from permission-denied items (red "Access restricted") even though both still render via the same NavLink forbidden branch.
+  - **Precedence:** when a node is both `disabled` AND permission-denied (rare combo), `disabledClassName` wins — the product-level signal is the more permanent one. Cascade parents (forbidden only because every visible child is) keep `forbiddenClassName` since the parent itself isn't directly disabled.
+  - **Backward compatible:** default `undefined` → falls back to `forbiddenClassName`. Existing consumers see no change.
+  - 7 vitest cases in `src/tests/nav-tree.test.js` covering backward-compat fallback, disable + hide modes, permission-denied vs. directly-disabled selection, the both-flags precedence rule, cascade-parent class assignment, and a mixed-tree integration case.
 - **Example showcase: rich tooltips in the top navbar of `/nav-tree-demo`** — the `RichTooltip` wrapper (Floating UI based) now also wraps the matching topbar items (Admin / Settings / Marketplace) with `placement="top-start"` so they fly upwards out of the horizontal bar. Mirrors the sidebar pattern (any node with `meta.docsUrl` uses the rich tooltip, everything else uses the plain `title=` attribute via `NavLink`'s `tooltip` prop). A `.rich-tooltip-trigger` pass-through rule was added to the topbar so the wrapper span doesn't double-pad the inner NavLink. Demonstrates the "rich tooltip works in both horizontal and vertical menu layouts from the same `richTooltipContent` snippet" pattern.
 - **Example: route-info bar promoted to the top of the page in `App.svelte`** — was sitting below the blue header with `position: sticky; top: 70px`. Moved to be the first child of `.app` with `position: sticky; top: 0`, so it sits in normal flow initially and pins to the viewport top once the user scrolls past the header. Cosmetic-only — no consumer impact.
+- **Example: `/nav-tree-demo` opts into `disabledClassName: 'unavailable'`** — Marketplace and Integrations (`disabled: true`) render with an amber `.unavailable` class (no strike-through), visually distinct from the red strike-through `.forbidden` class used for permission-denied items like Admin / Settings. Same treatment in both topbar and sidebar.
 
 ### Changed
 - **BREAKING: `NavTreeNode.isHidden` renamed to `hidden`** — aligns with the KeenMate web-components naming convention for data-model boolean fields, which use bare HTML attribute names (`hidden`, `disabled`, `selected`, `checked`, etc.) on single-item shapes. Mirrors the same rename that landed in `@keenmate/web-multiselect` (`MultiSelectOption.isDisabled` → `disabled`). The helper function `isNodeHidden(node)` keeps its `is*` prefix because it's a predicate, not a field.

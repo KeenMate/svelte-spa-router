@@ -62,8 +62,20 @@ import { hasPermission } from './permissions.svelte.js'
  * @typedef {Object} FilterOptions
  * @property {'hide' | 'disable'} [mode='hide']
  * @property {string} [forbiddenClassName='forbidden']  Class name attached to
- *   `_forbiddenClassName` on output nodes in disable mode. Pure data — the
+ *   `_forbiddenClassName` on output nodes whose forbidden state comes from
+ *   permission denial (or cascade from forbidden children). Pure data — the
  *   walker / NavLink decides how to apply it.
+ * @property {string} [disabledClassName]  Optional alternative class name for
+ *   nodes whose forbidden state comes from `disabled: true` (product-level
+ *   placeholder), not permission denial. When set, takes precedence over
+ *   `forbiddenClassName` for the `_forbiddenClassName` field on disabled
+ *   nodes — lets consumers style "coming soon" placeholders distinctly from
+ *   "you lack permission" items even though both render as a non-interactive
+ *   span. Cascade parents (forbidden because every visible child is
+ *   forbidden) keep `forbiddenClassName`. When a node is both `disabled` AND
+ *   permission-denied (rare), `disabledClassName` wins because the
+ *   product-level signal is the more permanent one. Default: undefined →
+ *   falls back to `forbiddenClassName` for full backward compatibility.
  * @property {boolean} [inheritPermissions=true]  When true, child nodes are
  *   only accessible if every ancestor's permissions also pass. Mirrors the
  *   router's hierarchical-mode semantics (filesystem-like).
@@ -124,9 +136,19 @@ export function filterByPermissions(tree, options = {}) {
     const {
         mode = 'hide',
         forbiddenClassName = 'forbidden',
+        disabledClassName,
         inheritPermissions = true,
         keepEmpty = () => false
     } = options
+
+    // Pick the class name for a forbidden node. `disabled: true` wins over
+    // permission denial because it's the more permanent product-level signal.
+    // Cascade parents (forbidden only because their children are) get the
+    // standard forbiddenClassName — only directly-disabled nodes get the
+    // distinct disabledClassName.
+    function classNameFor(isDisabled) {
+        return isDisabled && disabledClassName ? disabledClassName : forbiddenClassName
+    }
 
     // ancestorAllowed: boolean — true if every ancestor's permission check
     // passed. Top level is vacuously true. Sequential checks (not spec
@@ -162,7 +184,7 @@ export function filterByPermissions(tree, options = {}) {
                 // (you can't reach the menu section in the first place).
                 if (!allowed) continue
                 if (allChildrenFilteredOut && !shouldKeepEmpty) continue
-                out.push(buildOutput(node, filteredChildren, isDisabled, forbiddenClassName))
+                out.push(buildOutput(node, filteredChildren, isDisabled, classNameFor(isDisabled)))
             } else {
                 // mode === 'disable'
                 if (allChildrenFilteredOut && !shouldKeepEmpty) continue
@@ -170,7 +192,7 @@ export function filterByPermissions(tree, options = {}) {
                     && filteredChildren.length > 0
                     && filteredChildren.every((c) => c._forbidden)
                 const forbidden = !allowed || isDisabled || allVisibleChildrenForbidden
-                out.push(buildOutput(node, filteredChildren, forbidden, forbiddenClassName))
+                out.push(buildOutput(node, filteredChildren, forbidden, classNameFor(isDisabled)))
             }
         }
         return out

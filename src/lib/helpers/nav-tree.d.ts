@@ -169,11 +169,35 @@ export interface FilterOptions {
 
     /**
      * Class name attached to `_forbiddenClassName` on forbidden output nodes
-     * in `'disable'` mode. The walker / NavLink decides how to apply it.
+     * (permission denial or cascade from forbidden children). The walker /
+     * NavLink decides how to apply it.
      *
      * @default 'forbidden'
      */
     forbiddenClassName?: string;
+
+    /**
+     * Optional alternative class name for nodes whose forbidden state comes
+     * from `disabled: true` rather than permission denial. When set, takes
+     * precedence over `forbiddenClassName` for the `_forbiddenClassName`
+     * field on disabled nodes — lets consumers style "coming soon"
+     * placeholders distinctly from "you lack permission" items.
+     *
+     * - Cascade parents (forbidden because their children all are) keep
+     *   `forbiddenClassName` — only directly-disabled nodes pick this up.
+     * - When a node is both `disabled` AND permission-denied, this wins:
+     *   the product-level signal is the more permanent one.
+     * - Default `undefined` → falls back to `forbiddenClassName` for full
+     *   backward compatibility.
+     *
+     * @example
+     *   filterByPermissions(navTree, {
+     *       mode: 'disable',
+     *       forbiddenClassName: 'forbidden',   // red strike-through
+     *       disabledClassName: 'unavailable'   // amber "coming soon"
+     *   })
+     */
+    disabledClassName?: string;
 
     /**
      * When true, child node accessibility requires every ancestor's

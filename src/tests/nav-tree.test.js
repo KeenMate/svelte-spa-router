@@ -386,6 +386,111 @@ describe('filterByPermissions — disabled flag', () => {
     })
 })
 
+describe('filterByPermissions — disabledClassName', () => {
+    it('falls back to forbiddenClassName when disabledClassName is unset (backward compat)', () => {
+        currentUser = USERS.audrey
+        const tree = [{ path: '/x', title: 'X', disabled: true }]
+        const [n] = filterByPermissions(tree, { mode: 'disable' })
+        expect(n._forbiddenClassName).toBe('forbidden')
+    })
+
+    it('applies disabledClassName to a disabled node in disable mode', () => {
+        currentUser = USERS.audrey
+        const tree = [{ path: '/x', title: 'X', disabled: true }]
+        const [n] = filterByPermissions(tree, {
+            mode: 'disable',
+            disabledClassName: 'unavailable'
+        })
+        expect(n._forbidden).toBe(true)
+        expect(n._forbiddenClassName).toBe('unavailable')
+    })
+
+    it('applies disabledClassName to a disabled node in hide mode too', () => {
+        currentUser = USERS.audrey
+        const tree = [{ path: '/x', title: 'X', disabled: true }]
+        const [n] = filterByPermissions(tree, {
+            mode: 'hide',
+            disabledClassName: 'unavailable'
+        })
+        expect(n._forbiddenClassName).toBe('unavailable')
+    })
+
+    it('permission-denied nodes keep forbiddenClassName, not disabledClassName', () => {
+        currentUser = USERS.donna   // lacks 'admin'
+        const tree = [
+            { path: '/admin', title: 'Admin', permissions: { any: ['admin'] } }
+        ]
+        const [n] = filterByPermissions(tree, {
+            mode: 'disable',
+            forbiddenClassName: 'forbidden',
+            disabledClassName: 'unavailable'
+        })
+        expect(n._forbidden).toBe(true)
+        expect(n._forbiddenClassName).toBe('forbidden')
+    })
+
+    it('disabled wins over permission denial when both apply', () => {
+        currentUser = USERS.donna   // lacks 'admin'
+        const tree = [
+            {
+                path: '/admin/coming',
+                title: 'Coming',
+                permissions: { any: ['admin'] },
+                disabled: true
+            }
+        ]
+        const [n] = filterByPermissions(tree, {
+            mode: 'disable',
+            forbiddenClassName: 'forbidden',
+            disabledClassName: 'unavailable'
+        })
+        expect(n._forbidden).toBe(true)
+        expect(n._forbiddenClassName).toBe('unavailable')
+    })
+
+    it('cascade parents (forbidden via children) keep forbiddenClassName, not disabledClassName', () => {
+        currentUser = USERS.donna
+        const tree = [
+            {
+                path: '/p',
+                title: 'P',
+                children: [
+                    { path: '/p/a', title: 'A', permissions: { any: ['admin'] } },
+                    { path: '/p/b', title: 'B', permissions: { any: ['admin'] } }
+                ]
+            }
+        ]
+        const [parent] = filterByPermissions(tree, {
+            mode: 'disable',
+            forbiddenClassName: 'forbidden',
+            disabledClassName: 'unavailable'
+        })
+        // Parent is forbidden only because its visible children are. The parent
+        // itself isn't `disabled: true`, so it picks up the forbidden class.
+        expect(parent._forbidden).toBe(true)
+        expect(parent._forbiddenClassName).toBe('forbidden')
+    })
+
+    it('mixed tree: each forbidden node picks the class matching its source', () => {
+        currentUser = USERS.donna
+        const tree = [
+            { path: '/a', title: 'Admin', permissions: { any: ['admin'] } },   // permission-denied
+            { path: '/b', title: 'Coming', disabled: true },                    // disabled
+            { path: '/c', title: 'Public' }                                      // allowed
+        ]
+        const out = filterByPermissions(tree, {
+            mode: 'disable',
+            forbiddenClassName: 'forbidden',
+            disabledClassName: 'unavailable'
+        })
+        const [a, b, c] = out
+        expect(a._forbiddenClassName).toBe('forbidden')
+        expect(b._forbiddenClassName).toBe('unavailable')
+        expect(c._forbidden).toBeUndefined()
+        expect(c._forbiddenClassName).toBeUndefined()
+    })
+})
+
 describe('filterByPermissions — noRoute pass-through', () => {
     it('preserves noRoute on output nodes so consumers can branch on it', () => {
         currentUser = USERS.audrey

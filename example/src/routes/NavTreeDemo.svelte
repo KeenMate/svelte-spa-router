@@ -25,7 +25,15 @@ const path = $derived(location())
 const currentUser = $derived(user())
 let mode = $state('hide')   // 'hide' | 'disable'
 
-const visibleTree = $derived(filterByPermissions(navTree, { mode }))
+// `disabledClassName` opts in to a distinct CSS class on items whose
+// forbidden state comes from `disabled: true` (product placeholder) vs.
+// `forbiddenClassName` (default 'forbidden') which is applied to permission-
+// denied items. Both classes are styled below — permission-denied red,
+// product-disabled amber.
+const visibleTree = $derived(filterByPermissions(navTree, {
+    mode,
+    disabledClassName: 'unavailable'
+}))
 const active = $derived(findNodeByPath(navTree, path))
 
 // Collapsible-section state for noRoute headers. Stores paths of currently
@@ -349,6 +357,7 @@ function hasRichTooltip(node) {
             <li><strong><code>noRoute: true</code> — menu-only section header</strong> — the <em>Users</em> node has no real page. <code>App.svelte</code> filters <code>noRoute</code> nodes out of route registration; <code>NavLink</code> renders them as <code>&lt;span class="nav-header"&gt;</code> instead of <code>&lt;a&gt;</code>. The path stays useful for breadcrumbs, the active cascade, and tooltips. Try navigating to <code>/nav-tree-demo/users</code> directly — you'll get a 404, but clicking its children still works.</li>
             <li><strong>Collapsible noRoute sections</strong> — pair <code>noRoute</code> with the <code>collapsible</code> + <code>expanded</code> + <code>onclick</code> props on <code>NavLink</code> and it renders as a <code>&lt;button aria-expanded&gt;</code> with a rotating chevron. Click <em>Users</em> in the sidebar to expand/collapse its submenu. The state lives in the consumer (a single <code>$state</code> Set), so persistence/animation are the consumer's call.</li>
             <li><strong><code>disabled: true</code> — product-level forbidden flag</strong> — <em>Integrations</em> ("Coming feature..") and <em>Marketplace</em> ("In private beta...") use this. <code>disabled</code> is "permanently forbidden, regardless of user" — a product-level placeholder, not a user-permission check. So unlike <code>permissions</code>, it stays visible in <strong>both</strong> hide and disable modes. Different from <code>hidden</code> (which removes the item entirely). Toggle the hide/disable radio buttons — these two items don't disappear in hide mode the way Admin and Settings do for Donna. The only thing that can hide a disabled item is an ancestor's permission denial (you can't see a placeholder in a section you can't enter).</li>
+            <li><strong><code>disabledClassName</code> filter option — distinct visual for disabled vs. permission-denied</strong> — this demo passes <code>disabledClassName: 'unavailable'</code> to <code>filterByPermissions()</code>. Permission-denied items (Admin, Settings for Donna in disable mode) render with <code>class="forbidden"</code> — grey, strike-through, italic. Product-level <code>disabled: true</code> items (Marketplace, Integrations) render with <code>class="unavailable"</code> — amber, no strike-through (the message is "not ready yet", not "you can't have it"). The renderer (<code>NavLink</code>) hasn't changed at all — the filter just resolves <code>_forbiddenClassName</code> to a different value based on what made the node forbidden. Default <code>disabledClassName</code> is undefined, falling back to <code>forbiddenClassName</code> for full backward compatibility.</li>
             <li><strong>Rich (clickable) tooltips via <code>meta</code> + Floating UI</strong> — hover <em>Admin</em> or <em>Settings</em> in the sidebar to see a rich tooltip with a clickable "Read the docs →" link. The <code>meta: &#123; requiredRole, docsUrl &#125;</code> custom-fields convention keeps consumer data off the top level (mirrors the router's <code>routeContext</code> pattern). Custom fields ride through <code>filterByPermissions()</code> untouched, so the tooltip body can use them and the resolved <code>_forbidden</code> flag in one place. The <code>RichTooltip</code> wrapper uses <code>@floating-ui/dom</code> for positioning and survives mouseovers into the tooltip body so links are actually clickable.</li>
         </ul>
 
@@ -443,6 +452,16 @@ function hasRichTooltip(node) {
         text-decoration: line-through;
         cursor: not-allowed;
         font-style: italic;
+    }
+    /* Distinct visual for product-level `disabled: true` items — amber, no
+       strike-through (it's not "you can't have it", it's "it's not ready
+       yet"). Driven by the filter's disabledClassName option. */
+    .topbar :global(span.unavailable),
+    .topbar :global(button.unavailable) {
+        color: #b45309;
+        background: #fef3c7;
+        cursor: not-allowed;
+        font-style: normal;
     }
     .topbar :global(.nav-header) {
         color: #475569;
@@ -608,6 +627,15 @@ function hasRichTooltip(node) {
         text-decoration: line-through;
         cursor: not-allowed;
         font-style: italic;
+    }
+    /* Same amber treatment in the sidebar — keeps the two states distinct
+       at a glance across both layouts. */
+    .sidebar nav :global(span.unavailable),
+    .sidebar nav :global(button.unavailable) {
+        color: #b45309;
+        background: #fef3c7;
+        cursor: not-allowed;
+        font-style: normal;
     }
     /* noRoute section header — same box dimensions, distinct typography */
     .sidebar nav :global(.nav-header) {
