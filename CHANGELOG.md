@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-## [5.3.0-rc02] - 2026-06-20
+## [5.3.0] - 2026-06-30 [PUBLISHED]
 
 ### Added
 - **`FilterOptions.disabledClassName` — distinct CSS class for product-level disabled items** — new optional filter option on `filterByPermissions()`. When set, nodes whose forbidden state comes from `disabled: true` get this class on `_forbiddenClassName` instead of the default `forbiddenClassName`. Lets consumers style "coming soon" placeholders (amber "Unavailable") distinctly from permission-denied items (red "Access restricted") even though both still render via the same NavLink forbidden branch.

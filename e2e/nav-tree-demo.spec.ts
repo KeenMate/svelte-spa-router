@@ -135,9 +135,10 @@ test.describe('nav-tree-demo — Audrey (full permissions)', () => {
         await expect(nav.locator('span.forbidden').filter({ hasText: /^Create user$/ })).toHaveCount(0)
         // Product-level `disabled: true` items (Marketplace, Integrations) still
         // render as forbidden — `disabled` is a product signal independent of
-        // who's logged in. This is the rc02 semantic change.
-        await expect(nav.locator('span.forbidden').filter({ hasText: /^Marketplace$/ })).toBeVisible()
-        await expect(nav.locator('span.forbidden').filter({ hasText: /^Integrations$/ })).toBeVisible()
+        // who's logged in. This is the rc02 semantic change. They carry the
+        // distinct `unavailable` class via `disabledClassName`, not `forbidden`.
+        await expect(nav.locator('span.unavailable').filter({ hasText: /^Marketplace$/ })).toBeVisible()
+        await expect(nav.locator('span.unavailable').filter({ hasText: /^Integrations$/ })).toBeVisible()
     })
 })
 
