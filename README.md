@@ -23,6 +23,11 @@ MIT licensed.
 
 ## What's new
 
+### v5.4.0-rc01
+
+- **Fixed: `use:link` in history mode could navigate to a stale target** — when a component reuses the same `<a>` DOM node across renders and only updates its `href="/x/{id}"` attribute (e.g. rows in a reused/virtualized data grid), clicks navigated to the previously-rendered path even though the visible href was correct. The action now reads the link's live `href` from the DOM at click time (matching hash mode), so navigation always follows the current attribute.
+- **Fixed: `use:link` leaked duplicate `click` listeners** — the listener is now attached once and cleaned up via a `destroy()` on the action, instead of a new one being added on every reactive update.
+
 ### v5.3.0
 
 - **BREAKING: `NavTreeNode.isHidden` renamed to `hidden`** — aligns with the KeenMate web-components convention of bare HTML attribute names (`hidden`, `disabled`, `selected`) for data-model boolean fields. Same shape, same getter reactivity. Migration: find-and-replace `isHidden:` → `hidden:` in your nav-tree definitions. The helper predicate `isNodeHidden(node)` keeps its `is*` prefix.

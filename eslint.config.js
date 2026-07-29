@@ -43,6 +43,7 @@ export default [
         // Events
         Event: 'readonly',
         CustomEvent: 'readonly',
+        MouseEvent: 'readonly',
         HashChangeEvent: 'readonly',
         PopStateEvent: 'readonly',
 

@@ -897,12 +897,75 @@ export function link(node, opts) {
         throw Error('Action "link" can only be used with <a> tags')
     }
 
-    updateLink(node, opts)
+    // Keep the latest opts so the (single) click handler always sees current
+    // disabled/replace/target values instead of a snapshot captured at mount.
+    let currentOpts = opts
+
+    updateLink(node, currentOpts)
+
+    // Attach the click handler ONCE. Critically, it reads the link's live href
+    // from the DOM at click time. This prevents navigating to a stale target
+    // when the href attribute is updated reactively but the action itself is not
+    // re-run — e.g. when a data grid reuses <a> DOM nodes across renders and only
+    // the `href="/x/{item.id}"` attribute binding changes. Reading getAttribute at
+    // click time keeps history mode consistent with hash mode.
+    const clickHandler = (event) => {
+        if (hashRoutingEnabled) {
+            // Hash mode
+            event.preventDefault()
+            if (!currentOpts.disabled) {
+                scrollstateHistoryHandler(node.getAttribute('href'))
+            }
+            return
+        }
+
+        // History mode - enhanced with modifier key support
+        // Check for target attribute
+        const target = node.getAttribute('target')
+        if (target && target !== '_self') {
+            // Let browser handle links with target attribute
+            return
+        }
+
+        // Check for modifier keys (Ctrl, Shift, Meta/Cmd, Alt)
+        if (event.ctrlKey || event.shiftKey || event.metaKey || event.altKey) {
+            // Let browser handle modified clicks
+            return
+        }
+
+        // Prevent default and use our navigation
+        event.preventDefault()
+
+        if (currentOpts.disabled) {
+            return
+        }
+
+        // Save scroll state
+        history.replaceState({...history.state, __svelte_spa_router_scrollX: window.scrollX, __svelte_spa_router_scrollY: window.scrollY}, undefined)
+
+        // Read the live href from the DOM and strip the basePath that updateLink
+        // prepended for display, so we navigate to the router-relative path.
+        let href = node.getAttribute('href')
+        if (basePath !== '/' && href && href.indexOf(basePath) === 0) {
+            href = href.slice(basePath.length)
+            if (!href || href.charAt(0) !== '/') {
+                href = '/' + (href || '')
+            }
+        }
+
+        // Navigate
+        navigate(href, !!currentOpts.replace)
+    }
+
+    node.addEventListener('click', clickHandler)
 
     return {
         update(updated) {
-            updated = linkOpts(updated)
-            updateLink(node, updated)
+            currentOpts = linkOpts(updated)
+            updateLink(node, currentOpts)
+        },
+        destroy() {
+            node.removeEventListener('click', clickHandler)
         }
     }
 }
@@ -962,13 +1025,6 @@ function updateLink(node, opts) {
         }
 
         node.setAttribute('href', href)
-        node.addEventListener('click', (event) => {
-            // Prevent default anchor onclick behaviour
-            event.preventDefault()
-            if (!opts.disabled) {
-                scrollstateHistoryHandler(event.currentTarget.getAttribute('href'))
-            }
-        })
     } else {
         // History mode - enhanced with modifier key support
         // Normalize href
@@ -982,36 +1038,6 @@ function updateLink(node, opts) {
         // Prepend basePath for display
         const fullPath = basePath !== '/' ? joinPaths(basePath, href) : href
         node.setAttribute('href', fullPath)
-
-        node.addEventListener('click', (event) => {
-            // Check for target attribute
-            const target = node.getAttribute('target')
-            if (target && target !== '_self') {
-                // Let browser handle links with target attribute
-                return
-            }
-
-            // Check for modifier keys (Ctrl, Shift, Meta/Cmd, Alt)
-            if (event.ctrlKey || event.shiftKey || event.metaKey || event.altKey) {
-                // Let browser handle modified clicks
-                return
-            }
-
-            // Prevent default and use our navigation
-            event.preventDefault()
-
-            if (!opts.disabled) {
-                // Save scroll state
-                history.replaceState({...history.state, __svelte_spa_router_scrollX: window.scrollX, __svelte_spa_router_scrollY: window.scrollY}, undefined)
-
-                // Navigate
-                if (opts.replace) {
-                    navigate(href, true)
-                } else {
-                    navigate(href, false)
-                }
-            }
-        })
     }
 }
 

@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [5.4.0-rc01] - 2026-07-29 [PUBLISHED]
+
+### Fixed
+- **`use:link` in history mode navigated to a stale target when the `href` attribute changed reactively without the action re-running** — the history-mode click handler captured `href` in a closure at action-mount time and navigated with that snapshot. When a component reuses the same `<a>` DOM node across renders and only mutates its `href="/x/{id}"` attribute binding (e.g. rows in a virtualized/reused data grid), Svelte updates the attribute but does not re-run the parameterless `use:link` action, so clicks navigated to the previously-rendered path even though the visible href and browser status bar were correct. The handler now reads the link's live `href` from the DOM at click time (stripping `basePath`), matching the behaviour hash mode already had.
+  - **Also fixed:** `updateLink()` attached a new `click` listener on every invocation, so any reactive `use:link={...}` accumulated duplicate handlers across updates. The listener is now attached once and removed via a `destroy()` returned from the action.
+  - 5 vitest cases in `src/tests/link-action.test.js` covering live-href navigation (history + hash), `basePath` stripping, modifier-click pass-through, and handler removal on destroy.
+
 ## [5.3.0] - 2026-06-30 [PUBLISHED]
 
 ### Added
